@@ -1,0 +1,18 @@
+{
+  "name": "astco-cde",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ISO 19650 common data environment: document register, transmittals, site inspections",
+  "type": "commonjs",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "migrate": "node scripts/migrate.js",
+    "seed": "node scripts/seed.js",
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "4.22.3",
+    "pg": "8.23.0"
+  }
+}
