@@ -30,7 +30,24 @@ const INLINE_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'ima
 //   WIP:               P01.01 -> P01.02, P01 -> P02.01
 //   SHARED/PUBLISHED P: P01.02 -> P01,   P01 -> P02
 //   PUBLISHED C:        -> C01, C01 -> C02
+// The UK NA scheme is two digits per part: P01..P99, C01..C99, and .01..99
+// for work-in-progress versions. The schema enforces this with CHECKs; say
+// what to do instead of surfacing the constraint name (failure hunt E6).
 function nextRevision(latest, suitability) {
+    const [prefix, major, minor] = computeNextRevision(latest, suitability);
+    if (minor !== null && minor > 99) {
+        const shared = `P${String(major).padStart(2, '0')}`;
+        throw new HttpError(422, `${latest.revision_label} is the 99th work-in-progress version, the most the numbering allows. `
+            + `Upload it with a shared status (S1–S4) to issue ${shared}; later work in progress continues as P${String(major + 1).padStart(2, '0')}.01.`);
+    }
+    if (major > 99) {
+        throw new HttpError(422, `This document has reached ${prefix}99, the highest revision the numbering allows. `
+            + 'Register a new document number for further revisions.');
+    }
+    return [prefix, major, minor];
+}
+
+function computeNextRevision(latest, suitability) {
     const { cde_state: state, revision_prefix: prefix } = suitability;
     if (!latest) return state === 'WIP' ? ['P', 1, 1] : [prefix, 1, null];
     if (latest.revision_prefix === 'C') {
@@ -94,6 +111,11 @@ router.post('/projects/:pid/documents', route(async (req, res) => {
         // Next free number within this originator/volume/level/type/role.
         let numberCode = number;
         if (!numberCode) {
+            // One series (project, originator, volume, level, type, role) is
+            // numbered by one request at a time, so parallel registrations get
+            // 0001, 0002, ... instead of colliding (failure hunt E5).
+            await db.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+                [['docnum', pid, me.originator_code, ...fields].join('|')]);
             const max = (await db.query(
                 `SELECT max(number_code::int) AS n FROM cde_documents
                   WHERE project_id = $1 AND originator_code = $2 AND volume_code = $3
@@ -221,6 +243,11 @@ router.post('/documents/:id/revisions', route(async (req, res) => {
             'SELECT cde_state, revision_prefix FROM project_suitability_codes WHERE project_id = $1 AND code = $2',
             [doc.project_id, suitabilityCode])).rows[0];
         if (!suit) throw new HttpError(422, `Unknown suitability code ${suitabilityCode}.`);
+        // Same lock the insert trigger takes. Holding it before reading the
+        // latest revision makes read, compute and insert one step, so parallel
+        // uploads get consecutive labels instead of all but one failing
+        // (failure hunt E5).
+        await db.query(`SELECT pg_advisory_xact_lock(hashtextextended('rev:' || $1::text, 0))`, [id]);
         const latest = (await db.query(
             `SELECT revision_label, revision_prefix, revision_major, revision_minor FROM cde_document_revisions
               WHERE document_id = $1 ORDER BY revision_seq DESC LIMIT 1`, [id])).rows[0];

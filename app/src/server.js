@@ -50,6 +50,8 @@ function createApp() {
     });
 
     app.get('/healthz', route(async (_req, res) => {
+        // While shutting down, report unhealthy so no new traffic arrives.
+        if (draining) return res.status(503).json({ ok: false, draining: true });
         await pool.query('SELECT 1');
         res.json({ ok: true });
     }));
@@ -123,6 +125,41 @@ async function checkDatabaseRole() {
     console.warn(`WARNING: ${message}`);
 }
 
+// Graceful shutdown (failure hunt E7). Node's default on SIGTERM is to exit
+// at once, cutting off every request in flight, so each deploy or scale-in
+// broke uploads and saves in progress. On SIGTERM/SIGINT: report unhealthy
+// so the load balancer stops sending traffic, stop accepting connections,
+// let in-flight requests finish (up to SHUTDOWN_GRACE_MS, which must be
+// shorter than the orchestrator's kill timeout, 30 s by default on
+// Kubernetes), then close the database pool.
+let draining = false;
+
+function installGracefulShutdown(server) {
+    const graceMs = Number(process.env.SHUTDOWN_GRACE_MS || 25_000);
+    let started = false;
+    const shutdown = (signal) => {
+        if (started) return;
+        started = true;
+        draining = true;
+        console.log(`${signal} received: finishing in-flight requests (up to ${graceMs} ms)`);
+        const force = setTimeout(() => {
+            console.error('Shutdown grace period ended with requests still open; exiting');
+            process.exit(1);
+        }, graceMs);
+        force.unref();
+        server.close(async () => {
+            await pool.end().catch(() => {});
+            console.log('Shutdown complete');
+            process.exit(0);
+        });
+        // Keep-alive connections with no request in progress would otherwise
+        // hold server.close() open until they time out.
+        server.closeIdleConnections();
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
 if (require.main === module) {
     const port = Number(process.env.PORT || 3000);
     checkDatabaseRole()
@@ -132,8 +169,9 @@ if (require.main === module) {
             // higher REQUEST_TIMEOUT_MS.
             server.headersTimeout = 30_000;
             server.requestTimeout = Number(process.env.REQUEST_TIMEOUT_MS || 15 * 60 * 1000);
+            installGracefulShutdown(server);
         })
         .catch((err) => { console.error(err.message); process.exit(1); });
 }
 
-module.exports = { createApp, parseTrustProxy, checkDatabaseRole };
+module.exports = { createApp, parseTrustProxy, checkDatabaseRole, installGracefulShutdown };

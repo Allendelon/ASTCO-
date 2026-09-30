@@ -52,6 +52,8 @@ const CHECK_MESSAGES = {
     site_inspections_ifc_global_id_check: 'An IFC GlobalId is 22 characters and starts with 0–3.',
     site_inspections_sheet_x_norm_check: 'The pin must be on the sheet.',
     site_inspections_sheet_y_norm_check: 'The pin must be on the sheet.',
+    cde_document_revisions_revision_major_check: 'Revisions run from 01 to 99. Register a new document number for further revisions.',
+    cde_document_revisions_revision_minor_check: 'Work-in-progress versions run from .01 to .99. Share the document to issue the next revision.',
 };
 
 const UNIQUE_MESSAGES = {
@@ -90,12 +92,31 @@ function fromPgError(err) {
     }
 }
 
+// The database is busy or unreachable: the request may succeed if retried.
+// 57014 statement timeout, 55P03 lock timeout, 57P01-57P03 server shutting
+// down or starting, 08xxx connection failures, and pg-pool's own messages.
+function isUnavailable(err) {
+    return ['57014', '55P03', '57P01', '57P02', '57P03'].includes(err.code)
+        || /^08/.test(err.code || '')
+        // Only socket errors from connecting to the database: ENOENT from the
+        // file store (a missing stored file) is not "unavailable".
+        || (err.syscall === 'connect' && ['ECONNREFUSED', 'ENOENT', 'ETIMEDOUT'].includes(err.code))
+        || /timeout exceeded when trying to connect|Connection terminated/.test(err.message || '');
+}
+
 function errorHandler(err, req, res, _next) {
     const mapped = err instanceof HttpError ? err : fromPgError(err);
     if (mapped) return res.status(mapped.status).json({ error: mapped.message });
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Request body is not valid JSON.' });
+    if (isUnavailable(err)) {
+        // Expected during database restarts, failovers and lock contention:
+        // one line per request, not a stack trace.
+        console.warn(`503 ${req.method} ${req.originalUrl}: ${err.code || ''} ${err.message}`);
+        return res.status(503).set('Retry-After', '5')
+            .json({ error: 'The service is busy or briefly unavailable. Try again in a few seconds.' });
+    }
     console.error(err);
     res.status(500).json({ error: 'Something went wrong on the server. The error has been logged.' });
 }
 
-module.exports = { HttpError, route, ctx, uuidParam, required, optionalText, errorHandler, UUID_RE };
+module.exports = { HttpError, route, ctx, uuidParam, required, optionalText, errorHandler, isUnavailable, UUID_RE };

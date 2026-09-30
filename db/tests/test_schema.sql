@@ -496,4 +496,22 @@ UPDATE audit_trail SET details = '{"code": "CODE_A"}'
 ALTER TABLE audit_trail ENABLE TRIGGER audit_trail_no_update_delete;
 SELECT t_assert(audit_verify_chain('c0000000-0000-0000-0000-000000000001') = 5, 'tampered row detected');
 
+-- ------------------------------------------------------ system audit entries
+\echo system audit entries
+-- A system job (the owner role, no request user) can load a revision; its
+-- audit entry has no actor. The app role without a user still cannot write.
+SELECT set_config('app.user_id', '', false);
+INSERT INTO cde_document_revisions (document_id, project_id, originator_org_id, revision_prefix, revision_major,
+    suitability_code, cde_state, object_key, sha256, size_bytes, mime_type, original_filename, uploaded_by)
+VALUES ('d0000000-0000-0000-0000-000000000009', 'c0000000-0000-0000-0000-000000000001',
+        'a0000000-0000-0000-0000-000000000002', 'P', 5, 'S2', 'SHARED',
+        encode(sha256('imported'::bytea), 'hex'), sha256('imported'::bytea), 8, 'application/pdf', 'imported.pdf',
+        'b0000000-0000-0000-0000-000000000003');
+SELECT t_assert((SELECT actor_id IS NULL FROM audit_trail WHERE action = 'REVISION_UPLOADED'
+                  ORDER BY id DESC LIMIT 1), 'system entry has no actor');
+SET ROLE cde_app;
+SELECT t_expect_error($$ SELECT audit_append('c0000000-0000-0000-0000-000000000001', 'FAKE', 'X', gen_random_uuid()) $$,
+                      'no user in the request context');
+RESET ROLE;
+
 \echo all schema tests passed

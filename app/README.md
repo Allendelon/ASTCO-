@@ -51,6 +51,11 @@ The API tests create a throwaway database, run the migrations and seed, and star
 | `DAILY_UPLOAD_GB` | `20` | Upload volume allowed per user in any 24 hours |
 | `LOGIN_MAX_FAILURES_PER_IP` / `_PER_ACCOUNT` / `_PER_ACCOUNT_GLOBAL` | `30` / `10` / `100` | Failed sign-ins allowed per 15 minutes before `429`: per client (IPv6 counted per /64), per account from one client, and per account from anywhere |
 | `REQUEST_TIMEOUT_MS` | `900000` | Longest a single request (e.g. an upload) may take |
+| `DB_CONNECT_TIMEOUT_MS` | `5000` | Longest wait for a database connection before answering `503` |
+| `DB_STATEMENT_TIMEOUT_MS` | `15000` | Longest single query. Raise it if audit verification of a very long chain needs more |
+| `DB_LOCK_TIMEOUT_MS` | `5000` | Longest wait for a lock held by someone else (a migration, a long report) before `503` |
+| `DB_IDLE_TX_TIMEOUT_MS` | `60000` | The server ends a transaction left open with nothing running |
+| `SHUTDOWN_GRACE_MS` | `25000` | On SIGTERM, how long in-flight requests get to finish. Keep it below your orchestrator's kill timeout |
 | `ALLOW_PRIVILEGED_DB_ROLE` | unset | `1` overrides the production role check. Do not use this in production |
 
 ## How the app relies on the database
