@@ -117,13 +117,13 @@ form.stack { display: flex; flex-direction: column; gap: 14px; }
 .toolbar select { width: auto; }
 .segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
 .segmented a { padding: 7px 14px; text-decoration: none; color: var(--ink); background: var(--surface); }
-.segmented a + a { border-left: 1px solid var(--line); }
+.segmented a + a { border-inline-start: 1px solid var(--line); }
 .segmented a[aria-current="page"] { background: var(--ink); color: var(--surface); }
 
 /* ---------- tables */
 .table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+th, td { text-align: start; padding: 9px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
 th { font-weight: 600; font-size: 0.84rem; color: var(--muted); background: var(--surface); position: sticky; top: 0; }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr.clickable { cursor: pointer; }
@@ -155,8 +155,8 @@ td.num { white-space: nowrap; }
 
 /* ---------- title block: the ISO 19650 container name, field by field */
 .titleblock { display: grid; grid-template-columns: repeat(7, auto) 1fr; border: 2px solid var(--ink); background: var(--surface); margin: 6px 0 22px; max-width: 100%; overflow-x: auto; }
-.titleblock div { padding: 8px 14px 6px; border-right: 1px solid var(--ink); min-width: 0; }
-.titleblock div:last-child { border-right: 0; }
+.titleblock div { padding: 8px 14px 6px; border-inline-end: 1px solid var(--ink); min-width: 0; }
+.titleblock div:last-child { border-inline-end: 0; }
 .titleblock b { display: block; font: 500 1.35rem/1.1 var(--mono); letter-spacing: 0.02em; }
 .titleblock small { display: block; color: var(--muted); font-size: 0.74rem; margin-top: 3px; }
 .titleblock .rev { background: var(--ink); color: var(--surface); }
@@ -168,7 +168,7 @@ td.num { white-space: nowrap; }
 .panel + .panel { margin-top: 16px; }
 .panel h2 { margin-bottom: 12px; }
 .timeline { list-style: none; margin: 0; padding: 0; }
-.timeline li { border-left: 3px solid var(--line); padding: 8px 0 12px 14px; position: relative; cursor: pointer; }
+.timeline li { border-inline-start: 3px solid var(--line); padding-block: 8px 12px; padding-inline: 14px 0; position: relative; cursor: pointer; }
 .timeline li.WIP { border-color: var(--wip); } .timeline li.SHARED { border-color: var(--shared); } .timeline li.PUBLISHED { border-color: var(--published); }
 .timeline li[aria-selected="true"] { background: var(--line-soft); }
 .timeline .rev-line { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
@@ -199,7 +199,7 @@ dialog::backdrop { background: rgba(10, 18, 20, 0.45); }
 dialog .dlg-head { padding: 16px 20px 0; }
 dialog .dlg-body { padding: 16px 20px; overflow-y: auto; }
 dialog .dlg-foot { padding: 12px 20px 16px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--line-soft); }
-.error-box { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); border-left: 3px solid var(--danger); padding: 8px 12px; font-size: 0.9rem; }
+.error-box { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); border-inline-start: 3px solid var(--danger); padding: 8px 12px; font-size: 0.9rem; }
 .pick-list { border: 1px solid var(--line); border-radius: 4px; max-height: 240px; overflow-y: auto; }
 .pick-list label { flex-direction: row; align-items: center; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--line-soft); font-weight: 400; }
 .pick-list label:last-child { border-bottom: 0; }
@@ -218,6 +218,21 @@ dialog .dlg-foot { padding: 12px 20px 16px; display: flex; justify-content: flex
 .login-art .titleblock .rev { background: var(--rail-active); color: var(--rail); }
 .login-art p { max-width: 48ch; margin: 0; }
 .login-form { padding: 48px 40px; display: flex; flex-direction: column; justify-content: center; gap: 18px; background: var(--surface); }
+.login-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+/* ---------- right-to-left (ADR-006)
+   Layout mirrors through logical properties above. Codes (document numbers,
+   revisions, hashes, IFC ids) are isolated left-to-right runs, and the
+   ISO 19650 title block reads left to right because the code it spells does. */
+:root[lang="ar"] { --font: 'IBM Plex Sans Arabic', 'Barlow', system-ui, sans-serif; }
+/* Letter-spacing pulls Arabic letters apart and breaks their joins. */
+:root[lang="ar"] h1, :root[lang="ar"] h2, :root[lang="ar"] h3 { letter-spacing: 0; }
+bdi[dir="ltr"] { unicode-bidi: isolate; }
+.titleblock { direction: ltr; }
+.titleblock small { direction: rtl; unicode-bidi: plaintext; }
+[dir="rtl"] .hash { direction: ltr; text-align: right; }
+[dir="rtl"] .rail nav a[aria-current="page"] { box-shadow: inset -3px 0 0 var(--focus); }
+/* Pins sit at image coordinates, which do not mirror: .pin keeps physical left/top. */
 
 @media (max-width: 900px) {
     .doc-grid { grid-template-columns: 1fr; }

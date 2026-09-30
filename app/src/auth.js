@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { withTx } = require('./db');
+const { HttpError, sendError } = require('./http');
 const limits = require('./ratelimit');
 
 const SESSION_TTL_HOURS = Number(process.env.SESSION_TTL_HOURS || 12);
@@ -85,10 +86,9 @@ function sessionCookie(value, maxAgeSeconds) {
     return parts.join('; ');
 }
 
-class LoginError extends Error {
-    constructor(status, message, retryAfter) {
-        super(message);
-        this.status = status;
+class LoginError extends HttpError {
+    constructor(status, code, retryAfter) {
+        super(status, code);
         this.retryAfter = retryAfter;
     }
 }
@@ -113,7 +113,7 @@ async function withHashSlot(fn) {
         hashing += 1;
     } else {
         if (hashWaiters.length >= HASH_QUEUE) {
-            throw new LoginError(503, 'Sign-in is busy right now. Try again in a few seconds.', 5);
+            throw new LoginError(503, 'busy_signin', 5);
         }
         await new Promise((resolve) => hashWaiters.push(resolve));   // slot handed over on release
     }
@@ -130,7 +130,7 @@ async function login(email, password, ip) {
     email = String(email || '').trim().toLowerCase();
     password = String(password || '');
     if (email.length > MAX_EMAIL || password.length > MAX_PASSWORD) {
-        throw new LoginError(400, 'Email or password is too long.');
+        throw new LoginError(400, 'credentials_too_long');
     }
     const client = limits.clientKey(ip);
     const keys = {
@@ -149,7 +149,7 @@ async function login(email, password, ip) {
                 [keys.accountGlobal, MAX_PER_ACCOUNT_GLOBAL]]),
             found: (await db.query('SELECT user_id, password_hash FROM auth_lookup_credentials($1)', [email])).rows[0],
         }));
-        if (wait) throw new LoginError(429, 'Too many failed sign-in attempts. Try again later.', wait);
+        if (wait) throw new LoginError(429, 'too_many_failed_signins', wait);
         dummyHash ??= await hashPassword(crypto.randomBytes(16).toString('hex'));
         const result = await verifyPassword(password, found?.password_hash ?? dummyHash);
         return {
@@ -201,7 +201,7 @@ async function requireUser(req, res, next) {
                     [sha256(token), SESSION_IDLE_MINUTES]));
             req.userId = rows[0]?.user_id || null;
         }
-        if (!req.userId) return res.status(401).json({ error: 'Sign in to continue.' });
+        if (!req.userId) return sendError(res, new HttpError(401, 'signin_required'));
         next();
     } catch (err) {
         next(err);

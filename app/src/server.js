@@ -4,7 +4,7 @@ const path = require('node:path');
 const express = require('express');
 const auth = require('./auth');
 const { pool } = require('./db');
-const { route, required, errorHandler } = require('./http');
+const { HttpError, route, required, errorHandler, sendError } = require('./http');
 
 // Express reads a number as "trust this many hops" and a string as a list of
 // trusted proxy addresses, so TRUST_PROXY="1" as a string would silently mean
@@ -65,23 +65,23 @@ function createApp() {
     // call must also carry a header a cross-site form cannot set.
     api.use((req, res, next) => {
         if (!['GET', 'HEAD'].includes(req.method) && req.get('X-CDE-Request') !== '1') {
-            return res.status(403).json({ error: 'Missing X-CDE-Request header.' });
+            return sendError(res, new HttpError(403, 'csrf_header_missing'));
         }
         next();
     });
 
     api.post('/auth/login', route(async (req, res) => {
-        const email = required(req.body, 'email', 'Email');
-        const password = required(req.body, 'password', 'Password');
+        const email = required(req.body, 'email');
+        const password = required(req.body, 'password');
         let session;
         try {
             session = await auth.login(email, password, req.ip);
         } catch (err) {
             if (!(err instanceof auth.LoginError)) throw err;
             if (err.retryAfter) res.set('Retry-After', String(err.retryAfter));
-            return res.status(err.status).json({ error: err.message });
+            return sendError(res, err);
         }
-        if (!session) return res.status(401).json({ error: 'Email or password is incorrect.' });
+        if (!session) return sendError(res, new HttpError(401, 'wrong_credentials'));
         res.set('Set-Cookie', auth.sessionCookie(session.token, session.maxAge)).json({ ok: true });
     }));
 
@@ -100,7 +100,7 @@ function createApp() {
     api.use(require('./routes/transmittals'));
     api.use(require('./routes/inspections'));
     api.use(require('./routes/audit'));
-    api.use((_req, res) => res.status(404).json({ error: 'Not found.' }));
+    api.use((_req, res) => sendError(res, new HttpError(404, 'not_found')));
 
     app.use('/api', api);
     app.use(express.static(path.join(__dirname, '..', 'public'), { index: 'index.html' }));

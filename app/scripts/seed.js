@@ -30,10 +30,10 @@ const USERS = [
 ];
 const PROJECT = { id: 'c1000000-0000-4000-8000-000000000001', code: 'KAFD', name: 'KAFD Tower 7 – MEP Fit-out' };
 const CODES = {
-    VOLUME: [['ZZ', 'All volumes'], ['T7', 'Tower 7'], ['PD', 'Podium']],
-    LEVEL: [['ZZ', 'Multiple levels'], ['B1', 'Basement 1'], ['00', 'Ground'], ['01', 'Level 01'], ['02', 'Level 02'], ['RF', 'Roof']],
-    TYPE: [['DR', 'Drawing'], ['M3', '3D model'], ['SP', 'Specification'], ['CA', 'Calculation'], ['RP', 'Report'], ['MS', 'Method statement']],
-    ROLE: [['A', 'Architect'], ['M', 'Mechanical'], ['E', 'Electrical'], ['P', 'Public health'], ['S', 'Structural'], ['C', 'Civil']],
+    VOLUME: [['ZZ', 'All volumes', 'كل المجلدات'], ['T7', 'Tower 7', 'البرج 7'], ['PD', 'Podium', 'المنصة']],
+    LEVEL: [['ZZ', 'Multiple levels', 'مستويات متعددة'], ['B1', 'Basement 1', 'القبو 1'], ['00', 'Ground', 'الأرضي'], ['01', 'Level 01', 'المستوى 01'], ['02', 'Level 02', 'المستوى 02'], ['RF', 'Roof', 'السطح']],
+    TYPE: [['DR', 'Drawing', 'مخطط'], ['M3', '3D model', 'نموذج ثلاثي الأبعاد'], ['SP', 'Specification', 'مواصفات'], ['CA', 'Calculation', 'حسابات'], ['RP', 'Report', 'تقرير'], ['MS', 'Method statement', 'بيان طريقة العمل']],
+    ROLE: [['A', 'Architect', 'معماري'], ['M', 'Mechanical', 'ميكانيكا'], ['E', 'Electrical', 'كهرباء'], ['P', 'Public health', 'صحة عامة (سباكة)'], ['S', 'Structural', 'إنشائي'], ['C', 'Civil', 'مدني']],
 };
 
 // A one-page PDF with a title block, built by hand so the seed needs no library.
@@ -131,9 +131,9 @@ async function seed() {
                 [PROJECT.id, u.id, ORGS[u.org].id, u.role]);
         }
         for (const [field, list] of Object.entries(CODES)) {
-            for (const [code, description] of list) {
-                await db.query('INSERT INTO project_code_values (project_id, field, code, description) VALUES ($1, $2, $3, $4)',
-                    [PROJECT.id, field, code, description]);
+            for (const [code, description, descriptionAr] of list) {
+                await db.query('INSERT INTO project_code_values (project_id, field, code, description, description_ar) VALUES ($1, $2, $3, $4, $5)',
+                    [PROJECT.id, field, code, description, descriptionAr]);
             }
         }
         await db.query('SELECT seed_uk_na_suitability_codes($1)', [PROJECT.id]);

@@ -286,7 +286,7 @@ test('SEC-01: an upload can only be used by its uploader, once', async () => {
     const reuse = await mep.post(`/api/documents/${mine.id}/revisions`,
         { object_key: knownHash, suitability_code: 'S2', original_filename: 'x.pdf', mime_type: 'application/pdf' });
     assert.equal(reuse.status, 403);
-    assert.match(reuse.data.error, /upload the file again/);
+    assert.equal(reuse.data.code, 'upload_again');
 
     const up = (await mep.put(`/api/projects/${pid()}/uploads`, Buffer.from('%PDF-1.4 consultant'), { 'Content-Type': 'application/octet-stream' })).data;
     assert.equal(up.detected_mime, 'application/pdf');

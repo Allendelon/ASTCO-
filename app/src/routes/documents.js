@@ -32,12 +32,11 @@ function nextRevision(latest, suitability) {
     const [prefix, major, minor] = computeNextRevision(latest, suitability);
     if (minor !== null && minor > 99) {
         const shared = `P${String(major).padStart(2, '0')}`;
-        throw new HttpError(422, `${latest.revision_label} is the 99th work-in-progress version, the most the numbering allows. `
-            + `Upload it with a shared status (S1–S4) to issue ${shared}; later work in progress continues as P${String(major + 1).padStart(2, '0')}.01.`);
+        throw new HttpError(422, 'revision_wip_limit',
+            { latest: latest.revision_label, shared, next: `P${String(major + 1).padStart(2, '0')}.01` });
     }
     if (major > 99) {
-        throw new HttpError(422, `This document has reached ${prefix}99, the highest revision the numbering allows. `
-            + 'Register a new document number for further revisions.');
+        throw new HttpError(422, 'revision_limit', { prefix });
     }
     return [prefix, major, minor];
 }
@@ -47,7 +46,7 @@ function computeNextRevision(latest, suitability) {
     if (!latest) return state === 'WIP' ? ['P', 1, 1] : [prefix, 1, null];
     if (latest.revision_prefix === 'C') {
         if (prefix !== 'C') {
-            throw new HttpError(422, `This document is already at ${latest.revision_label}. New revisions must use a C (contractual) suitability code.`);
+            throw new HttpError(422, 'revision_after_contractual', { latest: latest.revision_label });
         }
         return ['C', latest.revision_major + 1, null];
     }
@@ -91,8 +90,8 @@ router.get('/projects/:pid/documents', route(async (req, res) => {
 router.post('/projects/:pid/documents', route(async (req, res) => {
     const pid = uuidParam(req, 'pid');
     const b = req.body || {};
-    const fields = ['volume_code', 'level_code', 'type_code', 'role_code'].map((f) => required(b, f, f.replace('_code', '')));
-    const title = required(b, 'title', 'Title');
+    const fields = ['volume_code', 'level_code', 'type_code', 'role_code'].map((f) => required(b, f));
+    const title = required(b, 'title');
     const number = b.number_code ? String(b.number_code).trim() : '';
 
     const doc = await withTx(ctx(req), async (db) => {
@@ -101,7 +100,7 @@ router.post('/projects/:pid/documents', route(async (req, res) => {
                FROM projects p JOIN project_organizations po
                  ON po.project_id = p.id AND po.organization_id = app_member_org(p.id)
               WHERE p.id = $1`, [pid])).rows[0];
-        if (!me) throw new HttpError(404, 'Project not found.');
+        if (!me) throw new HttpError(404, 'project_not_found');
 
         // Next free number within this originator/volume/level/type/role.
         let numberCode = number;
@@ -137,7 +136,7 @@ router.get('/documents/:id', route(async (req, res) => {
                     app_member_role(d.project_id) AS my_role
                FROM cde_documents d JOIN organizations o ON o.id = d.originator_org_id
               WHERE d.id = $1`, [id])).rows[0];
-        if (!doc) throw new HttpError(404, 'Document not found.');
+        if (!doc) throw new HttpError(404, 'document_not_found');
         const revisions = (await db.query(
             `SELECT r.id, r.revision_label, r.revision_seq, r.suitability_code, r.cde_state, r.mime_type,
                     r.original_filename, r.size_bytes::text AS size_bytes, encode(r.sha256, 'hex') AS sha256,
@@ -163,10 +162,10 @@ router.get('/documents/:id', route(async (req, res) => {
 
 router.patch('/documents/:id', route(async (req, res) => {
     const id = uuidParam(req, 'id');
-    const title = required(req.body, 'title', 'Title');
+    const title = required(req.body, 'title');
     const n = await withTx(ctx(req), async (db) =>
         (await db.query('UPDATE cde_documents SET title = $2 WHERE id = $1', [id, title])).rowCount);
-    if (!n) throw new HttpError(404, 'Document not found, or you cannot edit it.');
+    if (!n) throw new HttpError(404, 'document_not_editable');
     res.json({ ok: true });
 }));
 
@@ -182,7 +181,7 @@ router.patch('/documents/:id', route(async (req, res) => {
 router.put('/projects/:pid/uploads', route(async (req, res) => {
     const pid = uuidParam(req, 'pid');
     const declared = Number(req.get('Content-Length') || 0);
-    if (declared > storage.MAX_BYTES) throw new HttpError(413, `Files can be at most ${storage.MAX_BYTES / 1024 ** 2} MB.`);
+    if (declared > storage.MAX_BYTES) throw new HttpError(413, 'file_too_large', { mb: storage.MAX_BYTES / 1024 ** 2 });
     // Without a Content-Length the whole per-file limit is reserved.
     const reserve = declared > 0 ? declared : storage.MAX_BYTES;
 
@@ -192,9 +191,9 @@ router.put('/projects/:pid/uploads', route(async (req, res) => {
             'SELECT upload_begin($1, $2, $3, $4, make_interval(secs => $5)) AS id',
             [pid, reserve, DAILY_UPLOAD_BYTES, MAX_PARALLEL_UPLOADS, UPLOAD_STALE_MS / 1000])).rows[0].id);
     } catch (err) {
-        if (err.code === 'CDQ01') throw new HttpError(429, `You have reached your upload limit of ${DAILY_UPLOAD_BYTES / 1024 ** 3} GB in 24 hours.`);
-        if (err.code === 'CDQ02') throw new HttpError(429, `You already have ${MAX_PARALLEL_UPLOADS} uploads in progress. Wait for one to finish.`);
-        if (err.code === '42501') throw new HttpError(403, 'You cannot upload files to this project.');
+        if (err.code === 'CDQ01') throw new HttpError(429, 'upload_quota', { gb: DAILY_UPLOAD_BYTES / 1024 ** 3 });
+        if (err.code === 'CDQ02') throw new HttpError(429, 'upload_parallel', { n: MAX_PARALLEL_UPLOADS });
+        if (err.code === '42501') throw new HttpError(403, 'upload_forbidden');
         throw err;
     }
 
@@ -204,15 +203,15 @@ router.put('/projects/:pid/uploads', route(async (req, res) => {
         stored = await storage.putStream(req, { maxBytes: reserve });
     } catch (err) {
         await abort();
-        if (err instanceof storage.TooLargeError) throw new HttpError(413, `The ${err.message}.`);
-        if (err.message === 'file is empty') throw new HttpError(400, 'The file is empty.');
+        if (err instanceof storage.TooLargeError) throw new HttpError(413, 'file_too_large', { mb: Math.floor(reserve / 1024 ** 2) });
+        if (err.message === 'file is empty') throw new HttpError(400, 'file_empty');
         throw err;
     }
     const completed = await withTx(ctx(req), async (db) => (await db.query(
         'SELECT upload_complete($1, $2, $3, $4) AS ok', [uploadId, stored.key, stored.size, stored.mime])).rows[0].ok);
     if (!completed) {
         await abort();
-        throw new HttpError(409, 'The upload could not be completed. Upload the file again.');
+        throw new HttpError(409, 'upload_incomplete');
     }
     res.status(201).json({ upload_id: uploadId, object_key: stored.key, size_bytes: stored.size, detected_mime: stored.mime });
 }));
@@ -220,21 +219,21 @@ router.put('/projects/:pid/uploads', route(async (req, res) => {
 router.post('/documents/:id/revisions', route(async (req, res) => {
     const id = uuidParam(req, 'id');
     const b = req.body || {};
-    const objectKey = required(b, 'object_key', 'Uploaded file');
-    const suitabilityCode = required(b, 'suitability_code', 'Suitability');
-    const filename = required(b, 'original_filename', 'File name').slice(0, 255);
+    const objectKey = required(b, 'object_key');
+    const suitabilityCode = required(b, 'suitability_code');
+    const filename = required(b, 'original_filename').slice(0, 255);
     const mime = String(b.mime_type || 'application/octet-stream').slice(0, 127);
-    if (!storage.KEY_RE.test(objectKey)) throw new HttpError(400, 'Upload the file first.');
+    if (!storage.KEY_RE.test(objectKey)) throw new HttpError(400, 'upload_first');
     const stat = await storage.stat(objectKey);
-    if (!stat) throw new HttpError(400, 'The uploaded file was not found. Upload it again.');
+    if (!stat) throw new HttpError(400, 'upload_missing');
 
     const revision = await withTx(ctx(req), async (db) => {
         const doc = (await db.query('SELECT id, project_id, originator_org_id FROM cde_documents WHERE id = $1', [id])).rows[0];
-        if (!doc) throw new HttpError(404, 'Document not found.');
+        if (!doc) throw new HttpError(404, 'document_not_found');
         const suit = (await db.query(
             'SELECT cde_state, revision_prefix FROM project_suitability_codes WHERE project_id = $1 AND code = $2',
             [doc.project_id, suitabilityCode])).rows[0];
-        if (!suit) throw new HttpError(422, `Unknown suitability code ${suitabilityCode}.`);
+        if (!suit) throw new HttpError(422, 'suitability_unknown', { code: suitabilityCode });
         // Same lock the insert trigger takes. Holding it before reading the
         // latest revision makes read, compute and insert one step, so parallel
         // uploads get consecutive labels instead of all but one failing
@@ -260,14 +259,14 @@ router.post('/documents/:id/revisions', route(async (req, res) => {
 // state move forward and keeps the prefix fixed.
 router.patch('/revisions/:id', route(async (req, res) => {
     const id = uuidParam(req, 'id');
-    const code = required(req.body, 'suitability_code', 'Suitability');
+    const code = required(req.body, 'suitability_code');
     const row = await withTx(ctx(req), async (db) => (await db.query(
         `UPDATE cde_document_revisions r
             SET suitability_code = s.code, cde_state = s.cde_state
            FROM project_suitability_codes s
           WHERE r.id = $1 AND s.project_id = r.project_id AND s.code = $2
          RETURNING r.id, r.revision_label, r.suitability_code`, [id, code])).rows[0]);
-    if (!row) throw new HttpError(404, 'Revision not found, or you cannot change its status. Only document controllers of the originating organisation can.');
+    if (!row) throw new HttpError(404, 'revision_status_forbidden');
     res.json(row);
 }));
 
@@ -275,7 +274,7 @@ router.delete('/revisions/:id', route(async (req, res) => {
     const id = uuidParam(req, 'id');
     const n = await withTx(ctx(req), async (db) =>
         (await db.query('DELETE FROM cde_document_revisions WHERE id = $1', [id])).rowCount);
-    if (!n) throw new HttpError(404, 'Revision not found, or you cannot delete it.');
+    if (!n) throw new HttpError(404, 'revision_delete_forbidden');
     res.status(204).end();
 }));
 
@@ -287,14 +286,14 @@ router.get('/revisions/:id/file', route(async (req, res) => {
                     encode(r.sha256, 'hex') AS sha256, d.document_number
                FROM cde_document_revisions r JOIN cde_documents d ON d.id = r.document_id
               WHERE r.id = $1`, [id])).rows[0];
-        if (!r) throw new HttpError(404, 'File not found.');
+        if (!r) throw new HttpError(404, 'file_not_found');
         // Logged before any bytes leave, in the same transaction as the access check.
         await db.query(`SELECT audit_append($1, 'DOCUMENT_DOWNLOADED', 'REVISION', $2, $3)`,
             [r.project_id, r.id, { revision: r.revision_label, inline: req.query.inline === '1' }]);
         return r;
     });
     const stat = await storage.stat(rev.object_key);
-    if (!stat) throw new HttpError(410, 'The stored file is missing. Contact your administrator.');
+    if (!stat) throw new HttpError(410, 'stored_file_missing');
 
     const inline = req.query.inline === '1' && INLINE_TYPES.has(rev.mime_type);
     const ext = rev.original_filename.includes('.') ? rev.original_filename.slice(rev.original_filename.lastIndexOf('.')) : '';

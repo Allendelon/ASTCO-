@@ -517,4 +517,10 @@ SELECT t_expect_error($$ SELECT audit_append('c0000000-0000-0000-0000-0000000000
                       'no user in the request context');
 RESET ROLE;
 
+-- ------------------------------------------------------ bilingual code lists
+\echo bilingual code lists
+SELECT t_assert((SELECT description_ar = 'مناسب للمراجعة والتعليق' FROM project_suitability_codes
+                  WHERE project_id = 'c0000000-0000-0000-0000-000000000001' AND code = 'S3'), 'UK NA seed carries Arabic');
+SELECT t_expect_error($$ UPDATE project_suitability_codes SET description_ar = '' WHERE code = 'S3' $$, 'check constraint');
+
 \echo all schema tests passed

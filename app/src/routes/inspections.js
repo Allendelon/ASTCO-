@@ -34,16 +34,16 @@ router.get('/projects/:pid/inspections', route(async (req, res) => {
 router.post('/projects/:pid/inspections', route(async (req, res) => {
     const pid = uuidParam(req, 'pid');
     const b = req.body || {};
-    const type = required(b, 'inspection_type', 'Type');
-    if (!TYPES.includes(type)) throw new HttpError(400, 'Choose a valid inspection type.');
-    const assignee = required(b, 'assigned_to', 'Assignee');
-    if (!UUID_RE.test(assignee)) throw new HttpError(400, 'Choose an assignee.');
+    const type = required(b, 'inspection_type');
+    if (!TYPES.includes(type)) throw new HttpError(400, 'inspection_type_invalid');
+    const assignee = required(b, 'assigned_to');
+    if (!UUID_RE.test(assignee)) throw new HttpError(400, 'assignee_required');
 
     const sheet = b.sheet_revision_id || null;
-    if (sheet && !UUID_RE.test(sheet)) throw new HttpError(400, 'Invalid sheet.');
+    if (sheet && !UUID_RE.test(sheet)) throw new HttpError(400, 'sheet_invalid');
     const model = b.model_revision_id || null;
-    if (model && !UUID_RE.test(model)) throw new HttpError(400, 'Invalid model.');
-    const location = optionalText(b, 'location_description', 'The location', 500);
+    if (model && !UUID_RE.test(model)) throw new HttpError(400, 'model_invalid');
+    const location = optionalText(b, 'location_description', 500);
     const num = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
 
     const row = await withTx(ctx(req), async (db) => {
@@ -63,11 +63,11 @@ router.post('/projects/:pid/inspections', route(async (req, res) => {
 
 router.patch('/inspections/:id', route(async (req, res) => {
     const id = uuidParam(req, 'id');
-    const status = required(req.body, 'status', 'Status');
-    if (!STATUSES.includes(status)) throw new HttpError(400, 'Choose a valid status.');
+    const status = required(req.body, 'status');
+    if (!STATUSES.includes(status)) throw new HttpError(400, 'status_invalid');
     const n = await withTx(ctx(req), async (db) =>
         (await db.query('UPDATE site_inspections SET status = $2 WHERE id = $1', [id, status])).rowCount);
-    if (!n) throw new HttpError(404, 'Inspection not found, or you are not its assignee. Only the assigned inspector records the result, once.');
+    if (!n) throw new HttpError(404, 'inspection_update_forbidden');
     res.json({ ok: true });
 }));
 

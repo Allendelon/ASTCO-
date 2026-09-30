@@ -27,7 +27,7 @@ router.get('/projects/:pid/meta', route(async (req, res) => {
         const project = (await db.query(
             `SELECT id, code, name, app_member_role(id) AS my_role, app_member_org(id) AS my_org_id
                FROM projects WHERE id = $1`, [pid])).rows[0];
-        if (!project) throw new HttpError(404, 'Project not found.');
+        if (!project) throw new HttpError(404, 'project_not_found');
         // Sequential on purpose: one client runs one query at a time.
         const organizations = await db.query(`SELECT o.id, o.legal_name, po.originator_code
                         FROM project_organizations po JOIN organizations o ON o.id = po.organization_id
@@ -35,9 +35,9 @@ router.get('/projects/:pid/meta', route(async (req, res) => {
         const members = await db.query(`SELECT u.id, u.display_name, m.organization_id, m.role
                         FROM project_members m JOIN users u ON u.id = m.user_id
                        WHERE m.project_id = $1 AND m.is_active ORDER BY u.display_name`, [pid]);
-        const codes = await db.query(`SELECT field, code, description FROM project_code_values
+        const codes = await db.query(`SELECT field, code, description, description_ar FROM project_code_values
                        WHERE project_id = $1 ORDER BY field, code`, [pid]);
-        const suitability = await db.query(`SELECT code, cde_state, revision_prefix, description FROM project_suitability_codes
+        const suitability = await db.query(`SELECT code, cde_state, revision_prefix, description, description_ar FROM project_suitability_codes
                        WHERE project_id = $1 ORDER BY cde_state, code`, [pid]);
         return {
             project,

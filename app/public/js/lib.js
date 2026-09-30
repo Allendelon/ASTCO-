@@ -1,5 +1,61 @@
-// DOM helpers, API client and formatting. All text goes in as text nodes,
-// never as HTML, so data from the server cannot inject markup.
+// DOM helpers, API client, i18n and formatting. All text goes in as text
+// nodes, never as HTML, so data from the server cannot inject markup.
+
+// ------------------------------------------------------------------ i18n
+// ADR-006: strings live in /i18n/<locale>.json, shared with the server's
+// error codes. Arabic switches the page to right-to-left. Codes (document
+// numbers, revisions, hashes) stay left-to-right in every language.
+
+export const LOCALES = ['en', 'ar'];
+let catalog = {};
+export let locale = 'en';
+
+function storedLocale() {
+    try { return localStorage.getItem('cde.locale'); } catch { return null; }
+}
+
+export async function loadLocale() {
+    const wanted = storedLocale() || (navigator.language || '').slice(0, 2);
+    locale = LOCALES.includes(wanted) ? wanted : 'en';
+    const res = await fetch(`/i18n/${locale}.json`, { credentials: 'same-origin' });
+    catalog = await res.json();
+    document.documentElement.lang = locale;
+    document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
+    document.title = catalog['app.name'] || 'ASTCO CDE';
+}
+
+export function switchLocale() {
+    const next = locale === 'ar' ? 'en' : 'ar';
+    try { localStorage.setItem('cde.locale', next); } catch { /* storage may be unavailable */ }
+    location.reload();
+}
+
+// Parameter values that are catalog entries themselves: field names and enum
+// values (CDE states, transmittal and inspection statuses).
+function labelParam(name, value) {
+    if (name === 'field') return catalog[`field.${value}`] ?? value;
+    for (const prefix of ['state', 'tstatus', 'istatus']) {
+        if (typeof value === 'string' && catalog[`${prefix}.${value}`] !== undefined) return catalog[`${prefix}.${value}`];
+    }
+    return value;
+}
+
+export function t(key, params = {}) {
+    const template = catalog[key];
+    if (template === undefined) return key;
+    return template.replace(/\{(\w+)\}/g, (m, name) =>
+        (params[name] === undefined ? m : String(labelParam(name, params[name]))));
+}
+
+// Plural-aware: picks key.zero/one/two/few/many/other by the language's rules
+// (Arabic uses all six), with {n} available to the template.
+export function tn(key, n, params = {}) {
+    const form = n === 0 && catalog[`${key}.zero`] !== undefined ? 'zero' : new Intl.PluralRules(locale).select(n);
+    const k = catalog[`${key}.${form}`] !== undefined ? `${key}.${form}` : `${key}.other`;
+    return t(k, { ...params, n: fmtNumber(n) });
+}
+
+// ------------------------------------------------------------------ DOM
 
 export function h(tag, attrs, ...children) {
     const el = document.createElement(tag);
@@ -30,8 +86,20 @@ export function render(target, ...children) {
     append(target, children);
 }
 
+// A code (document number, revision, hash, filename) that must read
+// left-to-right even inside Arabic text.
+export const ltr = (text, cls = 'mono') => h('bdi', { class: cls, dir: 'ltr' }, text);
+// Text of unknown direction (a person's or company's name) placed inline next
+// to other text: isolated, so a Latin name cannot pull an Arabic date into its run.
+export const bidi = (text) => h('bdi', null, text);
+
+// Project data with an optional Arabic translation (code lists, suitability).
+export const desc = (x) => (locale === 'ar' && x.description_ar) || x.description;
+
+// ------------------------------------------------------------------ API
+
 export class ApiError extends Error {
-    constructor(status, message) { super(message); this.status = status; }
+    constructor(status, message, code) { super(message); this.status = status; this.code = code; }
 }
 
 export async function api(method, path, body, opts = {}) {
@@ -49,7 +117,12 @@ export async function api(method, path, body, opts = {}) {
     if (res.status === 401 && !opts.allow401) {
         window.dispatchEvent(new CustomEvent('cde:signed-out'));
     }
-    if (!res.ok) throw new ApiError(res.status, data.error || `Request failed (${res.status}).`);
+    if (!res.ok) {
+        // The server sends a stable code; show it in the user's language.
+        const known = data.code && catalog[`err.${data.code}`] !== undefined;
+        const message = known ? t(`err.${data.code}`, data.params || {}) : (data.error || t('common.request_failed', { status: res.status }));
+        throw new ApiError(res.status, message, data.code);
+    }
     return data;
 }
 
@@ -62,35 +135,34 @@ export function toast(message, kind = '') {
     toastTimer = setTimeout(() => { el.className = ''; }, kind === 'error' ? 6000 : 3000);
 }
 
-const dateFmt = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-const timeFmt = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-export const fmtDate = (v) => (v ? dateFmt.format(new Date(v.length === 10 ? `${v}T00:00:00` : v)) : '');
-export const fmtTime = (v) => (v ? timeFmt.format(new Date(v)) : '');
+// ------------------------------------------------------------------ formatting
+// Gregorian calendar and Latin digits in both languages (ADR-006): contract
+// dates are Gregorian, and digits match the ISO document codes beside them.
+const intlLocale = () => (locale === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB');
+export const fmtNumber = (n) => new Intl.NumberFormat(intlLocale()).format(n);
+export const fmtDate = (v) => (v ? new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: 'short', year: 'numeric' })
+    .format(new Date(v.length === 10 ? `${v}T00:00:00` : v)) : '');
+export const fmtTime = (v) => (v ? new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    .format(new Date(v)) : '');
+export const fmtDecimal = (n, digits = 1) => new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(n);
+// List separator between two phrases ("Acme, 3 Mar"): Arabic uses its own comma.
+export const sep = () => (locale === 'ar' ? '، ' : ', ');
 export function fmtBytes(n) {
     n = Number(n);
-    if (n < 1024) return `${n} B`;
-    if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
-    return `${(n / 1024 ** 2).toFixed(1)} MB`;
+    const one = (x) => fmtDecimal(x);
+    if (n < 1024) return t('bytes.B', { n: fmtNumber(n) });
+    if (n < 1024 ** 2) return t('bytes.KB', { n: one(n / 1024) });
+    return t('bytes.MB', { n: one(n / 1024 ** 2) });
 }
 
-export const STATE_LABEL = { WIP: 'Work in progress', SHARED: 'Shared', PUBLISHED: 'Published', NONE: 'No revision' };
-export const TSTATUS_LABEL = { DRAFT: 'Draft', ISSUED: 'Issued', UNDER_REVIEW: 'Under review', CLOSED: 'Closed' };
-export const REASON_LABEL = {
-    FOR_APPROVAL: 'For approval', FOR_REVIEW: 'For review', FOR_INFORMATION: 'For information',
-    FOR_CONSTRUCTION: 'For construction', FOR_TENDER: 'For tender', AS_BUILT: 'As built',
-};
-export const CODE_LABEL = {
-    CODE_A: 'A – Approved', CODE_B: 'B – Approved with comments', CODE_C: 'C – Revise and resubmit', CODE_D: 'D – Rejected',
-};
-export const ISTATUS_LABEL = { REQUESTED: 'Requested', INSPECTED_PASS: 'Passed', INSPECTED_FAIL: 'Failed' };
-export const INSPECTION_TYPE_LABEL = { WIR: 'Work inspection', MIR: 'Material inspection', SAFETY: 'Safety', QAQC: 'QA/QC' };
-
-export const stateMark = (s) => h('span', { class: `state ${s || 'NONE'}` }, STATE_LABEL[s || 'NONE']);
-export const codeMark = (c) => h('span', { class: `code ${c}`, title: CODE_LABEL[c] }, c.replace('CODE_', ''));
+export const stateMark = (s) => h('span', { class: `state ${s || 'NONE'}` }, t(`state.${s || 'NONE'}`));
+export const codeMark = (c) => h('bdi', { class: `code ${c}`, dir: 'ltr', title: t(`code.${c}`) }, c.replace('CODE_', ''));
 
 export function docNo(number) {
-    return h('span', { class: 'docno' }, String(number).split('-').map((p) => h('span', null, p)));
+    return h('bdi', { class: 'docno', dir: 'ltr' }, String(number).split('-').map((p) => h('span', null, p)));
 }
+
+// ------------------------------------------------------------------ forms
 
 // Modal dialog. build(body, close) fills it; onSubmit(formData) may throw to show an error.
 export function dialog({ title, submitLabel, build, onSubmit, wide }) {
@@ -103,7 +175,7 @@ export function dialog({ title, submitLabel, build, onSubmit, wide }) {
     const body = h('div', { class: 'dlg-body stack' });
     form.append(body,
         h('div', { class: 'dlg-foot' },
-            h('button', { type: 'button', onclick: () => dlg.close() }, 'Cancel'),
+            h('button', { type: 'button', onclick: () => dlg.close() }, t('common.cancel')),
             submit));
     const close = () => dlg.close();
     build(body, close);
@@ -136,3 +208,6 @@ export function select(name, options, value, attrs = {}) {
     return h('select', { name, ...attrs },
         options.map(([v, text]) => h('option', { value: v, selected: v === value }, text)));
 }
+
+// Options for an enum whose labels live in the catalog under prefix.
+export const enumOptions = (prefix, values) => values.map((v) => [v, t(`${prefix}.${v}`)]);

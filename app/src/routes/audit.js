@@ -13,7 +13,7 @@ router.get('/projects/:pid/audit', route(async (req, res) => {
     const rows = await withTx(ctx(req), async (db) => {
         const role = (await db.query('SELECT app_member_role($1) AS role', [pid])).rows[0].role;
         if (!['ADMIN', 'DOC_CONTROLLER'].includes(role)) {
-            throw new HttpError(403, 'Only project admins and document controllers can view the audit trail.');
+            throw new HttpError(403, 'audit_forbidden');
         }
         return (await db.query(
             `SELECT a.chain_seq::text AS chain_seq, a.action, a.resource_type, a.resource_id, a.details,
@@ -41,7 +41,7 @@ router.post('/projects/:pid/audit/verify', route(async (req, res) => {
     });
     if (wait) {
         res.set('Retry-After', String(wait));
-        throw new HttpError(429, 'The audit trail was verified moments ago. Try again in a minute.');
+        throw new HttpError(429, 'audit_verify_rate');
     }
     const broken = await withTx(ctx(req), async (db) =>
         (await db.query('SELECT audit_verify_project($1)::text AS broken', [pid])).rows[0].broken);
