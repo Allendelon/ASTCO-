@@ -2,7 +2,7 @@
 
 const crypto = require('node:crypto');
 const { withTx } = require('./db');
-const { RateLimiter, clientKey } = require('./ratelimit');
+const limits = require('./ratelimit');
 
 const SESSION_TTL_HOURS = Number(process.env.SESSION_TTL_HOURS || 12);
 // A session unused for this long ends, even within its 12-hour lifetime.
@@ -31,10 +31,11 @@ const MAX_PASSWORD = 1024;
 //   - per account from anywhere: a botnet guessing one account. This limit is
 //     higher, because anyone who knows an email can use it to lock that
 //     account out for one window. MFA is the real answer (SEC-17).
+// The counters are shared by all app instances (Postgres, migration 0012).
 const WINDOW_MS = 15 * 60 * 1000;
-const failuresByClient = new RateLimiter({ windowMs: WINDOW_MS, max: Number(process.env.LOGIN_MAX_FAILURES_PER_IP || 30) });
-const failuresByAccount = new RateLimiter({ windowMs: WINDOW_MS, max: Number(process.env.LOGIN_MAX_FAILURES_PER_ACCOUNT || 10) });
-const failuresByAccountGlobal = new RateLimiter({ windowMs: WINDOW_MS, max: Number(process.env.LOGIN_MAX_FAILURES_PER_ACCOUNT_GLOBAL || 100) });
+const MAX_PER_CLIENT = Number(process.env.LOGIN_MAX_FAILURES_PER_IP || 30);
+const MAX_PER_ACCOUNT = Number(process.env.LOGIN_MAX_FAILURES_PER_ACCOUNT || 10);
+const MAX_PER_ACCOUNT_GLOBAL = Number(process.env.LOGIN_MAX_FAILURES_PER_ACCOUNT_GLOBAL || 100);
 
 function scrypt(password, salt, params) {
     return new Promise((resolve, reject) => {
@@ -131,19 +132,25 @@ async function login(email, password, ip) {
     if (email.length > MAX_EMAIL || password.length > MAX_PASSWORD) {
         throw new LoginError(400, 'Email or password is too long.');
     }
-    const client = clientKey(ip);
-    const accountKey = `${email}|${client}`;
-    const wait = Math.max(failuresByClient.blockedFor(client), failuresByAccount.blockedFor(accountKey),
-        failuresByAccountGlobal.blockedFor(email));
-    if (wait) throw new LoginError(429, 'Too many failed sign-in attempts. Try again later.', wait);
+    const client = limits.clientKey(ip);
+    const keys = {
+        client: `login:client:${client}`,
+        account: `login:account:${email}|${client}`,
+        accountGlobal: `login:account:${email}`,
+    };
 
-    // Take a hashing slot first, so shed attempts cost no database work.
-    // Look up, then verify outside any transaction: scrypt takes ~100 ms and
-    // must not hold a pooled database connection while it runs.
+    // Take a hashing slot first, so attempts shed under load cost no
+    // database work. Inside it: one transaction checks the shared limits and
+    // looks up the credentials; scrypt then runs outside any transaction,
+    // because it takes ~100 ms and must not hold a pooled connection.
     const { cred, ok, upgraded } = await withHashSlot(async () => {
+        const { wait, found } = await withTx({ ip }, async (db) => ({
+            wait: await limits.blockedFor(db, [[keys.client, MAX_PER_CLIENT], [keys.account, MAX_PER_ACCOUNT],
+                [keys.accountGlobal, MAX_PER_ACCOUNT_GLOBAL]]),
+            found: (await db.query('SELECT user_id, password_hash FROM auth_lookup_credentials($1)', [email])).rows[0],
+        }));
+        if (wait) throw new LoginError(429, 'Too many failed sign-in attempts. Try again later.', wait);
         dummyHash ??= await hashPassword(crypto.randomBytes(16).toString('hex'));
-        const found = await withTx({ ip }, async (db) =>
-            (await db.query('SELECT user_id, password_hash FROM auth_lookup_credentials($1)', [email])).rows[0]);
         const result = await verifyPassword(password, found?.password_hash ?? dummyHash);
         return {
             cred: found,
@@ -152,12 +159,10 @@ async function login(email, password, ip) {
         };
     });
     if (!cred || !ok) {
-        failuresByClient.hit(client);
-        failuresByAccount.hit(accountKey);
-        failuresByAccountGlobal.hit(email);
+        await withTx({ ip }, (db) => limits.hit(db, [keys.client, keys.account, keys.accountGlobal], WINDOW_MS));
         return null;
     }
-    failuresByAccount.reset(accountKey);
+    await withTx({ ip }, (db) => limits.reset(db, keys.account));
 
     const token = crypto.randomBytes(32).toString('base64url');
     await withTx({ ip }, async (db) => {

@@ -235,3 +235,32 @@ test('R3-01: a sign-in flood is shed and does not stall file transfers for signe
     assert.ok(statuses.every((s) => s === 401 || s === 503));
     assert.equal((await as('dc@astco.test').login()).status, 200, 'sign-in works again once the flood ends');
 });
+
+// Starts a second app process on the same database: a second instance
+// behind the same load balancer.
+async function startInstance(extraEnv = {}) {
+    const port = 20_000 + ((process.pid + 7) % 20_000);
+    const child = spawn(process.execPath, [path.join(__dirname, '..', 'src', 'server.js')], {
+        env: { ...process.env, PORT: String(port), COOKIE_SECURE: 'false', ...extraEnv }, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let log = '';
+    child.stdout.on('data', (d) => { log += d; });
+    child.stderr.on('data', (d) => { log += d; });
+    for (let i = 0; i < 100 && !log.includes('listening'); i++) await new Promise((r) => setTimeout(r, 100));
+    return { url: `http://127.0.0.1:${port}`, stop: () => new Promise((r) => { child.once('exit', r); child.kill('SIGTERM'); }) };
+}
+
+test('ADR-003: sign-in failure limits are shared by all instances', async () => {
+    const other = await startInstance();
+    try {
+        const attempt = (url) => fetch(`${url}/api/auth/login`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CDE-Request': '1' },
+            body: JSON.stringify({ email: 'site@astco.test', password: 'wrong' }) }).then((r) => r.status);
+        // 10 failures (the per-account limit), alternating between the two instances.
+        for (let i = 0; i < 10; i++) assert.equal(await attempt(i % 2 ? other.url : base), 401);
+        assert.equal(await attempt(base), 429, 'this instance counts failures made on the other');
+        assert.equal(await attempt(other.url), 429, 'and the other counts this one’s');
+    } finally {
+        await other.stop();
+    }
+});

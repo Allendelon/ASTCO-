@@ -84,12 +84,15 @@ SELECT seed_uk_na_suitability_codes('c0000000-0000-0000-0000-000000000001');
 SELECT seed_uk_na_suitability_codes('c0000000-0000-0000-0000-000000000002');
 
 -- Inserts a revision as the current user. Not SECURITY DEFINER: RLS applies.
+-- Uploads through the lifecycle functions, as the API does (0012).
 CREATE FUNCTION t_upload(p_project uuid, p_content text) RETURNS text
 LANGUAGE sql AS $$
-    INSERT INTO cde_uploads (project_id, object_key, size_bytes, detected_mime)
-    VALUES (p_project, encode(sha256(convert_to(p_content, 'UTF8')), 'hex'),
-            octet_length(convert_to(p_content, 'UTF8')), 'application/pdf')
-    RETURNING object_key
+    SELECT k.key
+      FROM (SELECT encode(sha256(convert_to(p_content, 'UTF8')), 'hex') AS key,
+                   octet_length(convert_to(p_content, 'UTF8'))::bigint AS size) k,
+           LATERAL (SELECT upload_begin(p_project, greatest(k.size, 1), 1099511627776, 100,
+                                        interval '15 minutes') AS id) u
+     WHERE upload_complete(u.id, k.key, k.size, 'application/pdf')
 $$;
 
 -- Uploads a file and inserts a revision as the current user, the way the API

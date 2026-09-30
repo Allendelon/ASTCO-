@@ -3,7 +3,7 @@
 const express = require('express');
 const { withTx } = require('../db');
 const { HttpError, route, ctx, uuidParam } = require('../http');
-const { RateLimiter } = require('../ratelimit');
+const limits = require('../ratelimit');
 
 const router = express.Router();
 
@@ -27,17 +27,22 @@ router.get('/projects/:pid/audit', route(async (req, res) => {
     res.json(rows);
 }));
 
-// Verification reads the whole chain; limit how often one user can run it.
-const verifyLimiter = new RateLimiter({ windowMs: 60_000, max: 5 });
-
+// Verification reads the whole chain; limit how often one user can run it
+// (5 a minute, shared across instances).
 router.post('/projects/:pid/audit/verify', route(async (req, res) => {
     const pid = uuidParam(req, 'pid');
-    const wait = verifyLimiter.blockedFor(req.userId);
+    const key = `audit-verify:${req.userId}`;
+    // Counted in its own transaction, so a verification that times out
+    // still uses up an attempt.
+    const wait = await withTx(ctx(req), async (db) => {
+        const w = await limits.blockedFor(db, [[key, 5]]);
+        if (!w) await limits.hit(db, [key], 60_000);
+        return w;
+    });
     if (wait) {
         res.set('Retry-After', String(wait));
         throw new HttpError(429, 'The audit trail was verified moments ago. Try again in a minute.');
     }
-    verifyLimiter.hit(req.userId);
     const broken = await withTx(ctx(req), async (db) =>
         (await db.query('SELECT audit_verify_project($1)::text AS broken', [pid])).rows[0].broken);
     res.json({ intact: broken === null, first_broken_seq: broken });

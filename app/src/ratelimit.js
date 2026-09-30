@@ -1,61 +1,30 @@
 'use strict';
-// Fixed-window counters in process memory. Enough for one instance; with
-// several instances behind a load balancer, move the counters to a shared
-// store (Redis, or a Postgres table) so limits apply across instances.
+// Rate limits shared by every app instance, stored in Postgres
+// (rate_limit_counters, migration 0012). In-process counters gave an
+// attacker N times the budget with N instances behind a load balancer.
+// Keys are hashed before they reach the database, so no emails or IP
+// addresses are stored.
 
+const crypto = require('node:crypto');
 const net = require('node:net');
 
-class RateLimiter {
-    constructor({ windowMs, max, maxKeys = 100_000 }) {
-        this.windowMs = windowMs;
-        this.max = max;
-        this.maxKeys = maxKeys;
-        this.hits = new Map();
-        this.sweeper = setInterval(() => this.sweep(), Math.min(windowMs, 60_000));
-        this.sweeper.unref();
-    }
+const hashKey = (key) => crypto.createHash('sha256').update(key).digest('hex');
 
-    // Seconds until the key may try again, or 0 if it is under the limit.
-    // Read-only: checking a key never creates an entry, so requests that
-    // are not failures cannot grow the table.
-    blockedFor(key) {
-        const e = this.hits.get(key);
-        if (!e || e.resetAt <= Date.now() || e.count < this.max) return 0;
-        return Math.ceil((e.resetAt - Date.now()) / 1000);
-    }
+// Seconds until all the given limits allow another attempt (0 = allowed).
+// limits: [[key, max], ...]
+async function blockedFor(db, limits) {
+    const { rows } = await db.query('SELECT rate_limit_blocked($1, $2) AS s',
+        [limits.map(([k]) => hashKey(k)), limits.map(([, max]) => max)]);
+    return rows[0].s;
+}
 
-    hit(key) {
-        const now = Date.now();
-        let e = this.hits.get(key);
-        if (!e || e.resetAt <= now) {
-            if (!e && this.hits.size >= this.maxKeys) this.makeRoom();
-            e = { count: 0, resetAt: now + this.windowMs };
-            this.hits.delete(key);   // re-insert so Map order stays oldest-first
-            this.hits.set(key, e);
-        }
-        e.count += 1;
-    }
+async function hit(db, keys, windowMs) {
+    await db.query('SELECT rate_limit_hit($1, make_interval(secs => $2))',
+        [keys.map(hashKey), windowMs / 1000]);
+}
 
-    reset(key) {
-        this.hits.delete(key);
-    }
-
-    sweep() {
-        const now = Date.now();
-        for (const [k, e] of this.hits) if (e.resetAt <= now) this.hits.delete(k);
-    }
-
-    // Bounded memory: drop expired entries, then the oldest ones.
-    makeRoom() {
-        this.sweep();
-        const excess = this.hits.size - this.maxKeys + 1;
-        if (excess <= 0) return;
-        let n = 0;
-        for (const k of this.hits.keys()) {
-            if (n++ >= excess) break;
-            this.hits.delete(k);
-        }
-    }
+async function reset(db, key) {
+    await db.query('SELECT rate_limit_reset($1)', [hashKey(key)]);
 }
 
 // The key to rate-limit a client by. One IPv6 subscriber normally gets a
@@ -77,4 +46,4 @@ function clientKey(ip) {
     return `${full.slice(0, 4).map((g) => parseInt(g, 16).toString(16)).join(':')}::/64`;
 }
 
-module.exports = { RateLimiter, clientKey };
+module.exports = { blockedFor, hit, reset, clientKey, hashKey };

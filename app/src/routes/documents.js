@@ -11,15 +11,10 @@ const router = express.Router();
 const DAILY_UPLOAD_BYTES = Number(process.env.DAILY_UPLOAD_GB || 20) * 1024 ** 3;
 
 const MAX_PARALLEL_UPLOADS = 4;
-const reservations = new Map();   // userId -> { bytes, count } for uploads in progress
-
-function release(userId, bytes) {
-    const r = reservations.get(userId);
-    if (!r) return;
-    r.bytes -= bytes;
-    r.count -= 1;
-    if (r.count <= 0) reservations.delete(userId);
-}
+// An upload still 'receiving' after this long is treated as abandoned (its
+// instance died), so it stops counting against the quota. Matches the
+// server's request timeout.
+const UPLOAD_STALE_MS = Number(process.env.REQUEST_TIMEOUT_MS || 15 * 60 * 1000);
 
 // Browsers may render these inline. Anything else (HTML, SVG, ...) is always
 // a download, so an uploaded file can never run script on our origin. The
@@ -179,50 +174,47 @@ router.patch('/documents/:id', route(async (req, res) => {
 // Raw body upload. The response's object_key is then used to create a
 // revision. The database only accepts it from the same person, in the same
 // project, once (0008_security_hardening.sql).
+// Raw body upload. The response's object_key is then used to create a
+// revision. The database only accepts it from the same person, in the same
+// project, once (0008). Quota and parallel limits are enforced in the
+// database (upload_begin, 0012), so they hold across every app instance:
+// the row is reserved before any bytes arrive, then completed or aborted.
 router.put('/projects/:pid/uploads', route(async (req, res) => {
     const pid = uuidParam(req, 'pid');
-    const { role, used } = await withTx(ctx(req), async (db) => (await db.query(
-        `SELECT app_member_role($1) AS role,
-                (SELECT coalesce(sum(size_bytes), 0) FROM cde_uploads
-                  WHERE uploaded_by = app_current_user_id() AND created_at > now() - interval '24 hours')::text AS used`,
-        [pid])).rows[0]);
-    if (!role) throw new HttpError(404, 'Project not found.');
-    if (role === 'VIEWER') throw new HttpError(403, 'Viewers cannot upload files.');
-
-    // Parallel uploads all read the same "used" figure before any of them
-    // finishes, so bytes in flight are reserved per user until the upload
-    // is recorded. Without a Content-Length the whole remaining allowance
-    // (up to the per-file limit) is reserved.
-    const inFlight = reservations.get(req.userId) || { bytes: 0, count: 0 };
-    if (inFlight.count >= MAX_PARALLEL_UPLOADS) {
-        throw new HttpError(429, `You already have ${MAX_PARALLEL_UPLOADS} uploads in progress. Wait for one to finish.`);
-    }
-    const remaining = DAILY_UPLOAD_BYTES - Number(used) - inFlight.bytes;
     const declared = Number(req.get('Content-Length') || 0);
-    if (remaining <= 0 || declared > remaining) {
-        throw new HttpError(429, `You have reached your upload limit of ${DAILY_UPLOAD_BYTES / 1024 ** 3} GB in 24 hours.`);
-    }
     if (declared > storage.MAX_BYTES) throw new HttpError(413, `Files can be at most ${storage.MAX_BYTES / 1024 ** 2} MB.`);
+    // Without a Content-Length the whole per-file limit is reserved.
+    const reserve = declared > 0 ? declared : storage.MAX_BYTES;
 
-    const reserve = Math.min(declared || remaining, remaining, storage.MAX_BYTES);
-    inFlight.bytes += reserve;
-    inFlight.count += 1;
-    reservations.set(req.userId, inFlight);
+    let uploadId;
+    try {
+        uploadId = await withTx(ctx(req), async (db) => (await db.query(
+            'SELECT upload_begin($1, $2, $3, $4, make_interval(secs => $5)) AS id',
+            [pid, reserve, DAILY_UPLOAD_BYTES, MAX_PARALLEL_UPLOADS, UPLOAD_STALE_MS / 1000])).rows[0].id);
+    } catch (err) {
+        if (err.code === 'CDQ01') throw new HttpError(429, `You have reached your upload limit of ${DAILY_UPLOAD_BYTES / 1024 ** 3} GB in 24 hours.`);
+        if (err.code === 'CDQ02') throw new HttpError(429, `You already have ${MAX_PARALLEL_UPLOADS} uploads in progress. Wait for one to finish.`);
+        if (err.code === '42501') throw new HttpError(403, 'You cannot upload files to this project.');
+        throw err;
+    }
 
+    const abort = () => withTx(ctx(req), (db) => db.query('SELECT upload_abort($1)', [uploadId])).catch(() => {});
     let stored;
     try {
         stored = await storage.putStream(req, { maxBytes: reserve });
     } catch (err) {
-        release(req.userId, reserve);
+        await abort();
         if (err instanceof storage.TooLargeError) throw new HttpError(413, `The ${err.message}.`);
         if (err.message === 'file is empty') throw new HttpError(400, 'The file is empty.');
         throw err;
     }
-    const upload = await withTx(ctx(req), async (db) => (await db.query(
-        `INSERT INTO cde_uploads (project_id, object_key, size_bytes, detected_mime)
-         VALUES ($1, $2, $3, $4) RETURNING id`, [pid, stored.key, stored.size, stored.mime])).rows[0])
-        .finally(() => release(req.userId, reserve));
-    res.status(201).json({ upload_id: upload.id, object_key: stored.key, size_bytes: stored.size, detected_mime: stored.mime });
+    const completed = await withTx(ctx(req), async (db) => (await db.query(
+        'SELECT upload_complete($1, $2, $3, $4) AS ok', [uploadId, stored.key, stored.size, stored.mime])).rows[0].ok);
+    if (!completed) {
+        await abort();
+        throw new HttpError(409, 'The upload could not be completed. Upload the file again.');
+    }
+    res.status(201).json({ upload_id: uploadId, object_key: stored.key, size_bytes: stored.size, detected_mime: stored.mime });
 }));
 
 router.post('/documents/:id/revisions', route(async (req, res) => {
