@@ -86,7 +86,12 @@ function shell(pid, section, content) {
                 h('strong', null, state.me.user.display_name),
                 h('span', null, myOrg?.legal_name || ''),
                 h('span', { class: 'role' }, ROLE_LABEL[meta.project.my_role]),
-                h('button', { onclick: async () => { await api('POST', '/auth/logout', {}); state.me = null; loginView(); } }, 'Sign out'))),
+                h('button', { onclick: async () => { await api('POST', '/auth/logout', {}); state.me = null; loginView(); } }, 'Sign out'),
+                h('button', { onclick: async () => {
+                    if (!confirm('Sign out on every device, including this one?')) return;
+                    await api('POST', '/auth/logout-everywhere', {});
+                    state.me = null; loginView(); toast('Signed out on all devices');
+                } }, 'Sign out everywhere'))),
         h('main', { id: 'main' }, content));
 }
 

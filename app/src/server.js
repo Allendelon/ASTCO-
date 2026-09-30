@@ -29,8 +29,8 @@ function createApp() {
             'Content-Security-Policy': [
                 "default-src 'self'",
                 "script-src 'self'",
-                "style-src 'self' https://fonts.googleapis.com",
-                'font-src https://fonts.gstatic.com',
+                "style-src 'self'",
+                "font-src 'self'",   // fonts are self-hosted (R2-08)
                 "img-src 'self' blob: data:",
                 "frame-src 'self'",
                 "object-src 'none'",
@@ -91,6 +91,10 @@ function createApp() {
     }));
 
     api.use(auth.requireUser);
+    api.post('/auth/logout-everywhere', route(async (req, res) => {
+        const n = await auth.logoutEverywhere(req);
+        res.set('Set-Cookie', auth.sessionCookie('', 0)).json({ ok: true, sessions_ended: n });
+    }));
     api.use(require('./routes/projects'));
     api.use(require('./routes/documents'));
     api.use(require('./routes/transmittals'));

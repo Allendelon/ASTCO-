@@ -5,6 +5,8 @@ const { withTx } = require('./db');
 const { RateLimiter, clientKey } = require('./ratelimit');
 
 const SESSION_TTL_HOURS = Number(process.env.SESSION_TTL_HOURS || 12);
+// A session unused for this long ends, even within its 12-hour lifetime.
+const SESSION_IDLE_MINUTES = Number(process.env.SESSION_IDLE_MINUTES || 60);
 
 // Cookies are Secure by default. Set COOKIE_SECURE=false only for plain-HTTP
 // local development. With Secure, the __Host- prefix makes the browser
@@ -19,6 +21,7 @@ const SESSION_COOKIE = COOKIE_SECURE ? '__Host-cde_session' : 'cde_session';
 const SCRYPT = { N: 2 ** 17, r: 8, p: 1, keylen: 64 };
 const SCRYPT_MAXMEM = 256 * 1024 * 1024;
 
+const SESSION_TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 const MAX_EMAIL = 254;
 const MAX_PASSWORD = 1024;
 
@@ -92,6 +95,36 @@ class LoginError extends Error {
 // A dummy hash so unknown emails take as long as wrong passwords.
 let dummyHash;
 
+// scrypt runs on libuv's thread pool (4 threads by default), which also does
+// all file-system I/O. Unbounded sign-in attempts from many addresses queued
+// seconds of hashing ahead of every file read and write: downloads timed out
+// and uploads took seconds for everyone (R3-01). At most HASH_CONCURRENCY
+// hashes run at once, so file I/O always has free threads; beyond a short
+// queue, sign-in attempts are turned away at once with 503 instead of
+// piling up.
+const HASH_CONCURRENCY = Number(process.env.PASSWORD_HASH_CONCURRENCY || 2);
+const HASH_QUEUE = Number(process.env.PASSWORD_HASH_QUEUE || 32);
+let hashing = 0;
+const hashWaiters = [];
+
+async function withHashSlot(fn) {
+    if (hashing < HASH_CONCURRENCY) {
+        hashing += 1;
+    } else {
+        if (hashWaiters.length >= HASH_QUEUE) {
+            throw new LoginError(503, 'Sign-in is busy right now. Try again in a few seconds.', 5);
+        }
+        await new Promise((resolve) => hashWaiters.push(resolve));   // slot handed over on release
+    }
+    try {
+        return await fn();
+    } finally {
+        const next = hashWaiters.shift();
+        if (next) next();
+        else hashing -= 1;
+    }
+}
+
 async function login(email, password, ip) {
     email = String(email || '').trim().toLowerCase();
     password = String(password || '');
@@ -104,13 +137,20 @@ async function login(email, password, ip) {
         failuresByAccountGlobal.blockedFor(email));
     if (wait) throw new LoginError(429, 'Too many failed sign-in attempts. Try again later.', wait);
 
-    dummyHash ??= await hashPassword(crypto.randomBytes(16).toString('hex'));
-
+    // Take a hashing slot first, so shed attempts cost no database work.
     // Look up, then verify outside any transaction: scrypt takes ~100 ms and
     // must not hold a pooled database connection while it runs.
-    const cred = await withTx({ ip }, async (db) =>
-        (await db.query('SELECT user_id, password_hash FROM auth_lookup_credentials($1)', [email])).rows[0]);
-    const { ok, needsRehash } = await verifyPassword(password, cred?.password_hash ?? dummyHash);
+    const { cred, ok, upgraded } = await withHashSlot(async () => {
+        dummyHash ??= await hashPassword(crypto.randomBytes(16).toString('hex'));
+        const found = await withTx({ ip }, async (db) =>
+            (await db.query('SELECT user_id, password_hash FROM auth_lookup_credentials($1)', [email])).rows[0]);
+        const result = await verifyPassword(password, found?.password_hash ?? dummyHash);
+        return {
+            cred: found,
+            ok: result.ok,
+            upgraded: found && result.needsRehash ? await hashPassword(password) : null,
+        };
+    });
     if (!cred || !ok) {
         failuresByClient.hit(client);
         failuresByAccount.hit(accountKey);
@@ -119,7 +159,6 @@ async function login(email, password, ip) {
     }
     failuresByAccount.reset(accountKey);
 
-    const upgraded = needsRehash ? await hashPassword(password) : null;
     const token = crypto.randomBytes(32).toString('base64url');
     await withTx({ ip }, async (db) => {
         if (upgraded) {
@@ -129,6 +168,14 @@ async function login(email, password, ip) {
             [cred.user_id, sha256(token), SESSION_TTL_HOURS, ip || null]);
     });
     return { token, maxAge: SESSION_TTL_HOURS * 3600 };
+}
+
+// Ends every session of the signed-in user (all devices), including this one.
+async function logoutEverywhere(req) {
+    const token = readCookie(req, SESSION_COOKIE);
+    if (!token || !SESSION_TOKEN_RE.test(token)) return 0;
+    return withTx({ ip: req.ip, userId: req.userId }, async (db) =>
+        (await db.query('SELECT auth_revoke_all_sessions($1) AS n', [sha256(token)])).rows[0].n);
 }
 
 async function logout(req) {
@@ -141,9 +188,12 @@ async function logout(req) {
 async function requireUser(req, res, next) {
     try {
         const token = readCookie(req, SESSION_COOKIE);
-        if (token && token.length <= 128) {
+        // Tokens are 32 random bytes in base64url (43 characters). Anything
+        // else cannot be a session, so it costs no database round trip (R3-02).
+        if (token && SESSION_TOKEN_RE.test(token)) {
             const { rows } = await withTx({ ip: req.ip },
-                (db) => db.query('SELECT auth_resolve_session($1) AS user_id', [sha256(token)]));
+                (db) => db.query('SELECT auth_resolve_session($1, make_interval(mins => $2)) AS user_id',
+                    [sha256(token), SESSION_IDLE_MINUTES]));
             req.userId = rows[0]?.user_id || null;
         }
         if (!req.userId) return res.status(401).json({ error: 'Sign in to continue.' });
@@ -154,5 +204,6 @@ async function requireUser(req, res, next) {
 }
 
 module.exports = {
+    logoutEverywhere,
     SESSION_COOKIE, COOKIE_SECURE, LoginError, hashPassword, verifyPassword, login, logout, requireUser, sessionCookie,
 };

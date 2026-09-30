@@ -45,6 +45,8 @@ The API tests create a throwaway database, run the migrations and seed, and star
 | `STORAGE_DIR` | `app/storage` | Where uploaded files are kept, named by their SHA-256 |
 | `MAX_UPLOAD_MB` | `500` | Upload size limit |
 | `SESSION_TTL_HOURS` | `12` | Session lifetime |
+| `SESSION_IDLE_MINUTES` | `60` | A session unused for this long ends, even within its lifetime |
+| `PASSWORD_HASH_CONCURRENCY` / `PASSWORD_HASH_QUEUE` | `2` / `32` | Password hashes run at once, and attempts allowed to wait, before sign-in answers `503`. Keeps file I/O responsive during sign-in floods |
 | `TRUST_PROXY` | unset | Behind a load balancer: the number of proxy hops (e.g. `1`) or the proxy subnets, so the audit trail records the client IP. `true` is refused because clients could then choose their own IP |
 | `NODE_ENV` | unset | `production` refuses to start with a privileged database role and disables the seed script |
 | `COOKIE_SECURE` | `true` | Session cookie is `__Host-` prefixed and `Secure`, and HSTS is sent. Set `false` only for plain-HTTP development on a host other than localhost |

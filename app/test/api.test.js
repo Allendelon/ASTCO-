@@ -442,3 +442,40 @@ test('R2-06: free-text fields are bounded', async () => {
     assert.equal(long.status, 400);
     assert.match(long.data.error, /at most 20000 characters/);
 });
+
+// ------------------------------------------------------- third review (R3)
+
+test('R3-02: a malformed session cookie is treated as signed out', async () => {
+    const res = await fetch(`${base}/api/me`, { headers: { Cookie: '__Host-cde_session=not-a-token' } });
+    assert.equal(res.status, 401);
+});
+
+test('R3-03: idle sessions expire, and sign-out-everywhere ends every session', async () => {
+    const laptop = as('mep@meridian.test'); await laptop.login();
+    const phone = as('mep@meridian.test'); await phone.login();
+    assert.equal((await phone.get('/api/me')).status, 200);
+
+    // Idle for longer than SESSION_IDLE_MINUTES (default 60).
+    const c = new Client({ connectionString: process.env.DATABASE_URL });   // the test database
+    await c.connect();
+    await c.query(`UPDATE user_sessions SET last_seen_at = now() - interval '2 hours'
+                    WHERE user_id = (SELECT id FROM users WHERE email = 'mep@meridian.test')`);
+    await c.end();
+    assert.equal((await phone.get('/api/me')).status, 401, 'idle session expired');
+
+    const a = as('mep@meridian.test'); await a.login();
+    const b = as('mep@meridian.test'); await b.login();
+    const out = await a.post('/api/auth/logout-everywhere');
+    assert.equal(out.status, 200);
+    assert.ok(out.data.sessions_ended >= 2);
+    assert.equal((await b.get('/api/me')).status, 401, 'the other device is signed out');
+    assert.equal((await a.get('/api/me')).status, 401, 'and so is this one');
+});
+
+test('R2-08: fonts are served from this origin; no third-party requests', async () => {
+    const page = await fetch(`${base}/`);
+    const html = await page.text();
+    assert.doesNotMatch(html, /googleapis|gstatic/);
+    assert.match(page.headers.get('content-security-policy'), /font-src 'self'/);
+    assert.equal((await fetch(`${base}/fonts/barlow-400-latin.woff2`)).status, 200);
+});

@@ -20,6 +20,8 @@ process.env.DATABASE_URL = url.toString();
 process.env.STORAGE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'cde-storage-'));
 process.env.DB_LOCK_TIMEOUT_MS = '1000';      // keep lock tests fast
 process.env.DB_CONNECT_TIMEOUT_MS = '2000';
+// The flood test makes many failed sign-ins from 127.0.0.1; keep the per-client limit out of the way.
+process.env.LOGIN_MAX_FAILURES_PER_IP = '100000';
 
 let server, base, seedData, pool;
 
@@ -208,4 +210,28 @@ test('E7: SIGTERM lets an in-flight upload finish, then the process exits cleanl
     assert.equal(await result, 201, 'the upload in flight completes');
     assert.equal(await exited, 0, 'the process exits cleanly after draining');
     assert.match(log, /Shutdown complete/);
+});
+
+test('R3-01: a sign-in flood is shed and does not stall file transfers for signed-in users', async () => {
+    const dc = as('dc@astco.test'); await dc.login();
+    const key = await dc.upload(pid(), Buffer.alloc(4 * 1024 * 1024, 4).toString('latin1'));
+    const doc = (await dc.post(`/api/projects/${pid()}/documents`,
+        { volume_code: 'PD', level_code: '01', type_code: 'DR', role_code: 'A', title: 'Flood target' })).data;
+    const rev = (await dc.post(`/api/documents/${doc.id}/revisions`,
+        { object_key: key, suitability_code: 'S2', original_filename: 'f.bin' })).data;
+
+    const attempts = Array.from({ length: 150 }, (_, i) => fetch(`${base}/api/auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CDE-Request': '1' },
+        body: JSON.stringify({ email: `flood${i}@example.test`, password: 'x' }) }).then((r) => r.status));
+    await new Promise((r) => setTimeout(r, 200));
+    const t0 = Date.now();
+    const file = await dc.get(`/api/revisions/${rev.id}/file`);
+    const downloadMs = Date.now() - t0;
+    const statuses = await Promise.all(attempts);
+
+    assert.equal(file.status, 200);
+    assert.ok(downloadMs < 3000, `download took ${downloadMs} ms during the flood`);
+    assert.ok(statuses.filter((s) => s === 503).length > 0, 'excess attempts are shed');
+    assert.ok(statuses.every((s) => s === 401 || s === 503));
+    assert.equal((await as('dc@astco.test').login()).status, 200, 'sign-in works again once the flood ends');
 });

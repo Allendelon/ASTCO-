@@ -248,3 +248,5 @@ a:has(> .docno):hover .docno span { text-decoration: underline; }
     .rail .who { flex-wrap: wrap; }
     .rail nav a { flex: none; }
 }
+.rail .who button { display: block; }
+@media (max-width: 720px) { .rail .who button { display: inline; } }

@@ -292,6 +292,69 @@ Transmittal messages, review comments and inspection locations accepted anything
 - **R2-08 Low: Google Fonts.** Every page view sends the user's IP address to Google, and pages depend on a third party's availability. For KSA data-residency commitments, self-host the two font families. Both are under the SIL Open Font License, which permits this.
 - **R2-09 Low: session lifetime.** Add a 30–60 minute idle timeout, rotate the session token on privilege change, and add "sign out of all devices". Revoking all sessions is a single `UPDATE user_sessions SET revoked_at = now() WHERE user_id = …`.
 
+## Third review (R3)
+
+**Scope:** the code added by the failure hunt (timeouts, error mapping, advisory locks, the system audit path, graceful shutdown), and load behaviour of the unauthenticated endpoints, which earlier rounds had not tested. Every finding below was reproduced against the running stack (production mode, restricted `cde_api` role) before being fixed, re-measured afterwards, and mutation-checked: its test fails when the fix is removed.
+
+| ID | Severity | Finding | Status |
+|---|---|---|---|
+| R3-01 | High | An unauthenticated sign-in flood stalled every file upload and download on the platform | Fixed |
+| R3-02 | Low | Malformed session cookies cost a database round trip each | Fixed |
+| R2-07 | Low | Audit listing could scan the whole table | Mitigated by the 15 s statement timeout added in the failure hunt |
+| R2-08 | Low | Fonts loaded from Google on every page view | Fixed |
+| R2-09 | Low | No idle session timeout, no "sign out everywhere" | Fixed |
+
+### R3-01 High: sign-in flood starves file I/O
+
+**Where:** `app/src/auth.js`
+
+Every sign-in attempt runs scrypt, which needs about 128 MiB and about 100 ms. It runs on libuv's thread pool: 4 threads, shared with all file-system I/O. The per-client limits (SEC-04, R2-01) count failures from one client, so 200 attempts from 200 addresses, one each, all ran.
+
+**Measured, with 200 attempts from 200 addresses (as seen behind a load balancer):**
+
+| Legitimate signed-in user | Before the flood | During the flood, before the fix | During the flood, after the fix |
+|---|---|---|---|
+| 8 MB download | 8–16 ms | **timed out at 20 s** | 9–12 ms |
+| 2 MB upload | 33–42 ms | **5.9 s** | 43–48 ms |
+| Page load (`/api/me`) | 6–9 ms | 165 ms | 8–9 ms |
+
+**Scenario:** a competitor or extortionist rents a small botnet and sends sign-in attempts with random emails. No account is compromised, but no organisation on the platform can upload or download drawings while it runs. Transmittal deadlines are missed.
+
+**Fix:**
+- At most 2 password hashes run at once (`PASSWORD_HASH_CONCURRENCY`), so file I/O always has free threads.
+- Up to 32 more attempts wait (`PASSWORD_HASH_QUEUE`). Beyond that, attempts get `503` + `Retry-After` immediately, before any database work.
+
+In the measured run, 34 attempts were processed and 166 shed. Legitimate sign-ins right after the flood succeed.
+
+**Trade-off:** during an attack, some genuine sign-ins also get `503` and must retry. Users already signed in are unaffected. The lasting fix is to stop floods before they reach the app, with a WAF or bot challenge on `/api/auth/login`.
+
+Test: `R3-01` in `app/test/resilience.test.js`. With the limit removed, the download took 19.7 s and the test failed.
+
+### R3-02 Low: malformed session cookies reached the database
+
+Any cookie value up to 128 characters triggered a session lookup. Session tokens are always 43 base64url characters, and anything else is now rejected without a database call. Test: `R3-02`.
+
+### R2-08 fixed: fonts self-hosted
+
+Barlow and IBM Plex Mono (Latin and Latin Extended, 244 KB) are served from `/fonts`, with their SIL Open Font License texts. The CSP no longer allows Google domains. Verified in the browser: all faces load, with 0 third-party requests. Test: `R2-08`.
+
+### R2-09 fixed: idle timeout and sign-out everywhere
+
+`0011_session_idle_timeout.sql`: a session unused for `SESSION_IDLE_MINUTES` (default 60) ends even within its 12-hour life. `last_seen_at` is written at most once a minute. `POST /api/auth/logout-everywhere` revokes all the user's sessions; it takes the caller's live session token, not a user id. The sidebar has a "Sign out everywhere" button. Test: `R3-03` (idle expiry and cross-device sign-out).
+
+### Reviewed, no finding
+
+- **System audit path (0010):** app requests cannot write actor-less entries. The app always runs `SET LOCAL ROLE cde_app`, and its login role is a member of `cde_app`, so both conditions reject it.
+- **Advisory locks:** keys are taken only after the document is found under RLS, and transactions are bounded by the statement and lock timeouts. A user cannot hold another project's audit or numbering lock for longer than one short transaction.
+- **503 mapping and logging:** only database connection and timeout errors map to `503`. A missing stored file is not misreported. Logged URLs contain no secrets.
+- **Graceful shutdown:** no new input is accepted while draining. The forced exit after the grace period prevents a stuck process.
+- **Input type confusion:** arrays or objects sent where strings are expected are rejected by the allow-lists, the UUID checks or the database constraints. None reached a query unsafely.
+- **Dependencies:** `npm audit` reports 0 known vulnerabilities.
+
+### SEC-18 revisited
+
+Restricting `audit_append` to fewer actions (the original recommendation) would add little. A compromised app server can already set `app.user_id` to any user and act as them, producing genuine-looking audit entries. The real fix is for the database to derive the user from a session token it verifies itself, instead of trusting `app.user_id`, and to verify passwords inside a separate authentication service. This is a design change, and it is left open.
+
 ## Production checklist
 
 1. Run migrations as the owner role. Run the app as a login role that is only `IN ROLE cde_app`. The server enforces this when `NODE_ENV=production`.
@@ -299,5 +362,5 @@ Transmittal messages, review comments and inspection locations accepted anything
 3. Terminate HTTPS at the edge, set `TRUST_PROXY` to the hop count, and put a WAF / rate limit in front of `/api/auth/login`.
 4. Deal with SEC-14, SEC-15 and SEC-16 before holding real client data.
 5. Alert on spikes of `401`, `403` and `429` responses, and on any `audit_verify_project` result that isn't intact.
-6. Set `statement_timeout` on the app's login role (R2-07), and self-host fonts (R2-08).
+6. Put a WAF or bot challenge in front of `/api/auth/login` (R3-01's shedding keeps the app up, but genuine sign-ins still get turned away during an attack).
 7. Schedule the orphaned-upload cleanup and the audit-head export.
