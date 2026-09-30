@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UI component harness</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+    <main id="stage" style="padding:16px"></main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="alert" role="alert"></div>
+    <script type="module">
+        import * as lib from '/js/lib.js';
+        import * as table from '/js/ui/table.js';
+        import * as async from '/js/ui/async.js';
+        import * as controls from '/js/ui/controls.js';
+        import * as dialogs from '/js/ui/dialogs.js';
+        await lib.loadLocale();
+        window.T = { ...lib, ...table, ...async, ...controls, ...dialogs };
+        document.body.dataset.ready = '1';
+    </script>
+</body>
+</html>
