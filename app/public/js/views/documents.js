@@ -2,6 +2,9 @@ import {
     h, render, api, toast, dialog, field, select, fmtDate, fmtTime, fmtBytes,
     stateMark, codeMark, docNo, ltr, bidi, desc, t, tn, sep,
 } from '../lib.js';
+import { dataTable } from '../ui/table.js';
+import { asyncRegion, emptyState } from '../ui/async.js';
+import { actionButton } from '../ui/controls.js';
 
 const FIELDS = [['volume_code', 'VOLUME', 'tb.volume'], ['level_code', 'LEVEL', 'tb.level'], ['type_code', 'TYPE', 'tb.type'], ['role_code', 'ROLE', 'tb.role']];
 const TITLEBLOCK_LABELS = ['tb.project', 'tb.originator', 'tb.volume', 'tb.level', 'tb.type', 'tb.role', 'tb.number'];
@@ -13,54 +16,45 @@ const suitabilityText = (meta, code) => { const s = meta.suitability.find((x) =>
 
 export async function documentsView(ctx) {
     const { pid, meta } = ctx;
-    const tbody = h('tbody');
-    const wrap = h('div', { class: 'table-wrap' });
     const search = h('input', { type: 'search', placeholder: t('docs.search_placeholder'), 'aria-label': t('docs.search_label') });
     const stateFilter = select('state', [['', t('docs.any_state')], ['WIP', t('state.WIP')], ['SHARED', t('state.SHARED')],
         ['PUBLISHED', t('state.PUBLISHED')], ['NONE', t('docs.no_revision_yet')]], '', { 'aria-label': t('docs.filter_label') });
-    const summary = h('p', { class: 'muted small', style: 'margin:10px 2px 0' });
+    const summary = h('p', { class: 'muted small', style: 'margin:10px 2px 0', role: 'status' });
+    const filtered = () => Boolean(search.value.trim() || stateFilter.value);
 
-    let controller;
-    async function load() {
-        controller?.abort();
-        controller = new AbortController();
-        const qs = new URLSearchParams({ q: search.value.trim(), state: stateFilter.value });
-        let rows;
-        try {
-            rows = await api('GET', `/projects/${pid}/documents?${qs}`, undefined, { signal: controller.signal });
-        } catch (err) {
-            if (err.name !== 'AbortError') toast(err.message, 'error');
-            return;
-        }
-        if (!rows.length) {
-            const filtered = search.value || stateFilter.value;
-            render(wrap, h('div', { class: 'empty' },
-                h('p', null, filtered ? t('docs.empty_filtered') : t('docs.empty')),
-                !filtered && canWrite(meta) ? h('button', { class: 'primary', onclick: () => registerDialog(ctx) }, t('docs.register_first')) : null));
-            summary.textContent = '';
-            return;
-        }
-        render(tbody, rows.map((d) => h('tr', {
-            class: 'clickable', tabindex: 0,
-            onclick: () => ctx.go(`documents/${d.id}`),
-            onkeydown: (e) => { if (e.key === 'Enter') ctx.go(`documents/${d.id}`); },
+    const table = dataTable({
+        caption: t('docs.title'),
+        rowHref: (d) => `#/p/${pid}/documents/${d.id}`,
+        columns: [
+            { id: 'number', header: t('docs.col.number'), cell: (d) => docNo(d.document_number), primary: true },
+            { id: 'title', header: t('docs.col.title'), cell: (d) => d.title },
+            { id: 'revision', header: t('docs.col.revision'), cell: (d) => ltr(d.revision_label || '–') },
+            { id: 'status', header: t('docs.col.status'), priority: 'low',
+              cell: (d) => (d.suitability_code ? h('span', { title: suitabilityText(meta, d.suitability_code) }, ltr(d.suitability_code)) : '') },
+            { id: 'state', header: t('docs.col.state'), cell: (d) => stateMark(d.cde_state) },
+            { id: 'updated', header: t('docs.col.updated'), numeric: true, priority: 'low', className: 'muted small',
+              cell: (d) => fmtDate(d.revised_at || d.created_at) },
+        ],
+    });
+    const list = asyncRegion({
+        load: (signal) => api('GET', `/projects/${pid}/documents?${new URLSearchParams({ q: search.value.trim(), state: stateFilter.value })}`, undefined, { signal }),
+        render: (rows) => {
+            summary.textContent = rows.length === 1000 ? t('docs.first_1000') : tn('docs.count', rows.length);
+            return table.setRows(rows).el;
         },
-            h('td', { class: 'num' }, docNo(d.document_number)),
-            h('td', null, d.title),
-            h('td', null, ltr(d.revision_label || '–')),
-            h('td', { title: d.suitability_code ? suitabilityText(meta, d.suitability_code) : null }, d.suitability_code ? ltr(d.suitability_code) : ''),
-            h('td', null, stateMark(d.cde_state)),
-            h('td', { class: 'muted small num' }, fmtDate(d.revised_at || d.created_at)))));
-        render(wrap, h('table', null,
-            h('thead', null, h('tr', null, ['number', 'title', 'revision', 'status', 'state', 'updated'].map((c) => h('th', null, t(`docs.col.${c}`))))),
-            tbody));
-        summary.textContent = rows.length === 1000 ? t('docs.first_1000') : tn('docs.count', rows.length);
-    }
+        empty: () => {
+            summary.textContent = '';
+            return emptyState({
+                title: filtered() ? t('docs.empty_filtered') : t('docs.empty'),
+                action: !filtered() && canWrite(meta) ? h('button', { class: 'primary', onclick: () => registerDialog(ctx) }, t('docs.register_first')) : null,
+            });
+        },
+    });
 
     let timer;
-    search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(load, 200); });
-    stateFilter.addEventListener('change', load);
-    await load();
+    search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(list.reload, 200); });
+    stateFilter.addEventListener('change', list.reload);
+    await list.reload();
 
     return h('div', null,
         h('div', { class: 'page-head' },
@@ -70,43 +64,7 @@ export async function documentsView(ctx) {
             h('div', { class: 'actions' },
                 canWrite(meta) ? h('button', { class: 'primary', onclick: () => registerDialog(ctx) }, t('docs.register')) : null)),
         h('div', { class: 'toolbar' }, search, stateFilter),
-        wrap, summary);
-}
-
-function registerDialog(ctx) {
-    const { meta, pid } = ctx;
-    const myCode = meta.organizations.find((o) => o.id === meta.project.my_org_id)?.originator_code;
-    const preview = h('div', { class: 'titleblock', style: 'margin:0' });
-    let form;
-    const update = () => {
-        const fd = new FormData(form);
-        const vals = [meta.project.code, myCode, ...FIELDS.map(([n]) => fd.get(n)), fd.get('number_code') || t('reg.next')];
-        render(preview, vals.map((v, i) => h('div', null, h('b', null, v), h('small', null, t(TITLEBLOCK_LABELS[i])))));
-    };
-    dialog({
-        title: t('reg.title'),
-        submitLabel: t('reg.title'),
-        wide: true,
-        build: (body) => {
-            form = body.closest('form');
-            body.append(
-                h('p', { class: 'muted', style: 'margin:0' }, t('reg.note')),
-                preview,
-                h('div', { class: 'field-row' }, FIELDS.map(([name, f, label]) => field(t(label),
-                    select(name, meta.codes.filter((c) => c.field === f).map((c) => [c.code, `${c.code} – ${desc(c)}`]), undefined, { required: true, onchange: update })))),
-                h('div', { class: 'field-row' },
-                    field(t('reg.number'), h('input', { name: 'number_code', inputmode: 'numeric', dir: 'ltr', pattern: '[0-9]{4,6}', placeholder: t('reg.number_placeholder'), oninput: update }), t('reg.number_hint'))),
-                field(t('reg.title_field'), h('input', { name: 'title', required: true, maxlength: 255 })));
-            update();
-        },
-        onSubmit: async (fd) => {
-            const body = Object.fromEntries(fd.entries());
-            if (!body.number_code) delete body.number_code;
-            const doc = await api('POST', `/projects/${pid}/documents`, body);
-            toast(t('reg.done', { number: doc.document_number }));
-            ctx.go(`documents/${doc.id}`);
-        },
-    });
+        list.el, summary);
 }
 
 export async function documentView(ctx, id) {
@@ -126,7 +84,10 @@ export async function documentView(ctx, id) {
 
     function showPreview(rev) {
         selected = rev?.id;
-        timeline.querySelectorAll('li').forEach((li) => li.setAttribute('aria-selected', String(li.dataset.id === selected)));
+        timeline.querySelectorAll('li').forEach((li) => {
+            li.classList.toggle('selected', li.dataset.id === selected);
+            li.querySelector('.rev-label')?.setAttribute('aria-pressed', String(li.dataset.id === selected));
+        });
         if (!rev) return render(previewPane, h('div', { class: 'preview-empty' }, mayUpload ? t('doc.upload_first') : t('doc.no_revisions')));
         const src = `/api/revisions/${rev.id}/file?inline=1`;
         if (rev.mime_type === 'application/pdf') render(previewPane, h('iframe', { class: 'preview', src, title: t('doc.preview_of', { revision: rev.revision_label }) }));
@@ -142,7 +103,6 @@ export async function documentView(ctx, id) {
         const changeStatus = doc.is_mine && isDC && suitOptions.length > 1
             ? select('suitability', suitOptions.map((s) => [s.code, `${s.code} – ${desc(s)}`]), r.suitability_code, {
                 'aria-label': t('doc.change_status', { revision: r.revision_label }),
-                onclick: (e) => e.stopPropagation(),
                 onchange: async (e) => {
                     try {
                         await api('PATCH', `/revisions/${r.id}`, { suitability_code: e.target.value });
@@ -153,9 +113,12 @@ export async function documentView(ctx, id) {
             })
             : null;
         const transmitted = transmittals.filter((tr) => tr.revision_id === r.id);
-        return h('li', { class: r.cde_state, dataset: { id: r.id }, tabindex: 0, onclick: () => showPreview(r), onkeydown: (e) => { if (e.key === 'Enter') showPreview(r); } },
+        return h('li', { class: r.cde_state, dataset: { id: r.id },
+            // Mouse users can click anywhere on the entry; the label button is the keyboard and screen-reader control.
+            onclick: (e) => { if (!e.target.closest('a, button, select')) showPreview(r); } },
             h('div', { class: 'rev-line' },
-                ltr(r.revision_label, 'rev-label'),
+                h('button', { type: 'button', class: 'rev-label', 'aria-pressed': 'false', 'aria-label': t('doc.preview_of', { revision: r.revision_label }),
+                    onclick: () => showPreview(r) }, ltr(r.revision_label, '')),
                 stateMark(r.cde_state),
                 h('span', { title: suitabilityText(meta, r.suitability_code) }, ltr(r.suitability_code)),
                 transmitted.flatMap((tr) => (tr.review_codes ? tr.review_codes.split(', ').map(codeMark) : []))),
@@ -163,17 +126,18 @@ export async function documentView(ctx, id) {
             h('div', { class: 'meta' }, ltr(r.original_filename, ''), sep(), fmtBytes(r.size_bytes)),
             h('div', { class: 'hash', dir: 'ltr', title: t('doc.hash_title') }, r.sha256),
             h('div', { class: 'rev-actions' },
-                h('a', { href: `/api/revisions/${r.id}/file`, onclick: (e) => e.stopPropagation() }, t('doc.download')),
+                h('a', { href: `/api/revisions/${r.id}/file` }, t('doc.download')),
                 changeStatus,
                 doc.is_mine && r.cde_state !== 'WIP' && doc.my_role !== 'VIEWER'
-                    ? h('a', { href: `#/p/${ctx.pid}/transmittals/new/${r.id}`, onclick: (e) => e.stopPropagation() }, t('doc.transmit'))
+                    ? h('a', { href: `#/p/${ctx.pid}/transmittals/new/${r.id}` }, t('doc.transmit'))
                     : null,
                 doc.is_mine && r.cde_state === 'WIP' && doc.my_role !== 'VIEWER'
-                    ? h('button', { class: 'link danger', onclick: async (e) => {
-                        e.stopPropagation();
-                        if (!confirm(t('doc.confirm_delete', { revision: r.revision_label }))) return;
-                        try { await api('DELETE', `/revisions/${r.id}`); toast(t('doc.deleted', { revision: r.revision_label })); ctx.refresh(); } catch (err) { toast(err.message, 'error'); }
-                    } }, t('doc.delete'))
+                    ? actionButton({
+                        label: t('doc.delete'), variant: 'link danger',
+                        confirm: { title: t('doc.delete'), body: t('doc.confirm_delete', { revision: r.revision_label }), confirmLabel: t('doc.delete'), danger: true },
+                        onClick: () => api('DELETE', `/revisions/${r.id}`),
+                        onDone: () => { toast(t('doc.deleted', { revision: r.revision_label })); ctx.refresh(); },
+                    })
                     : null));
     }));
 

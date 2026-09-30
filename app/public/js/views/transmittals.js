@@ -1,7 +1,10 @@
 import {
-    h, render, api, toast, field, select, fmtDate, fmtTime, fmtNumber,
+    h, api, toast, field, select, fmtDate, fmtTime, fmtNumber,
     stateMark, codeMark, docNo, ltr, bidi, t, sep, enumOptions,
 } from '../lib.js';
+import { dataTable } from '../ui/table.js';
+import { asyncRegion, emptyState } from '../ui/async.js';
+import { actionButton, segmented } from '../ui/controls.js';
 
 const RESPONSE_REASONS = ['FOR_APPROVAL', 'FOR_REVIEW'];
 const REASONS = ['FOR_APPROVAL', 'FOR_REVIEW', 'FOR_INFORMATION', 'FOR_TENDER', 'FOR_CONSTRUCTION', 'AS_BUILT'];
@@ -10,49 +13,47 @@ const tstatus = (s) => h('span', { class: `tstatus ${s}` }, t(`tstatus.${s}`));
 
 export async function transmittalsView(ctx) {
     const { pid, meta } = ctx;
-    let box = sessionStorage.getItem('cde.box') || 'inbox';
-    const wrap = h('div', { class: 'table-wrap' });
-    const tabs = h('div', { class: 'segmented', role: 'tablist' });
+    const stored = (() => { try { return sessionStorage.getItem('cde.box'); } catch { return null; } })();
+    const newButton = () => (meta.project.my_role !== 'VIEWER' ? h('button', { class: 'primary', onclick: () => ctx.go('transmittals/new') }, t('tr.new')) : null);
 
-    async function load() {
-        try { sessionStorage.setItem('cde.box', box); } catch { /* storage may be unavailable */ }
-        render(tabs, ['inbox', 'sent', 'all'].map((k) =>
-            h('a', { href: '#', role: 'tab', 'aria-current': k === box ? 'page' : null, 'aria-selected': String(k === box),
-                onclick: (e) => { e.preventDefault(); box = k; load(); } }, t(`tr.tab.${k}`))));
-        const rows = await api('GET', `/projects/${pid}/transmittals?box=${box}`);
-        if (!rows.length) {
-            render(wrap, h('div', { class: 'empty' },
-                h('p', null, t(box === 'inbox' ? 'tr.empty_inbox' : 'tr.empty')),
-                meta.project.my_role !== 'VIEWER' ? h('button', { class: 'primary', onclick: () => ctx.go('transmittals/new') }, t('tr.new')) : null));
-            return;
-        }
-        render(wrap, h('table', null,
-            h('thead', null, h('tr', null, ['number', 'subject', 'from', 'reason', 'status', 'due', 'documents', 'issued'].map((c) => h('th', null, t(`tr.col.${c}`))))),
-            h('tbody', null, rows.map((x) => h('tr', {
-                class: 'clickable', tabindex: 0,
-                onclick: () => ctx.go(`transmittals/${x.id}`),
-                onkeydown: (e) => { if (e.key === 'Enter') ctx.go(`transmittals/${x.id}`); },
-            },
-                h('td', { class: 'num' }, ltr(x.transmittal_number)),
-                h('td', null, x.subject),
-                h('td', { class: 'small' }, x.sender_name),
-                h('td', { class: 'small' }, t(`reason.${x.reason_for_issue}`)),
-                h('td', null, tstatus(x.status)),
-                h('td', { class: `num small ${x.overdue ? 'overdue' : ''}` }, x.sla_due_date
-                    ? (x.overdue ? t('tr.overdue', { date: fmtDate(x.sla_due_date) }) : fmtDate(x.sla_due_date)) : '–'),
-                h('td', { class: 'small' }, t('tr.items', { n: fmtNumber(x.item_count), reviewed: fmtNumber(x.response_count) })),
-                h('td', { class: 'small muted num' }, fmtDate(x.issued_at)))))));
-    }
-    await load();
+    const box = segmented({
+        label: t('tr.title'),
+        options: ['inbox', 'sent', 'all'].map((k) => [k, t(`tr.tab.${k}`)]),
+        value: ['inbox', 'sent', 'all'].includes(stored) ? stored : 'inbox',
+        onChange: (v) => { try { sessionStorage.setItem('cde.box', v); } catch { /* storage may be unavailable */ } list.reload(); },
+    });
+    const table = dataTable({
+        caption: t('tr.title'),
+        rowHref: (x) => `#/p/${pid}/transmittals/${x.id}`,
+        rowClass: (x) => (x.overdue ? 'is-overdue' : ''),
+        columns: [
+            { id: 'number', header: t('tr.col.number'), cell: (x) => ltr(x.transmittal_number), primary: true },
+            { id: 'subject', header: t('tr.col.subject'), cell: (x) => x.subject },
+            { id: 'from', header: t('tr.col.from'), className: 'small', priority: 'low', cell: (x) => x.sender_name },
+            { id: 'reason', header: t('tr.col.reason'), className: 'small', priority: 'low', cell: (x) => t(`reason.${x.reason_for_issue}`) },
+            { id: 'status', header: t('tr.col.status'), cell: (x) => tstatus(x.status) },
+            { id: 'due', header: t('tr.col.due'), numeric: true, className: 'small',
+              cell: (x) => (!x.sla_due_date ? '–' : x.overdue
+                  ? h('span', { class: 'overdue' }, t('tr.overdue', { date: fmtDate(x.sla_due_date) })) : fmtDate(x.sla_due_date)) },
+            { id: 'documents', header: t('tr.col.documents'), className: 'small', priority: 'low',
+              cell: (x) => t('tr.items', { n: fmtNumber(x.item_count), reviewed: fmtNumber(x.response_count) }) },
+            { id: 'issued', header: t('tr.col.issued'), numeric: true, className: 'small muted', priority: 'low', cell: (x) => fmtDate(x.issued_at) },
+        ],
+    });
+    const list = asyncRegion({
+        load: (signal) => api('GET', `/projects/${pid}/transmittals?box=${box.value}`, undefined, { signal }),
+        render: (rows) => table.setRows(rows).el,
+        empty: () => emptyState({ title: t(box.value === 'inbox' ? 'tr.empty_inbox' : 'tr.empty'), action: newButton() }),
+    });
+    await list.reload();
 
     return h('div', null,
         h('div', { class: 'page-head' },
             h('div', null, h('h1', null, t('tr.title')),
                 h('p', null, t('tr.intro'))),
-            h('div', { class: 'actions' },
-                meta.project.my_role !== 'VIEWER' ? h('button', { class: 'primary', onclick: () => ctx.go('transmittals/new') }, t('tr.new')) : null)),
-        h('div', { class: 'toolbar' }, tabs),
-        wrap);
+            h('div', { class: 'actions' }, newButton())),
+        h('div', { class: 'toolbar' }, box.el),
+        list.el);
 }
 
 export async function newTransmittal(ctx, preselect) {
@@ -142,10 +143,10 @@ export async function transmittalView(ctx, id) {
     const answered = new Set(d.answered);
     const responsesFor = (rid) => d.responses.filter((r) => r.revision_id === rid);
 
-    const act = (label, cls, fn, confirmText) => h('button', { class: cls, onclick: async () => {
-        if (confirmText && !confirm(confirmText)) return;
-        try { await fn(); ctx.refresh(); } catch (err) { toast(err.message, 'error'); }
-    } }, label);
+    const act = (label, variant, onClick, body, danger = false) => actionButton({
+        label, variant, onClick, onDone: ctx.refresh,
+        confirm: { title: label, body, confirmLabel: label, danger },
+    });
 
     const reviewRows = d.can.respond ? d.items.filter((i) => !answered.has(i.revision_id)) : [];
     const reviewForm = reviewRows.length ? h('form', { class: 'panel stack', onsubmit: async (e) => {
@@ -161,11 +162,14 @@ export async function transmittalView(ctx, id) {
             e.target.querySelector(`textarea[name="comments:${missing.revision_id}"]`)?.focus();
             return;
         }
+        const submit = e.target.querySelector('button[type=submit]');
+        if (submit.getAttribute('aria-disabled') === 'true') return;
+        submit.setAttribute('aria-disabled', 'true');
         try {
             await api('POST', `/transmittals/${id}/responses`, { responses });
             toast(t('trv.submitted'));
             ctx.refresh();
-        } catch (err) { toast(err.message, 'error'); }
+        } catch (err) { toast(err.message, 'error'); } finally { submit.removeAttribute('aria-disabled'); }
     } },
         h('h2', null, t('trv.your_review')),
         h('p', { class: 'muted small', style: 'margin:0' }, t('trv.review_note')),
@@ -183,7 +187,8 @@ export async function transmittalView(ctx, id) {
                 h('h1', null, tr.subject)),
             h('div', { class: 'actions' },
                 d.can.issue ? act(t('trn.issue'), 'primary', () => api('POST', `/transmittals/${id}/issue`), t('trv.confirm_issue')) : null,
-                d.can.edit ? act(t('trv.delete_draft'), 'danger', async () => { await api('DELETE', `/transmittals/${id}`); ctx.go('transmittals'); }, t('trv.confirm_delete')) : null,
+                d.can.edit ? actionButton({ label: t('trv.delete_draft'), variant: 'danger', onClick: () => api('DELETE', `/transmittals/${id}`), onDone: () => ctx.go('transmittals'),
+                    confirm: { title: t('trv.delete_draft'), body: t('trv.confirm_delete'), confirmLabel: t('trv.delete_draft'), danger: true } }) : null,
                 d.can.close ? act(t('trv.close'), '', () => api('POST', `/transmittals/${id}/close`), t('trv.confirm_close')) : null)),
         h('div', { class: 'doc-grid', style: 'grid-template-columns: minmax(280px, 360px) 1fr' },
             h('div', null,

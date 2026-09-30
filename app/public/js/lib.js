@@ -126,13 +126,26 @@ export async function api(method, path, body, opts = {}) {
     return data;
 }
 
+// Confirmations ("Review submitted") are polite and fade. Errors are
+// assertive and stay until dismissed: a message that disappears while it is
+// being read fails WCAG 2.2.1, and errors are the ones people need to read.
 let toastTimer;
 export function toast(message, kind = '') {
+    if (kind === 'error') {
+        const box = document.getElementById('alert');
+        const close = () => { box.replaceChildren(); document.removeEventListener('keydown', onKey); };
+        const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('dialog[open]')) close(); };
+        box.replaceChildren(h('div', { class: 'alert-toast' },
+            h('span', null, message),
+            h('button', { type: 'button', class: 'link', 'aria-label': t('common.dismiss'), onclick: close }, '×')));
+        document.addEventListener('keydown', onKey);
+        return;
+    }
     const el = document.getElementById('toast');
     el.textContent = message;
-    el.className = `show ${kind}`;
+    el.className = 'show';
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.className = ''; }, kind === 'error' ? 6000 : 3000);
+    toastTimer = setTimeout(() => { el.className = ''; }, 4000);
 }
 
 // ------------------------------------------------------------------ formatting
@@ -164,13 +177,17 @@ export function docNo(number) {
 
 // ------------------------------------------------------------------ forms
 
+let dialogSeq = 0;
+
 // Modal dialog. build(body, close) fills it; onSubmit(formData) may throw to show an error.
 export function dialog({ title, submitLabel, build, onSubmit, wide }) {
     const errorBox = h('div', { class: 'error-box hidden', role: 'alert' });
     const form = h('form', { class: 'stack', method: 'dialog' });
     const submit = h('button', { class: 'primary', type: 'submit' }, submitLabel);
-    const dlg = h('dialog', { 'aria-label': title, style: wide ? 'width:min(860px, calc(100vw - 32px))' : null },
-        h('div', { class: 'dlg-head' }, h('h2', null, title)),
+    const titleId = `dlg${++dialogSeq}`;
+    const opener = document.activeElement;
+    const dlg = h('dialog', { 'aria-labelledby': titleId, style: wide ? 'width:min(860px, calc(100vw - 32px))' : null },
+        h('div', { class: 'dlg-head' }, h('h2', { id: titleId }, title)),
         form);
     const body = h('div', { class: 'dlg-body stack' });
     form.append(body,
@@ -194,7 +211,7 @@ export function dialog({ title, submitLabel, build, onSubmit, wide }) {
             submit.disabled = false;
         }
     });
-    dlg.addEventListener('close', () => dlg.remove());
+    dlg.addEventListener('close', () => { dlg.remove(); if (opener?.isConnected) opener.focus(); });
     document.body.append(dlg);
     dlg.showModal();
     return dlg;

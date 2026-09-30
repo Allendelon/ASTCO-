@@ -1,6 +1,9 @@
 import {
     h, render, api, toast, dialog, field, select, fmtDate, fmtDecimal, docNo, ltr, t, enumOptions,
 } from '../lib.js';
+import { dataTable } from '../ui/table.js';
+import { emptyState } from '../ui/async.js';
+import { actionButton } from '../ui/controls.js';
 
 const PINNABLE = /^image\/(png|jpeg|webp|gif)$/;
 const TYPES = ['WIR', 'MIR', 'SAFETY', 'QAQC'];
@@ -51,34 +54,35 @@ export async function inspectionsView(ctx) {
         : null;
     if (pinnedSheets.length) showSheet(pinnedSheets[0][0]);
 
-    const setStatus = async (r, status) => {
-        try {
-            await api('PATCH', `/inspections/${r.id}`, { status });
-            toast(t('ins.marked', { number: r.inspection_number, status }));
-            ctx.refresh();
-        } catch (err) { toast(err.message, 'error'); }
-    };
+    const setStatus = (r, status, variant = '') => actionButton({
+        label: t(status === 'INSPECTED_PASS' ? 'ins.pass' : 'ins.fail'), variant,
+        onClick: () => api('PATCH', `/inspections/${r.id}`, { status }),
+        onDone: () => { toast(t('ins.marked', { number: r.inspection_number, status })); ctx.refresh(); },
+    });
 
     const table = rows.length
-        ? h('div', { class: 'table-wrap' }, h('table', null,
-            h('thead', null, h('tr', null, ['number', 'type', 'location', 'pinned', 'assigned', 'status', 'raised', null].map((x) => h('th', null, x && t(`ins.col.${x}`))))),
-            h('tbody', null, rows.map((r) => h('tr', null,
-                h('td', { class: 'num' }, ltr(r.inspection_number)),
-                h('td', { class: 'small' }, t(`itype.${r.inspection_type}`)),
-                h('td', null, r.location_description || '–'),
-                h('td', { class: 'small' },
+        ? dataTable({
+            caption: t('ins.title'),
+            rows,
+            columns: [
+                { id: 'number', header: t('ins.col.number'), primary: true, cell: (r) => ltr(r.inspection_number) },
+                { id: 'type', header: t('ins.col.type'), className: 'small', cell: (r) => t(`itype.${r.inspection_type}`) },
+                { id: 'location', header: t('ins.col.location'), cell: (r) => (r.location_description ? h('span', { dir: 'auto' }, r.location_description) : '–') },
+                { id: 'pinned', header: t('ins.col.pinned'), className: 'small', priority: 'low', cell: (r) => [
                     r.sheet_document_number ? h('div', null, docNo(r.sheet_document_number), ' ', ltr(r.sheet_revision_label, '')) : null,
                     r.ifc_global_id ? h('div', null, h('bdi', { class: 'mono', dir: 'ltr', title: t('ins.ifc_in', { number: r.model_document_number }) }, r.ifc_global_id)) : null,
-                    !r.sheet_document_number && !r.ifc_global_id ? '–' : null),
-                h('td', { class: 'small' }, r.assigned_to_name),
-                h('td', null, h('span', { class: `istatus ${r.status}` }, t(`istatus.${r.status}`))),
-                h('td', { class: 'small muted num' }, fmtDate(r.created_at), h('div', null, r.created_by_name)),
-                h('td', { class: 'num' }, r.can_update && r.status === 'REQUESTED'
-                    ? h('div', { class: 'actions' },
-                        h('button', { onclick: () => setStatus(r, 'INSPECTED_PASS') }, t('ins.pass')),
-                        h('button', { class: 'danger', onclick: () => setStatus(r, 'INSPECTED_FAIL') }, t('ins.fail')))
-                    : null))))))
-        : h('div', { class: 'table-wrap' }, h('div', { class: 'empty' }, h('p', null, t('ins.empty'))));
+                    !r.sheet_document_number && !r.ifc_global_id ? '–' : null] },
+                { id: 'assigned', header: t('ins.col.assigned'), className: 'small', priority: 'low', cell: (r) => r.assigned_to_name },
+                { id: 'status', header: t('ins.col.status'), cell: (r) => h('span', { class: `istatus ${r.status}` }, t(`istatus.${r.status}`)) },
+                { id: 'raised', header: t('ins.col.raised'), numeric: true, className: 'small muted', priority: 'low',
+                  cell: (r) => [fmtDate(r.created_at), h('div', null, r.created_by_name)] },
+                { id: 'actions', header: h('span', { class: 'visually-hidden' }, t('common.actions')), numeric: true,
+                  cell: (r) => (r.can_update && r.status === 'REQUESTED'
+                      ? h('div', { class: 'actions' }, setStatus(r, 'INSPECTED_PASS'), setStatus(r, 'INSPECTED_FAIL', 'danger'))
+                      : null) },
+            ],
+        }).el
+        : emptyState({ title: t('ins.empty') });
 
     return h('div', null,
         h('div', { class: 'page-head' },

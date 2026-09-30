@@ -1,4 +1,5 @@
 import { h, render, api, toast, t, loadLocale, switchLocale } from './lib.js';
+import { actionButton } from './ui/controls.js';
 import { documentsView, documentView } from './views/documents.js';
 import { transmittalsView, transmittalView, newTransmittal } from './views/transmittals.js';
 import { inspectionsView } from './views/inspections.js';
@@ -94,11 +95,12 @@ function shell(pid, section, content) {
                 h('span', null, myOrg?.legal_name || ''),
                 h('span', { class: 'role' }, t(`role.${meta.project.my_role}`)),
                 h('button', { onclick: async () => { await api('POST', '/auth/logout', {}); state.me = null; loginView(); } }, t('account.sign_out')),
-                h('button', { onclick: async () => {
-                    if (!confirm(t('account.confirm_everywhere'))) return;
-                    await api('POST', '/auth/logout-everywhere', {});
-                    state.me = null; loginView(); toast(t('account.signed_out_everywhere'));
-                } }, t('account.sign_out_everywhere')),
+                actionButton({
+                    label: t('account.sign_out_everywhere'),
+                    confirm: { title: t('account.sign_out_everywhere'), body: t('account.confirm_everywhere'), confirmLabel: t('account.sign_out_everywhere'), danger: true },
+                    onClick: () => api('POST', '/auth/logout-everywhere', {}),
+                    onDone: () => { state.me = null; loginView(); toast(t('account.signed_out_everywhere')); },
+                }),
                 languageButton())),
         h('main', { id: 'main' }, content));
 }

@@ -1,4 +1,6 @@
-import { h, api, toast, fmtTime, ltr, t, sep } from '../lib.js';
+import { h, api, fmtTime, ltr, t, sep } from '../lib.js';
+import { dataTable } from '../ui/table.js';
+import { actionButton } from '../ui/controls.js';
 
 // Detail keys that are internal identifiers, not useful to a reader.
 const HIDDEN_DETAILS = ['sha256', 'responder_org_id', 'revision_id'];
@@ -16,24 +18,29 @@ function describe(details) {
 
 export async function auditView(ctx) {
     const { pid } = ctx;
-    const tbody = h('tbody');
-    const more = h('button', { class: 'hidden' }, t('audit.more'));
+    const table = dataTable({
+        caption: t('audit.title'),
+        columns: [
+            { id: 'seq', header: t('audit.col.seq'), primary: true, numeric: true, className: 'mono', cell: (a) => a.chain_seq },
+            { id: 'time', header: t('audit.col.time'), numeric: true, className: 'small', cell: (a) => fmtTime(a.event_timestamp) },
+            { id: 'by', header: t('audit.col.by'), className: 'small',
+              cell: (a) => [a.actor_name || t('common.system'), a.actor_ip ? h('div', { class: 'muted' }, ltr(a.actor_ip)) : null] },
+            { id: 'event', header: t('audit.col.event'), cell: (a) => label('action', a.action, a.action) },
+            { id: 'details', header: t('audit.col.details'), className: 'small', cell: (a) => describe(a.details) },
+            { id: 'hash', header: t('audit.col.hash'), className: 'hash', priority: 'low',
+              cell: (a) => h('span', { title: a.current_hash }, `${a.current_hash.slice(0, 12)}…`) },
+        ],
+    });
+    const more = actionButton({ label: t('audit.more'), class: 'hidden', onClick: () => load() });
     const result = h('p', { class: 'small', style: 'margin:0', role: 'status' });
     let last = null;
 
     async function load() {
         const rows = await api('GET', `/projects/${pid}/audit${last ? `?before=${last}` : ''}`);
-        tbody.append(...rows.map((a) => h('tr', null,
-            h('td', { class: 'mono num' }, a.chain_seq),
-            h('td', { class: 'small num' }, fmtTime(a.event_timestamp)),
-            h('td', { class: 'small' }, a.actor_name || t('common.system'), a.actor_ip ? h('div', { class: 'muted' }, ltr(a.actor_ip)) : null),
-            h('td', null, label('action', a.action, a.action)),
-            h('td', { class: 'small' }, describe(a.details)),
-            h('td', { class: 'hash', title: a.current_hash }, `${a.current_hash.slice(0, 12)}…`))));
+        table.appendRows(rows);
         last = rows.at(-1)?.chain_seq ?? last;
         more.classList.toggle('hidden', rows.length < 200);
     }
-    more.addEventListener('click', () => load().catch((e) => toast(e.message, 'error')));
     await load();
 
     const verify = h('button', { onclick: async () => {
@@ -52,8 +59,6 @@ export async function auditView(ctx) {
                 h('p', null, t('audit.intro'))),
             h('div', { class: 'actions' }, verify)),
         h('div', { style: 'margin-bottom:12px' }, result),
-        h('div', { class: 'table-wrap' }, h('table', null,
-            h('thead', null, h('tr', null, ['seq', 'time', 'by', 'event', 'details', 'hash'].map((x) => h('th', null, t(`audit.col.${x}`))))),
-            tbody)),
+        table.el,
         h('div', { style: 'margin-top:12px' }, more));
 }
