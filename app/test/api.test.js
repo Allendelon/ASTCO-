@@ -17,6 +17,8 @@ const url = new URL(adminUrl);
 url.pathname = `/${dbName}`;
 process.env.DATABASE_URL = url.toString();
 process.env.STORAGE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'cde-storage-'));
+// About 1 MiB per user per day, so the quota tests can reach the limit quickly.
+process.env.DAILY_UPLOAD_GB = String(1 / 1024);
 
 let server, base, seedData, pool;
 
@@ -381,4 +383,62 @@ test('SEC-08: proxy trust configuration and content sniffing', () => {
     assert.equal(sniff(Buffer.from('%PDF-1.7')), 'application/pdf');
     assert.equal(sniff(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'image/png');
     assert.equal(sniff(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')), 'application/octet-stream');
+});
+
+// ------------------------------------------------------- second review (R2)
+
+test('R2-01: sign-in limits key IPv6 clients by /64 and cannot be flooded', () => {
+    const { clientKey, RateLimiter } = require('../src/ratelimit');
+    assert.equal(clientKey('2001:db8:1:2::1'), clientKey('2001:db8:1:2:ffff:ffff:ffff:ffff'), 'same /64, same key');
+    assert.notEqual(clientKey('2001:db8:1:2::1'), clientKey('2001:db8:1:3::1'));
+    assert.equal(clientKey('2001:0db8:0001:0002:0000:0000:0000:0001'), clientKey('2001:db8:1:2::1'), 'expanded and compressed forms agree');
+    assert.equal(clientKey('::ffff:203.0.113.7'), '203.0.113.7');
+    assert.equal(clientKey('203.0.113.7'), '203.0.113.7');
+
+    const lim = new RateLimiter({ windowMs: 60_000, max: 2, maxKeys: 100 });
+    for (let i = 0; i < 1000; i++) lim.blockedFor(`probe-${i}`);
+    assert.equal(lim.hits.size, 0, 'checking a key does not store it');
+    for (let i = 0; i < 1000; i++) lim.hit(`k-${i}`);
+    assert.ok(lim.hits.size <= 100, 'table size is bounded');
+    lim.hit('x'); lim.hit('x');
+    assert.ok(lim.blockedFor('x') > 0);
+});
+
+test('R2-02: audit entries about a transmittal are visible only to its parties', async () => {
+    const dc = as('dc@astco.test'); await dc.login();
+    const mecDc = as('dc@meridian.test'); await mecDc.login();
+    const pm = as('pm@rda.test'); await pm.login();
+    const meta = (await dc.get(`/api/projects/${pid()}/meta`)).data;
+    const daniel = meta.members.find((m) => m.display_name === 'Daniel Okafor').id;
+    const rev = (await dc.get(`/api/projects/${pid()}/documents?state=SHARED`)).data[0].revision_id;
+    const t = (await dc.post(`/api/projects/${pid()}/transmittals`, {
+        subject: 'Contractor to consultant only', reason_for_issue: 'FOR_INFORMATION',
+        revision_ids: [rev], to: [daniel], issue: true,
+    })).data;
+    const sees = async (who) => (await who.get(`/api/projects/${pid()}/audit`)).data.some((a) => a.resource_id === t.id);
+    assert.equal(await sees(dc), true, 'sender');
+    assert.equal(await sees(mecDc), true, 'recipient organisation');
+    assert.equal(await sees(pm), false, 'client admin is not a party to this transmittal');
+});
+
+test('R2-03: parallel uploads cannot exceed the daily quota', async () => {
+    const site = as('site@astco.test'); await site.login();
+    const chunk = Buffer.alloc(500 * 1024, 1);   // quota is 1 MiB: two fit, three do not
+    const results = await Promise.all([0, 1, 2].map(() => site.put(`/api/projects/${pid()}/uploads`, chunk,
+        { 'Content-Type': 'application/octet-stream', 'Content-Length': String(chunk.length) })));
+    const statuses = results.map((r) => r.status).sort();
+    assert.deepEqual(statuses, [201, 201, 429]);
+});
+
+test('R2-04: an idle database error does not crash the process', () => {
+    const { pool } = require('../src/db');
+    assert.ok(pool.listenerCount('error') >= 1);
+});
+
+test('R2-06: free-text fields are bounded', async () => {
+    const dc = as('dc@astco.test'); await dc.login();
+    const long = await dc.post(`/api/projects/${pid()}/transmittals`,
+        { subject: 's', reason_for_issue: 'FOR_INFORMATION', message: 'x'.repeat(20_001), revision_ids: [] });
+    assert.equal(long.status, 400);
+    assert.match(long.data.error, /at most 20000 characters/);
 });

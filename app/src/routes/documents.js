@@ -10,6 +10,17 @@ const router = express.Router();
 // Per-user upload volume in any 24 hours, to stop one account filling the disk.
 const DAILY_UPLOAD_BYTES = Number(process.env.DAILY_UPLOAD_GB || 20) * 1024 ** 3;
 
+const MAX_PARALLEL_UPLOADS = 4;
+const reservations = new Map();   // userId -> { bytes, count } for uploads in progress
+
+function release(userId, bytes) {
+    const r = reservations.get(userId);
+    if (!r) return;
+    r.bytes -= bytes;
+    r.count -= 1;
+    if (r.count <= 0) reservations.delete(userId);
+}
+
 // Browsers may render these inline. Anything else (HTML, SVG, ...) is always
 // a download, so an uploaded file can never run script on our origin. The
 // stored type for these comes from the file's bytes (see storage.sniff).
@@ -156,24 +167,39 @@ router.put('/projects/:pid/uploads', route(async (req, res) => {
     if (!role) throw new HttpError(404, 'Project not found.');
     if (role === 'VIEWER') throw new HttpError(403, 'Viewers cannot upload files.');
 
-    const remaining = DAILY_UPLOAD_BYTES - Number(used);
+    // Parallel uploads all read the same "used" figure before any of them
+    // finishes, so bytes in flight are reserved per user until the upload
+    // is recorded. Without a Content-Length the whole remaining allowance
+    // (up to the per-file limit) is reserved.
+    const inFlight = reservations.get(req.userId) || { bytes: 0, count: 0 };
+    if (inFlight.count >= MAX_PARALLEL_UPLOADS) {
+        throw new HttpError(429, `You already have ${MAX_PARALLEL_UPLOADS} uploads in progress. Wait for one to finish.`);
+    }
+    const remaining = DAILY_UPLOAD_BYTES - Number(used) - inFlight.bytes;
     const declared = Number(req.get('Content-Length') || 0);
     if (remaining <= 0 || declared > remaining) {
         throw new HttpError(429, `You have reached your upload limit of ${DAILY_UPLOAD_BYTES / 1024 ** 3} GB in 24 hours.`);
     }
     if (declared > storage.MAX_BYTES) throw new HttpError(413, `Files can be at most ${storage.MAX_BYTES / 1024 ** 2} MB.`);
 
+    const reserve = Math.min(declared || remaining, remaining, storage.MAX_BYTES);
+    inFlight.bytes += reserve;
+    inFlight.count += 1;
+    reservations.set(req.userId, inFlight);
+
     let stored;
     try {
-        stored = await storage.putStream(req, { maxBytes: remaining });
+        stored = await storage.putStream(req, { maxBytes: reserve });
     } catch (err) {
+        release(req.userId, reserve);
         if (err instanceof storage.TooLargeError) throw new HttpError(413, `The ${err.message}.`);
         if (err.message === 'file is empty') throw new HttpError(400, 'The file is empty.');
         throw err;
     }
     const upload = await withTx(ctx(req), async (db) => (await db.query(
         `INSERT INTO cde_uploads (project_id, object_key, size_bytes, detected_mime)
-         VALUES ($1, $2, $3, $4) RETURNING id`, [pid, stored.key, stored.size, stored.mime])).rows[0]);
+         VALUES ($1, $2, $3, $4) RETURNING id`, [pid, stored.key, stored.size, stored.mime])).rows[0])
+        .finally(() => release(req.userId, reserve));
     res.status(201).json({ upload_id: upload.id, object_key: stored.key, size_bytes: stored.size, detected_mime: stored.mime });
 }));
 

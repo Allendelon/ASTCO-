@@ -2,7 +2,7 @@
 
 const crypto = require('node:crypto');
 const { withTx } = require('./db');
-const { RateLimiter } = require('./ratelimit');
+const { RateLimiter, clientKey } = require('./ratelimit');
 
 const SESSION_TTL_HOURS = Number(process.env.SESSION_TTL_HOURS || 12);
 
@@ -22,11 +22,16 @@ const SCRYPT_MAXMEM = 256 * 1024 * 1024;
 const MAX_EMAIL = 254;
 const MAX_PASSWORD = 1024;
 
-// Failed sign-ins: per client IP (credential stuffing), and per email and IP
-// (guessing one account). Successful sign-ins are not counted.
+// Failed sign-ins, counted three ways (successful sign-ins are not counted):
+//   - per client (an IPv4 address or an IPv6 /64): credential stuffing;
+//   - per account and client: guessing one account from one place;
+//   - per account from anywhere: a botnet guessing one account. This limit is
+//     higher, because anyone who knows an email can use it to lock that
+//     account out for one window. MFA is the real answer (SEC-17).
 const WINDOW_MS = 15 * 60 * 1000;
-const failuresByIp = new RateLimiter({ windowMs: WINDOW_MS, max: Number(process.env.LOGIN_MAX_FAILURES_PER_IP || 30) });
+const failuresByClient = new RateLimiter({ windowMs: WINDOW_MS, max: Number(process.env.LOGIN_MAX_FAILURES_PER_IP || 30) });
 const failuresByAccount = new RateLimiter({ windowMs: WINDOW_MS, max: Number(process.env.LOGIN_MAX_FAILURES_PER_ACCOUNT || 10) });
+const failuresByAccountGlobal = new RateLimiter({ windowMs: WINDOW_MS, max: Number(process.env.LOGIN_MAX_FAILURES_PER_ACCOUNT_GLOBAL || 100) });
 
 function scrypt(password, salt, params) {
     return new Promise((resolve, reject) => {
@@ -93,9 +98,10 @@ async function login(email, password, ip) {
     if (email.length > MAX_EMAIL || password.length > MAX_PASSWORD) {
         throw new LoginError(400, 'Email or password is too long.');
     }
-    const ipKey = `ip:${ip}`;
-    const accountKey = `acct:${email}|${ip}`;
-    const wait = Math.max(failuresByIp.blockedFor(ipKey), failuresByAccount.blockedFor(accountKey));
+    const client = clientKey(ip);
+    const accountKey = `${email}|${client}`;
+    const wait = Math.max(failuresByClient.blockedFor(client), failuresByAccount.blockedFor(accountKey),
+        failuresByAccountGlobal.blockedFor(email));
     if (wait) throw new LoginError(429, 'Too many failed sign-in attempts. Try again later.', wait);
 
     dummyHash ??= await hashPassword(crypto.randomBytes(16).toString('hex'));
@@ -106,8 +112,9 @@ async function login(email, password, ip) {
         (await db.query('SELECT user_id, password_hash FROM auth_lookup_credentials($1)', [email])).rows[0]);
     const { ok, needsRehash } = await verifyPassword(password, cred?.password_hash ?? dummyHash);
     if (!cred || !ok) {
-        failuresByIp.hit(ipKey);
+        failuresByClient.hit(client);
         failuresByAccount.hit(accountKey);
+        failuresByAccountGlobal.hit(email);
         return null;
     }
     failuresByAccount.reset(accountKey);

@@ -106,6 +106,13 @@ async function seed() {
             console.log('Demo data already present.');
             return false;
         }
+        // Demo accounts share a published password. Never add them to a
+        // database that holds anything else, whatever NODE_ENV says.
+        const others = (await db.query('SELECT count(*)::int AS n FROM projects')).rows[0].n;
+        if (others > 0) {
+            await db.query('ROLLBACK');
+            throw new Error('This database already has projects. The demo seed only runs on an empty database.');
+        }
         for (const o of ORGS) await db.query('INSERT INTO organizations (id, legal_name) VALUES ($1, $2)', [o.id, o.name]);
         const hash = await hashPassword(PASSWORD);
         for (const u of USERS) {

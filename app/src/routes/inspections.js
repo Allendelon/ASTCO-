@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { withTx } = require('../db');
-const { HttpError, route, ctx, uuidParam, required, UUID_RE } = require('../http');
+const { HttpError, route, ctx, uuidParam, required, optionalText, UUID_RE } = require('../http');
 
 const router = express.Router();
 
@@ -43,6 +43,7 @@ router.post('/projects/:pid/inspections', route(async (req, res) => {
     if (sheet && !UUID_RE.test(sheet)) throw new HttpError(400, 'Invalid sheet.');
     const model = b.model_revision_id || null;
     if (model && !UUID_RE.test(model)) throw new HttpError(400, 'Invalid model.');
+    const location = optionalText(b, 'location_description', 'The location', 500);
     const num = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
 
     const row = await withTx(ctx(req), async (db) => {
@@ -53,7 +54,7 @@ router.post('/projects/:pid/inspections', route(async (req, res) => {
                     assigned_to)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              RETURNING id, inspection_number`,
-            [pid, type, `${type}-${String(n).padStart(4, '0')}`, b.location_description || null,
+            [pid, type, `${type}-${String(n).padStart(4, '0')}`, location,
              b.ifc_global_id || null, model, sheet, sheet ? num(b.sheet_page) ?? 1 : null,
              sheet ? num(b.sheet_x_norm) : null, sheet ? num(b.sheet_y_norm) : null, assignee])).rows[0];
     });

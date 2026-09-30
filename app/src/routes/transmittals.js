@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { withTx } = require('../db');
-const { HttpError, route, ctx, uuidParam, required, UUID_RE } = require('../http');
+const { HttpError, route, ctx, uuidParam, required, optionalText, UUID_RE } = require('../http');
 
 const router = express.Router();
 
@@ -47,6 +47,7 @@ router.post('/projects/:pid/transmittals', route(async (req, res) => {
     const pid = uuidParam(req, 'pid');
     const b = req.body || {};
     const subject = required(b, 'subject', 'Subject');
+    const message = optionalText(b, 'message', 'The message', 20_000);
     const reason = required(b, 'reason_for_issue', 'Reason for issue');
     if (!REASONS.includes(reason)) throw new HttpError(400, 'Choose a valid reason for issue.');
     const due = b.sla_due_date ? String(b.sla_due_date) : null;
@@ -65,7 +66,7 @@ router.post('/projects/:pid/transmittals', route(async (req, res) => {
             `INSERT INTO cde_transmittals (project_id, transmittal_number, sender_org_id, subject, message,
                     reason_for_issue, sla_due_date)
              VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, transmittal_number`,
-            [pid, number, me.organization_id, subject, b.message || null, reason, due])).rows[0];
+            [pid, number, me.organization_id, subject, message, reason, due])).rows[0];
         for (const rid of revisionIds) {
             await db.query('INSERT INTO cde_transmittal_items (transmittal_id, project_id, revision_id) VALUES ($1, $2, $3)',
                 [t.id, pid, rid]);
@@ -175,6 +176,7 @@ router.post('/transmittals/:id/responses', route(async (req, res) => {
     for (const r of list) {
         if (!UUID_RE.test(r.revision_id || '')) throw new HttpError(400, 'Invalid document in the review.');
         if (!CODES.includes(r.review_code)) throw new HttpError(400, 'Choose a review code for every document.');
+        r.comments = optionalText(r, 'comments', 'A review comment', 10_000);
     }
     await withTx(ctx(req), async (db) => {
         const t = (await db.query('SELECT project_id, app_member_org(project_id) AS org FROM cde_transmittals WHERE id = $1', [id])).rows[0];
@@ -184,7 +186,7 @@ router.post('/transmittals/:id/responses', route(async (req, res) => {
                 `INSERT INTO cde_transmittal_responses (transmittal_id, revision_id, project_id, responder_org_id,
                         review_code, comments)
                  VALUES ($1, $2, $3, $4, $5, $6)`,
-                [id, r.revision_id, t.project_id, t.org, r.review_code, r.comments?.trim() || null]);
+                [id, r.revision_id, t.project_id, t.org, r.review_code, r.comments]);
         }
     });
     res.status(201).json({ ok: true });

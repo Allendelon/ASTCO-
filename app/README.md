@@ -49,7 +49,7 @@ The API tests create a throwaway database, run the migrations and seed, and star
 | `NODE_ENV` | unset | `production` refuses to start with a privileged database role and disables the seed script |
 | `COOKIE_SECURE` | `true` | Session cookie is `__Host-` prefixed and `Secure`, and HSTS is sent. Set `false` only for plain-HTTP development on a host other than localhost |
 | `DAILY_UPLOAD_GB` | `20` | Upload volume allowed per user in any 24 hours |
-| `LOGIN_MAX_FAILURES_PER_IP` / `_PER_ACCOUNT` | `30` / `10` | Failed sign-ins allowed per 15 minutes before `429` |
+| `LOGIN_MAX_FAILURES_PER_IP` / `_PER_ACCOUNT` / `_PER_ACCOUNT_GLOBAL` | `30` / `10` / `100` | Failed sign-ins allowed per 15 minutes before `429`: per client (IPv6 counted per /64), per account from one client, and per account from anywhere |
 | `REQUEST_TIMEOUT_MS` | `900000` | Longest a single request (e.g. an upload) may take |
 | `ALLOW_PRIVILEGED_DB_ROLE` | unset | `1` overrides the production role check. Do not use this in production |
 

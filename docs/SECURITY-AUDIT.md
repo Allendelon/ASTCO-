@@ -209,6 +209,89 @@ Fixed: the workflow token is now `contents: read`.
 
 Still open: pin `actions/checkout` and `actions/setup-node` to full commit SHAs, and enable Dependabot for npm and GitHub Actions.
 
+## Second review (R2)
+
+**Scope:** a second pass over the whole application, focused on the code the first round added (the rate limiter, upload binding, quotas and audit policies), since new security code is new attack surface. Reviewed at commit `57ee856`.
+
+| ID | Severity | Finding | Status |
+|---|---|---|---|
+| R2-01 | Medium | IPv6 address rotation bypassed sign-in limits; the limiter table grew without bound | Fixed |
+| R2-02 | Medium | Audit trail showed transmittal traffic and review codes to organisations not party to it | Fixed |
+| R2-03 | Medium | Parallel uploads bypassed the daily quota (check-then-act race) | Fixed |
+| R2-04 | Medium | An idle database connection error crashed the whole process | Fixed |
+| R2-05 | Low | Demo seed could add known-password accounts to a live database | Fixed |
+| R2-06 | Low | Unbounded free-text fields (message, review comments, location) | Fixed |
+| R2-07 | Low | Audit listing can scan the whole table for users who can see few rows | Open |
+| R2-08 | Low | Fonts load from Google on every page view | Open |
+| R2-09 | Low | Sessions have a 12-hour absolute lifetime but no idle timeout or "sign out everywhere" | Open |
+
+### R2-01 Medium: sign-in throttling bypass and limiter memory growth
+
+**Where:** `app/src/ratelimit.js`, `app/src/auth.js`
+
+The SEC-04 limits had three weaknesses:
+
+- **IPv6 rotation.** Limits were keyed by exact IP address. An IPv6 subscriber normally controls a whole /64, about 1.8×10¹⁹ addresses, so rotating addresses removed the per-IP limit entirely.
+- **Unbounded memory.** Every sign-in check created a table entry, even for successful sign-ins. Enough distinct emails and addresses grew memory until the process was killed.
+- **Distributed guessing.** The per-account limit was per account *and* IP, so a botnet could guess one account's password without limit.
+
+**Scenario:** a password-spraying tool running from a single IPv6 VPS rotates through its /64. It tries thousands of passwords per account without ever tripping a limit.
+
+**Fix:**
+- IPv6 clients are keyed by their /64 prefix; IPv4 and IPv4-mapped addresses by the address.
+- Checking a key no longer stores it, and the table is capped at 100,000 entries, evicting the oldest.
+- A cross-network per-account limit of 100 failures per 15 minutes was added.
+
+That last limit lets anyone who knows an email lock the account out for 15 minutes. It is set high for that reason, and MFA (SEC-17) is the lasting fix.
+
+Tests: `R2-01`.
+
+### R2-02 Medium: transmittal activity visible to non-parties in the audit trail
+
+**Where:** `audit_select` policy
+
+Transmittals themselves are visible only to their sender and recipients. Their audit entries were visible to admins and document controllers of every organisation on the project: issue and close events, transmittal numbers, review codes and which organisation responded.
+
+**Scenario:** a subcontractor's document controller on the same project watches which drawings the contractor sent to the consultant, and whether each came back code C.
+
+**Fix:** `0009_security_hardening_2.sql`. Transmittal events are visible only to parties of that transmittal, or within the actor's own organisation. This mirrors the transmittal's own visibility, so a project admin who isn't copied no longer sees them either.
+
+Test: `R2-02`. With the migration removed, the test fails.
+
+### R2-03 Medium: upload quota race
+
+**Where:** `PUT /api/projects/:pid/uploads`
+
+The 20 GB daily quota (SEC-08) was checked before streaming and recorded after it. Parallel uploads all read the same "used" figure, so N parallel requests could store N × 500 MB beyond the quota.
+
+**Fix:**
+- Bytes in flight are reserved per user until the upload is recorded, and the stream is capped at the reservation.
+- At most 4 uploads per user can run at once.
+
+Test: `R2-03`. With the reservation removed, the test fails.
+
+### R2-04 Medium: process crash on idle database errors
+
+**Where:** `app/src/db.js`
+
+When an idle pooled connection is terminated, for example by a database restart, failover or network drop, `pg` emits an `error` event on the pool. With no listener, Node treats it as an unhandled error and exits. Every routine database maintenance window would take the application down.
+
+**Fix:** the pool's `error` event is logged, and the pool replaces the connection. Test: `R2-04`.
+
+### R2-05 Low: demo seed on a live database
+
+`npm run seed` only refused when `NODE_ENV=production`. Pointed at a live database without that variable, it added five accounts sharing a password published in the README. It now refuses any database that already has projects. Verified: run against a database with one project, it exits with an error and creates no users.
+
+### R2-06 Low: unbounded free text
+
+Transmittal messages, review comments and inspection locations accepted anything up to the 1 MB body limit, and were shown on list pages. They are now capped at 20,000, 10,000 and 500 characters respectively. Test: `R2-06`.
+
+### Open (R2)
+
+- **R2-07 Low: audit listing cost.** Row-level security filters after the scan. A document controller who can see few entries makes each page scan much of the project's audit table. Set `ALTER ROLE cde_api SET statement_timeout = '15s'`, and partition `audit_trail` by month as it grows.
+- **R2-08 Low: Google Fonts.** Every page view sends the user's IP address to Google, and pages depend on a third party's availability. For KSA data-residency commitments, self-host the two font families. Both are under the SIL Open Font License, which permits this.
+- **R2-09 Low: session lifetime.** Add a 30–60 minute idle timeout, rotate the session token on privilege change, and add "sign out of all devices". Revoking all sessions is a single `UPDATE user_sessions SET revoked_at = now() WHERE user_id = …`.
+
 ## Production checklist
 
 1. Run migrations as the owner role. Run the app as a login role that is only `IN ROLE cde_app`. The server enforces this when `NODE_ENV=production`.
@@ -216,4 +299,5 @@ Still open: pin `actions/checkout` and `actions/setup-node` to full commit SHAs,
 3. Terminate HTTPS at the edge, set `TRUST_PROXY` to the hop count, and put a WAF / rate limit in front of `/api/auth/login`.
 4. Deal with SEC-14, SEC-15 and SEC-16 before holding real client data.
 5. Alert on spikes of `401`, `403` and `429` responses, and on any `audit_verify_project` result that isn't intact.
-6. Schedule the orphaned-upload cleanup and the audit-head export.
+6. Set `statement_timeout` on the app's login role (R2-07), and self-host fonts (R2-08).
+7. Schedule the orphaned-upload cleanup and the audit-head export.

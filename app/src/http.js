@@ -28,6 +28,16 @@ function required(body, field, label = field) {
     return typeof value === 'string' ? value.trim() : value;
 }
 
+// Optional free text with an upper bound, so one request cannot store
+// megabytes in a field shown on every page that lists it.
+function optionalText(body, field, label, max) {
+    const value = body?.[field];
+    if (value === undefined || value === null) return null;
+    const text = String(value).trim();
+    if (text.length > max) throw new HttpError(400, `${label} can be at most ${max} characters.`);
+    return text || null;
+}
+
 // Plain-language messages for the schema's CHECK constraints (names as
 // Postgres generated them in db/migrations).
 const CHECK_MESSAGES = {
@@ -88,4 +98,4 @@ function errorHandler(err, req, res, _next) {
     res.status(500).json({ error: 'Something went wrong on the server. The error has been logged.' });
 }
 
-module.exports = { HttpError, route, ctx, uuidParam, required, errorHandler, UUID_RE };
+module.exports = { HttpError, route, ctx, uuidParam, required, optionalText, errorHandler, UUID_RE };

@@ -7,6 +7,14 @@ const pool = new Pool({
     max: Number(process.env.PG_POOL_MAX || 10),
 });
 
+// An idle pooled connection that errors (database restart, failover, a
+// network drop) makes the pool emit 'error'. With no listener Node treats
+// that as an unhandled error and the whole process exits. Log it instead;
+// the pool drops that client and opens a new one on the next request.
+pool.on('error', (err) => {
+    console.error(`database connection error (idle client discarded): ${err.message}`);
+});
+
 // Runs fn(client) in one transaction as the RLS-restricted cde_app role, with
 // the request context the policies and audit chain read. SET LOCAL and
 // set_config(..., true) are transaction-scoped, so nothing leaks to the next
