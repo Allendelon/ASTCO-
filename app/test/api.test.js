@@ -9,6 +9,7 @@ const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
 const { Client } = require('pg');
+const crypto = require('node:crypto');
 
 const adminUrl = process.env.TEST_DATABASE_ADMIN_URL || 'postgres://postgres@localhost:5432/postgres';
 const dbName = `cde_apitest_${process.pid}`;
@@ -265,4 +266,119 @@ test('nextRevision covers the UK NA sequence', () => {
     assert.deepEqual(nextRevision(P(4), pubC), ['C', 1, null]);
     assert.deepEqual(nextRevision({ ...P(1), revision_prefix: 'C' }, pubC), ['C', 2, null]);
     assert.throws(() => nextRevision({ ...P(1), revision_prefix: 'C' }, shared));
+});
+
+// ---------------------------------------------------------------- security
+// Regression tests for docs/SECURITY-AUDIT.md. Each asserts the fixed behaviour.
+
+test('SEC-01: an upload can only be used by its uploader, once', async () => {
+    const dc = as('dc@astco.test'); await dc.login();
+    const mep = as('mep@meridian.test'); await mep.login();
+    // A shared contractor revision: the consultant can see its hash.
+    const shared = (await dc.get(`/api/projects/${pid()}/documents?state=SHARED`)).data[0];
+    const detail = (await mep.get(`/api/documents/${shared.id}`)).data;
+    const knownHash = detail.revisions[0].sha256;
+
+    const mine = (await mep.post(`/api/projects/${pid()}/documents`,
+        { volume_code: 'ZZ', level_code: 'ZZ', type_code: 'RP', role_code: 'M', title: 'Consultant report' })).data;
+    const reuse = await mep.post(`/api/documents/${mine.id}/revisions`,
+        { object_key: knownHash, suitability_code: 'S2', original_filename: 'x.pdf', mime_type: 'application/pdf' });
+    assert.equal(reuse.status, 403);
+    assert.match(reuse.data.error, /upload the file again/);
+
+    const up = (await mep.put(`/api/projects/${pid()}/uploads`, Buffer.from('%PDF-1.4 consultant'), { 'Content-Type': 'application/octet-stream' })).data;
+    assert.equal(up.detected_mime, 'application/pdf');
+    const first = await mep.post(`/api/documents/${mine.id}/revisions`,
+        { object_key: up.object_key, suitability_code: 'S2', original_filename: 'r.pdf', mime_type: 'application/pdf' });
+    assert.equal(first.status, 201);
+    const again = await mep.post(`/api/documents/${mine.id}/revisions`,
+        { object_key: up.object_key, suitability_code: 'S3', original_filename: 'r.pdf', mime_type: 'application/pdf' });
+    assert.equal(again.status, 403, 'an upload is single-use');
+});
+
+test('SEC-02: only the assignee records an inspection result, once', async () => {
+    const site = as('site@astco.test'); await site.login();
+    const mep = as('mep@meridian.test'); await mep.login();
+    const meta = (await site.get(`/api/projects/${pid()}/meta`)).data;
+    const daniel = meta.members.find((m) => m.display_name === 'Daniel Okafor').id;
+    const insp = (await site.post(`/api/projects/${pid()}/inspections`, { inspection_type: 'MIR', assigned_to: daniel })).data;
+    assert.equal((await site.patch(`/api/inspections/${insp.id}`, { status: 'INSPECTED_PASS' })).status, 404,
+        'requester cannot pass their own inspection');
+    assert.equal((await mep.patch(`/api/inspections/${insp.id}`, { status: 'INSPECTED_FAIL' })).status, 200);
+    assert.equal((await mep.patch(`/api/inspections/${insp.id}`, { status: 'INSPECTED_PASS' })).status, 422,
+        'results are final');
+});
+
+test('SEC-03: the audit trail hides other organisations’ WIP activity', async () => {
+    const dc = as('dc@astco.test'); await dc.login();
+    const pm = as('pm@rda.test'); await pm.login();
+    const wipIds = (await dc.get(`/api/projects/${pid()}/documents?state=WIP`)).data.map((d) => d.revision_id);
+    assert.ok(wipIds.length > 0);
+    const seenByDc = (await dc.get(`/api/projects/${pid()}/audit`)).data;
+    assert.ok(seenByDc.some((a) => wipIds.includes(a.resource_id)), 'own organisation still sees its WIP events');
+    const seenByClient = (await pm.get(`/api/projects/${pid()}/audit`)).data;
+    assert.ok(!seenByClient.some((a) => wipIds.includes(a.resource_id)));
+});
+
+test('SEC-04: failed sign-ins are throttled', async () => {
+    const x = as('nobody@example.test');
+    for (let i = 0; i < 10; i++) assert.equal((await x.login('wrong')).status, 401);
+    const blocked = await x.login('wrong');
+    assert.equal(blocked.status, 429);
+    assert.ok(Number(blocked.headers.get('retry-after')) > 0);
+    const tooLong = await as('dc@astco.test').login('x'.repeat(2000));
+    assert.equal(tooLong.status, 400);
+});
+
+test('SEC-05: cookie and response headers', async () => {
+    const res = await fetch(`${base}/api/auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CDE-Request': '1' },
+        body: JSON.stringify({ email: 'dc@astco.test', password: seedData.PASSWORD }),
+    });
+    const cookie = res.headers.get('set-cookie');
+    assert.match(cookie, /^__Host-cde_session=/);
+    for (const flag of ['HttpOnly', 'Secure', 'SameSite=Strict', 'Path=/']) assert.ok(cookie.includes(flag), flag);
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    const page = await fetch(`${base}/`);
+    assert.match(page.headers.get('strict-transport-security'), /max-age=\d+/);
+    assert.equal(page.headers.get('x-frame-options'), 'SAMEORIGIN');
+    assert.equal(page.headers.get('cross-origin-resource-policy'), 'same-origin');
+});
+
+test('SEC-06: a declared type cannot make a file render inline', async () => {
+    const dc = as('dc@astco.test'); await dc.login();
+    const doc = (await dc.post(`/api/projects/${pid()}/documents`,
+        { volume_code: 'PD', level_code: '01', type_code: 'RP', role_code: 'A', title: 'Mislabelled file' })).data;
+    const up = (await dc.put(`/api/projects/${pid()}/uploads`, Buffer.from('<html><script>1</script></html>'),
+        { 'Content-Type': 'application/octet-stream' })).data;
+    assert.equal(up.detected_mime, 'application/octet-stream');
+    const rev = (await dc.post(`/api/documents/${doc.id}/revisions`,
+        { object_key: up.object_key, suitability_code: 'S2', original_filename: 'x.pdf', mime_type: 'application/pdf' })).data;
+    const file = await dc.get(`/api/revisions/${rev.id}/file?inline=1`);
+    assert.equal(file.headers.get('content-type'), 'application/octet-stream');
+    assert.match(file.headers.get('content-disposition'), /^attachment/);
+});
+
+test('SEC-07: errors do not echo database details; list sizes are capped', async () => {
+    const dc = as('dc@astco.test'); await dc.login();
+    const dup = await dc.post(`/api/projects/${pid()}/documents`,
+        { volume_code: 'T7', level_code: '01', type_code: 'DR', role_code: 'M', title: 'dup', number_code: '0001' });
+    assert.equal(dup.status, 409);
+    assert.doesNotMatch(dup.data.error, /Key \(|=\(/);
+    const many = Array.from({ length: 501 }, () => crypto.randomUUID());
+    const big = await dc.post(`/api/projects/${pid()}/transmittals`,
+        { subject: 's', reason_for_issue: 'FOR_INFORMATION', revision_ids: many });
+    assert.equal(big.status, 400);
+});
+
+test('SEC-08: proxy trust configuration and content sniffing', () => {
+    const { parseTrustProxy } = require('../src/server');
+    assert.equal(parseTrustProxy(undefined), false);
+    assert.equal(parseTrustProxy('1'), 1);
+    assert.deepEqual(parseTrustProxy('10.0.0.0/8, loopback'), ['10.0.0.0/8', 'loopback']);
+    assert.throws(() => parseTrustProxy('true'));
+    const { sniff } = require('../src/storage');
+    assert.equal(sniff(Buffer.from('%PDF-1.7')), 'application/pdf');
+    assert.equal(sniff(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'image/png');
+    assert.equal(sniff(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')), 'application/octet-stream');
 });

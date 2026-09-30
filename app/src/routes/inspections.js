@@ -17,7 +17,7 @@ router.get('/projects/:pid/inspections', route(async (req, res) => {
                 sr.revision_label AS sheet_revision_label, sd.document_number AS sheet_document_number,
                 sr.mime_type AS sheet_mime_type, md.document_number AS model_document_number,
                 cu.display_name AS created_by_name, au.display_name AS assigned_to_name,
-                i.assigned_to = app_current_user_id() OR i.created_by = app_current_user_id() AS can_update
+                i.assigned_to = app_current_user_id() AND i.status = 'REQUESTED' AS can_update
            FROM site_inspections i
            LEFT JOIN cde_document_revisions sr ON sr.id = i.sheet_revision_id
            LEFT JOIN cde_documents sd ON sd.id = sr.document_id
@@ -66,7 +66,7 @@ router.patch('/inspections/:id', route(async (req, res) => {
     if (!STATUSES.includes(status)) throw new HttpError(400, 'Choose a valid status.');
     const n = await withTx(ctx(req), async (db) =>
         (await db.query('UPDATE site_inspections SET status = $2 WHERE id = $1', [id, status])).rowCount);
-    if (!n) throw new HttpError(404, 'Inspection not found, or only its creator or assignee can update it.');
+    if (!n) throw new HttpError(404, 'Inspection not found, or you are not its assignee. Only the assigned inspector records the result, once.');
     res.json({ ok: true });
 }));
 

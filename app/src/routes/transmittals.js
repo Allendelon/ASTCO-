@@ -9,8 +9,14 @@ const router = express.Router();
 const REASONS = ['FOR_APPROVAL', 'FOR_REVIEW', 'FOR_INFORMATION', 'FOR_CONSTRUCTION', 'FOR_TENDER', 'AS_BUILT'];
 const CODES = ['CODE_A', 'CODE_B', 'CODE_C', 'CODE_D'];
 
-const uuidList = (value, label) => {
+// Each id becomes an INSERT inside one transaction; cap the counts so a
+// single request cannot hold a connection and locks for minutes.
+const MAX_ITEMS = 500;
+const MAX_RECIPIENTS = 200;
+
+const uuidList = (value, label, max) => {
     const list = Array.isArray(value) ? value : [];
+    if (list.length > max) throw new HttpError(400, `${label} can have at most ${max} entries.`);
     if (!list.every((v) => UUID_RE.test(v))) throw new HttpError(400, `${label} contains an invalid id.`);
     return [...new Set(list)];
 };
@@ -44,9 +50,9 @@ router.post('/projects/:pid/transmittals', route(async (req, res) => {
     const reason = required(b, 'reason_for_issue', 'Reason for issue');
     if (!REASONS.includes(reason)) throw new HttpError(400, 'Choose a valid reason for issue.');
     const due = b.sla_due_date ? String(b.sla_due_date) : null;
-    const revisionIds = uuidList(b.revision_ids, 'Documents');
-    const to = uuidList(b.to, 'To');
-    const cc = uuidList(b.cc, 'Cc').filter((id) => !to.includes(id));
+    const revisionIds = uuidList(b.revision_ids, 'Documents', MAX_ITEMS);
+    const to = uuidList(b.to, 'To', MAX_RECIPIENTS);
+    const cc = uuidList(b.cc, 'Cc', MAX_RECIPIENTS).filter((id) => !to.includes(id));
 
     const created = await withTx(ctx(req), async (db) => {
         const me = (await db.query(
@@ -165,6 +171,7 @@ router.post('/transmittals/:id/responses', route(async (req, res) => {
     const id = uuidParam(req, 'id');
     const list = Array.isArray(req.body?.responses) ? req.body.responses : [];
     if (!list.length) throw new HttpError(400, 'Add a review code to at least one document.');
+    if (list.length > MAX_ITEMS) throw new HttpError(400, `A review can cover at most ${MAX_ITEMS} documents.`);
     for (const r of list) {
         if (!UUID_RE.test(r.revision_id || '')) throw new HttpError(400, 'Invalid document in the review.');
         if (!CODES.includes(r.review_code)) throw new HttpError(400, 'Choose a review code for every document.');

@@ -44,14 +44,24 @@ const CHECK_MESSAGES = {
     site_inspections_sheet_y_norm_check: 'The pin must be on the sheet.',
 };
 
+const UNIQUE_MESSAGES = {
+    cde_documents: 'A document with this number already exists in the project.',
+    cde_document_revisions: 'That revision already exists. Reload the page and try again.',
+    cde_transmittal_items: 'That document is already on the transmittal.',
+    cde_transmittal_recipients: 'That person is already a recipient.',
+    cde_transmittal_responses: 'Your organisation has already reviewed that document on this transmittal.',
+};
+
 // Postgres errors carry the rule that was broken. The schema's own messages
 // are written for people, so pass those through; translate the generic ones.
 function fromPgError(err) {
     switch (err.code) {
+        // err.detail repeats key values and names tables, and can confirm
+        // that rows the caller cannot see exist. Never send it to clients.
         case '23505':
-            return new HttpError(409, `That already exists. ${err.detail || ''}`.trim());
+            return new HttpError(409, UNIQUE_MESSAGES[err.table] || 'That already exists.');
         case '23503':
-            return new HttpError(422, `A referenced value is not valid for this project. ${err.detail || ''}`.trim());
+            return new HttpError(422, 'A referenced value is not valid for this project.');
         case '23514':
             return new HttpError(422, CHECK_MESSAGES[err.constraint] || `The data breaks the rule "${err.constraint}".`);
         case '23502':

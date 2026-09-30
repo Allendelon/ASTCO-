@@ -163,8 +163,9 @@ async function seed() {
                 const body = d.png && k === d.suit.length - 1
                     ? makeFloorPlanPng()
                     : makePdf([doc.document_number, d.title, `Revision ${label}  Suitability ${suit}`, 'ASTCO Contracting', PROJECT.name]);
-                const { key, size } = await storage.putStream(Readable.from([body]));
-                const mime = body[0] === 0x89 ? 'image/png' : 'application/pdf';
+                const { key, size, mime } = await storage.putStream(Readable.from([body]));
+                await tx.query('INSERT INTO cde_uploads (project_id, object_key, size_bytes, detected_mime) VALUES ($1, $2, $3, $4)',
+                    [PROJECT.id, key, size, mime]);
                 await tx.query(
                     `INSERT INTO cde_document_revisions (document_id, project_id, originator_org_id, revision_prefix,
                             revision_major, revision_minor, suitability_code, cde_state, object_key, sha256, size_bytes,

@@ -7,8 +7,12 @@ const { HttpError, route, ctx, uuidParam, required } = require('../http');
 
 const router = express.Router();
 
+// Per-user upload volume in any 24 hours, to stop one account filling the disk.
+const DAILY_UPLOAD_BYTES = Number(process.env.DAILY_UPLOAD_GB || 20) * 1024 ** 3;
+
 // Browsers may render these inline. Anything else (HTML, SVG, ...) is always
-// a download, so an uploaded file can never run script on our origin.
+// a download, so an uploaded file can never run script on our origin. The
+// stored type for these comes from the file's bytes (see storage.sniff).
 const INLINE_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
 // Next revision after `latest` for a suitability code's state and prefix.
@@ -35,7 +39,8 @@ function nextRevision(latest, suitability) {
 
 router.get('/projects/:pid/documents', route(async (req, res) => {
     const pid = uuidParam(req, 'pid');
-    const q = String(req.query.q || '').trim();
+    // Escape LIKE wildcards so a search for "_" or "%" means those characters.
+    const q = String(req.query.q || '').trim().slice(0, 200).replace(/[\\%_]/g, '\\$&');
     const state = String(req.query.state || '');
     const rows = await withTx(ctx(req), async (db) => (await db.query(
         `SELECT d.id, d.document_number, d.title, d.originator_code, d.volume_code, d.level_code,
@@ -138,20 +143,38 @@ router.patch('/documents/:id', route(async (req, res) => {
 }));
 
 // Raw body upload. The response's object_key is then used to create a revision.
+// Raw body upload. The response's object_key is then used to create a
+// revision. The database only accepts it from the same person, in the same
+// project, once (0008_security_hardening.sql).
 router.put('/projects/:pid/uploads', route(async (req, res) => {
     const pid = uuidParam(req, 'pid');
-    const role = await withTx(ctx(req), async (db) =>
-        (await db.query('SELECT app_member_role($1) AS role', [pid])).rows[0].role);
+    const { role, used } = await withTx(ctx(req), async (db) => (await db.query(
+        `SELECT app_member_role($1) AS role,
+                (SELECT coalesce(sum(size_bytes), 0) FROM cde_uploads
+                  WHERE uploaded_by = app_current_user_id() AND created_at > now() - interval '24 hours')::text AS used`,
+        [pid])).rows[0]);
     if (!role) throw new HttpError(404, 'Project not found.');
     if (role === 'VIEWER') throw new HttpError(403, 'Viewers cannot upload files.');
+
+    const remaining = DAILY_UPLOAD_BYTES - Number(used);
+    const declared = Number(req.get('Content-Length') || 0);
+    if (remaining <= 0 || declared > remaining) {
+        throw new HttpError(429, `You have reached your upload limit of ${DAILY_UPLOAD_BYTES / 1024 ** 3} GB in 24 hours.`);
+    }
+    if (declared > storage.MAX_BYTES) throw new HttpError(413, `Files can be at most ${storage.MAX_BYTES / 1024 ** 2} MB.`);
+
+    let stored;
     try {
-        const { key, size } = await storage.putStream(req);
-        res.status(201).json({ object_key: key, size_bytes: size });
+        stored = await storage.putStream(req, { maxBytes: remaining });
     } catch (err) {
         if (err instanceof storage.TooLargeError) throw new HttpError(413, `The ${err.message}.`);
         if (err.message === 'file is empty') throw new HttpError(400, 'The file is empty.');
         throw err;
     }
+    const upload = await withTx(ctx(req), async (db) => (await db.query(
+        `INSERT INTO cde_uploads (project_id, object_key, size_bytes, detected_mime)
+         VALUES ($1, $2, $3, $4) RETURNING id`, [pid, stored.key, stored.size, stored.mime])).rows[0]);
+    res.status(201).json({ upload_id: upload.id, object_key: stored.key, size_bytes: stored.size, detected_mime: stored.mime });
 }));
 
 router.post('/documents/:id/revisions', route(async (req, res) => {

@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+# Least privilege for the workflow token: tests only need to read the code.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

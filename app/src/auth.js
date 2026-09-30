@@ -2,15 +2,36 @@
 
 const crypto = require('node:crypto');
 const { withTx } = require('./db');
+const { RateLimiter } = require('./ratelimit');
 
-const SESSION_COOKIE = 'cde_session';
 const SESSION_TTL_HOURS = Number(process.env.SESSION_TTL_HOURS || 12);
-const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
+
+// Cookies are Secure by default. Set COOKIE_SECURE=false only for plain-HTTP
+// local development. With Secure, the __Host- prefix makes the browser
+// refuse the cookie unless it is Secure, host-only and Path=/, so a sibling
+// subdomain cannot set or overwrite it.
+const COOKIE_SECURE = process.env.COOKIE_SECURE !== 'false';
+const SESSION_COOKIE = COOKIE_SECURE ? '__Host-cde_session' : 'cde_session';
+
+// OWASP Password Storage Cheat Sheet minimum for scrypt: N=2^17, r=8, p=1.
+// That needs about 128 MiB per hash; libuv runs at most UV_THREADPOOL_SIZE
+// (default 4) at a time.
+const SCRYPT = { N: 2 ** 17, r: 8, p: 1, keylen: 64 };
+const SCRYPT_MAXMEM = 256 * 1024 * 1024;
+
+const MAX_EMAIL = 254;
+const MAX_PASSWORD = 1024;
+
+// Failed sign-ins: per client IP (credential stuffing), and per email and IP
+// (guessing one account). Successful sign-ins are not counted.
+const WINDOW_MS = 15 * 60 * 1000;
+const failuresByIp = new RateLimiter({ windowMs: WINDOW_MS, max: Number(process.env.LOGIN_MAX_FAILURES_PER_IP || 30) });
+const failuresByAccount = new RateLimiter({ windowMs: WINDOW_MS, max: Number(process.env.LOGIN_MAX_FAILURES_PER_ACCOUNT || 10) });
 
 function scrypt(password, salt, params) {
     return new Promise((resolve, reject) => {
         crypto.scrypt(password, salt, params.keylen,
-            { N: params.N, r: params.r, p: params.p, maxmem: 64 * 1024 * 1024 },
+            { N: params.N, r: params.r, p: params.p, maxmem: SCRYPT_MAXMEM },
             (err, key) => (err ? reject(err) : resolve(key)));
     });
 }
@@ -21,13 +42,16 @@ async function hashPassword(password) {
     return ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString('base64url'), key.toString('base64url')].join('$');
 }
 
+// Returns { ok, needsRehash }. needsRehash is set when the stored hash uses
+// weaker parameters than the current ones.
 async function verifyPassword(password, stored) {
     const [scheme, N, r, p, salt, hash] = String(stored).split('$');
-    if (scheme !== 'scrypt') return false;
+    if (scheme !== 'scrypt' || !salt || !hash) return { ok: false, needsRehash: false };
     const expected = Buffer.from(hash, 'base64url');
     const key = await scrypt(password, Buffer.from(salt, 'base64url'),
         { N: Number(N), r: Number(r), p: Number(p), keylen: expected.length });
-    return crypto.timingSafeEqual(key, expected);
+    const ok = key.length === expected.length && crypto.timingSafeEqual(key, expected);
+    return { ok, needsRehash: ok && (Number(N) < SCRYPT.N || Number(r) < SCRYPT.r) };
 }
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest();
@@ -35,30 +59,69 @@ const sha256 = (value) => crypto.createHash('sha256').update(value).digest();
 function readCookie(req, name) {
     for (const part of (req.headers.cookie || '').split(';')) {
         const i = part.indexOf('=');
-        if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
+        if (i > 0 && part.slice(0, i).trim() === name) {
+            try {
+                return decodeURIComponent(part.slice(i + 1).trim());
+            } catch {
+                return null;   // malformed escape: treat as no cookie
+            }
+        }
     }
     return null;
 }
 
 function sessionCookie(value, maxAgeSeconds) {
     const parts = [`${SESSION_COOKIE}=${value}`, 'Path=/', 'HttpOnly', 'SameSite=Strict', `Max-Age=${maxAgeSeconds}`];
-    if (process.env.NODE_ENV === 'production') parts.push('Secure');
+    if (COOKIE_SECURE) parts.push('Secure');
     return parts.join('; ');
+}
+
+class LoginError extends Error {
+    constructor(status, message, retryAfter) {
+        super(message);
+        this.status = status;
+        this.retryAfter = retryAfter;
+    }
 }
 
 // A dummy hash so unknown emails take as long as wrong passwords.
 let dummyHash;
+
 async function login(email, password, ip) {
+    email = String(email || '').trim().toLowerCase();
+    password = String(password || '');
+    if (email.length > MAX_EMAIL || password.length > MAX_PASSWORD) {
+        throw new LoginError(400, 'Email or password is too long.');
+    }
+    const ipKey = `ip:${ip}`;
+    const accountKey = `acct:${email}|${ip}`;
+    const wait = Math.max(failuresByIp.blockedFor(ipKey), failuresByAccount.blockedFor(accountKey));
+    if (wait) throw new LoginError(429, 'Too many failed sign-in attempts. Try again later.', wait);
+
     dummyHash ??= await hashPassword(crypto.randomBytes(16).toString('hex'));
-    return withTx({ ip }, async (db) => {
-        const { rows } = await db.query('SELECT user_id, password_hash FROM auth_lookup_credentials($1)', [email]);
-        const ok = await verifyPassword(password, rows[0]?.password_hash ?? dummyHash);
-        if (!rows[0] || !ok) return null;
-        const token = crypto.randomBytes(32).toString('base64url');
+
+    // Look up, then verify outside any transaction: scrypt takes ~100 ms and
+    // must not hold a pooled database connection while it runs.
+    const cred = await withTx({ ip }, async (db) =>
+        (await db.query('SELECT user_id, password_hash FROM auth_lookup_credentials($1)', [email])).rows[0]);
+    const { ok, needsRehash } = await verifyPassword(password, cred?.password_hash ?? dummyHash);
+    if (!cred || !ok) {
+        failuresByIp.hit(ipKey);
+        failuresByAccount.hit(accountKey);
+        return null;
+    }
+    failuresByAccount.reset(accountKey);
+
+    const upgraded = needsRehash ? await hashPassword(password) : null;
+    const token = crypto.randomBytes(32).toString('base64url');
+    await withTx({ ip }, async (db) => {
+        if (upgraded) {
+            await db.query('SELECT auth_upgrade_password_hash($1, $2, $3)', [cred.user_id, cred.password_hash, upgraded]);
+        }
         await db.query('SELECT auth_create_session($1, $2, make_interval(hours => $3), $4)',
-            [rows[0].user_id, sha256(token), SESSION_TTL_HOURS, ip || null]);
-        return { token, maxAge: SESSION_TTL_HOURS * 3600 };
+            [cred.user_id, sha256(token), SESSION_TTL_HOURS, ip || null]);
     });
+    return { token, maxAge: SESSION_TTL_HOURS * 3600 };
 }
 
 async function logout(req) {
@@ -71,7 +134,7 @@ async function logout(req) {
 async function requireUser(req, res, next) {
     try {
         const token = readCookie(req, SESSION_COOKIE);
-        if (token) {
+        if (token && token.length <= 128) {
             const { rows } = await withTx({ ip: req.ip },
                 (db) => db.query('SELECT auth_resolve_session($1) AS user_id', [sha256(token)]));
             req.userId = rows[0]?.user_id || null;
@@ -83,4 +146,6 @@ async function requireUser(req, res, next) {
     }
 }
 
-module.exports = { SESSION_COOKIE, hashPassword, verifyPassword, login, logout, requireUser, sessionCookie };
+module.exports = {
+    SESSION_COOKIE, COOKIE_SECURE, LoginError, hashPassword, verifyPassword, login, logout, requireUser, sessionCookie,
+};

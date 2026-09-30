@@ -45,16 +45,25 @@ The API tests create a throwaway database, run the migrations and seed, and star
 | `STORAGE_DIR` | `app/storage` | Where uploaded files are kept, named by their SHA-256 |
 | `MAX_UPLOAD_MB` | `500` | Upload size limit |
 | `SESSION_TTL_HOURS` | `12` | Session lifetime |
-| `TRUST_PROXY` | unset | Set behind a load balancer so the audit trail records the client IP, not the proxy's |
-| `NODE_ENV` | unset | `production` adds `Secure` to the session cookie and disables the seed script |
+| `TRUST_PROXY` | unset | Behind a load balancer: the number of proxy hops (e.g. `1`) or the proxy subnets, so the audit trail records the client IP. `true` is refused because clients could then choose their own IP |
+| `NODE_ENV` | unset | `production` refuses to start with a privileged database role and disables the seed script |
+| `COOKIE_SECURE` | `true` | Session cookie is `__Host-` prefixed and `Secure`, and HSTS is sent. Set `false` only for plain-HTTP development on a host other than localhost |
+| `DAILY_UPLOAD_GB` | `20` | Upload volume allowed per user in any 24 hours |
+| `LOGIN_MAX_FAILURES_PER_IP` / `_PER_ACCOUNT` | `30` / `10` | Failed sign-ins allowed per 15 minutes before `429` |
+| `REQUEST_TIMEOUT_MS` | `900000` | Longest a single request (e.g. an upload) may take |
+| `ALLOW_PRIVILEGED_DB_ROLE` | unset | `1` overrides the production role check. Do not use this in production |
 
 ## How the app relies on the database
 
 - **Row-level security.** Every request runs in its own transaction as `cde_app`, with `app.user_id` and `app.client_ip` set transaction-locally. The database, not the API code, decides what each user can see and change. A bug in a route can't leak another organisation's WIP.
-- **Production login role.** Connect as a login role that is a member of `cde_app` but owns nothing, e.g. `CREATE ROLE cde_api LOGIN PASSWORD '…' IN ROLE cde_app;`. In development a superuser works because of `SET LOCAL ROLE cde_app`, but don't run production that way.
-- **Uploads.** Files are stored under their SHA-256, computed by the server while receiving the bytes. The client never supplies the hash.
+- **Production login role.** Connect as a login role that is a member of `cde_app` but owns nothing, e.g. `CREATE ROLE cde_api LOGIN PASSWORD '…' IN ROLE cde_app;`. Run migrations with the owner role separately. With `NODE_ENV=production` the server refuses to start as a superuser, a `BYPASSRLS` role or the table owner. In development it only warns.
+- **Uploads.** Files are stored under their SHA-256, computed by the server while receiving the bytes. The client never supplies the hash. Each upload is recorded against its uploader and project, and the database lets a revision use it only once, by that person, within 24 hours. The content type shown inline comes from the file's bytes, not from the browser's claim.
 - **Downloads and previews.** Each one is written to the audit chain before any bytes are sent. Only PDF and common image types may display inline. Everything else is sent as an attachment with `Content-Security-Policy: sandbox`, so an uploaded HTML file cannot run script on the app's origin.
 - **Sessions and CSRF.** Sessions are server-side, and only the token's hash is stored. The cookie is `HttpOnly` and `SameSite=Strict`. State-changing requests must also carry an `X-CDE-Request` header.
+
+## Security
+
+See [`../docs/SECURITY-AUDIT.md`](../docs/SECURITY-AUDIT.md) for the review, the fixes, and what is still open.
 
 ## Not built yet
 

@@ -6,27 +6,45 @@ const auth = require('./auth');
 const { pool } = require('./db');
 const { route, required, errorHandler } = require('./http');
 
+// Express reads a number as "trust this many hops" and a string as a list of
+// trusted proxy addresses, so TRUST_PROXY="1" as a string would silently mean
+// "trust the address 1". "true" would trust any X-Forwarded-For a client
+// sends, letting them choose the IP recorded in the audit trail.
+function parseTrustProxy(value) {
+    if (value === undefined || value === '' || value === 'false') return false;
+    if (/^\d+$/.test(value)) return Number(value);
+    if (value === 'true') {
+        throw new Error('TRUST_PROXY=true trusts client-supplied X-Forwarded-For. Set the number of proxy hops (e.g. 1) or the proxy addresses/subnets.');
+    }
+    return value.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 function createApp() {
     const app = express();
     app.disable('x-powered-by');
-    // Behind a load balancer, set TRUST_PROXY (e.g. "1") so req.ip is the client's
-    // address, which the audit trail records.
-    if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY);
+    app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
 
     app.use((req, res, next) => {
         res.set({
             'Content-Security-Policy': [
                 "default-src 'self'",
+                "script-src 'self'",
                 "style-src 'self' https://fonts.googleapis.com",
                 'font-src https://fonts.gstatic.com',
                 "img-src 'self' blob: data:",
                 "frame-src 'self'",
+                "object-src 'none'",
                 "frame-ancestors 'self'",
                 "base-uri 'none'",
                 "form-action 'self'",
             ].join('; '),
             'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'SAMEORIGIN',
             'Referrer-Policy': 'same-origin',
+            'Cross-Origin-Opener-Policy': 'same-origin',
+            'Cross-Origin-Resource-Policy': 'same-origin',
+            'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+            ...(auth.COOKIE_SECURE ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' } : {}),
         });
         next();
     });
@@ -37,6 +55,8 @@ function createApp() {
     }));
 
     const api = express.Router();
+    // Authenticated data must not be stored by browsers or shared caches.
+    api.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
     api.use(express.json({ limit: '1mb' }));
 
     // CSRF: the session cookie is SameSite=Strict, and every state-changing
@@ -51,7 +71,14 @@ function createApp() {
     api.post('/auth/login', route(async (req, res) => {
         const email = required(req.body, 'email', 'Email');
         const password = required(req.body, 'password', 'Password');
-        const session = await auth.login(email, password, req.ip);
+        let session;
+        try {
+            session = await auth.login(email, password, req.ip);
+        } catch (err) {
+            if (!(err instanceof auth.LoginError)) throw err;
+            if (err.retryAfter) res.set('Retry-After', String(err.retryAfter));
+            return res.status(err.status).json({ error: err.message });
+        }
         if (!session) return res.status(401).json({ error: 'Email or password is incorrect.' });
         res.set('Set-Cookie', auth.sessionCookie(session.token, session.maxAge)).json({ ok: true });
     }));
@@ -75,9 +102,38 @@ function createApp() {
     return app;
 }
 
-if (require.main === module) {
-    const port = Number(process.env.PORT || 3000);
-    createApp().listen(port, () => console.log(`CDE listening on http://localhost:${port}`));
+// Row-level security only protects data if the connection's own role is
+// restricted. A superuser, a BYPASSRLS role or the table owner would make a
+// bug in "SET LOCAL ROLE cde_app" handling a full data breach. Refuse to
+// start in production with such a role.
+async function checkDatabaseRole() {
+    const { rows: [r] } = await pool.query(`
+        SELECT r.rolsuper, r.rolbypassrls,
+               EXISTS (SELECT 1 FROM pg_class c WHERE c.relowner = r.oid AND c.relname = 'cde_documents') AS owns_tables,
+               pg_has_role(session_user, 'cde_app', 'MEMBER') AS in_app_role
+          FROM pg_roles r WHERE r.rolname = session_user`);
+    const problems = [];
+    if (!r.in_app_role) problems.push('is not a member of cde_app');
+    if (r.rolsuper) problems.push('is a superuser');
+    if (r.rolbypassrls) problems.push('has BYPASSRLS');
+    if (r.owns_tables) problems.push('owns the application tables');
+    if (!problems.length) return;
+    const message = `The database role in DATABASE_URL ${problems.join(', ')}. Connect as a dedicated login role, e.g. CREATE ROLE cde_api LOGIN PASSWORD '...' IN ROLE cde_app;`;
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRIVILEGED_DB_ROLE !== '1') throw new Error(message);
+    console.warn(`WARNING: ${message}`);
 }
 
-module.exports = { createApp };
+if (require.main === module) {
+    const port = Number(process.env.PORT || 3000);
+    checkDatabaseRole()
+        .then(() => {
+            const server = createApp().listen(port, () => console.log(`CDE listening on http://localhost:${port}`));
+            // Bound slow clients. Large uploads over slow links may need a
+            // higher REQUEST_TIMEOUT_MS.
+            server.headersTimeout = 30_000;
+            server.requestTimeout = Number(process.env.REQUEST_TIMEOUT_MS || 15 * 60 * 1000);
+        })
+        .catch((err) => { console.error(err.message); process.exit(1); });
+}
+
+module.exports = { createApp, parseTrustProxy, checkDatabaseRole };

@@ -84,19 +84,35 @@ SELECT seed_uk_na_suitability_codes('c0000000-0000-0000-0000-000000000001');
 SELECT seed_uk_na_suitability_codes('c0000000-0000-0000-0000-000000000002');
 
 -- Inserts a revision as the current user. Not SECURITY DEFINER: RLS applies.
+CREATE FUNCTION t_upload(p_project uuid, p_content text) RETURNS text
+LANGUAGE sql AS $$
+    INSERT INTO cde_uploads (project_id, object_key, size_bytes, detected_mime)
+    VALUES (p_project, encode(sha256(convert_to(p_content, 'UTF8')), 'hex'),
+            octet_length(convert_to(p_content, 'UTF8')), 'application/pdf')
+    RETURNING object_key
+$$;
+
+-- Uploads a file and inserts a revision as the current user, the way the API
+-- does. Not SECURITY DEFINER: RLS applies.
 CREATE FUNCTION t_rev(p_doc uuid, p_prefix char, p_major int, p_minor int,
                       p_suitability text, p_state cde_state) RETURNS uuid
-LANGUAGE sql AS $$
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_project uuid;
+    v_key     text;
+    v_id      uuid;
+BEGIN
+    SELECT project_id INTO v_project FROM cde_documents WHERE id = p_doc;
+    v_key := t_upload(coalesce(v_project, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()::text);
     INSERT INTO cde_document_revisions (document_id, project_id, originator_org_id,
         revision_prefix, revision_major, revision_minor, suitability_code, cde_state,
         object_key, sha256, size_bytes, mime_type, original_filename)
     SELECT d.id, d.project_id, d.originator_org_id, p_prefix, p_major, p_minor,
-           p_suitability, p_state, 'sha256/' || encode(sha256(convert_to(random()::text, 'UTF8')), 'hex'),
-           sha256(convert_to(p_doc::text || p_prefix || p_major || coalesce(p_minor, 0), 'UTF8')),
-           1024, 'application/pdf', 'file.pdf'
+           p_suitability, p_state, v_key, decode(v_key, 'hex'), 1, 'application/pdf', 'file.pdf'
       FROM cde_documents d WHERE d.id = p_doc
-    RETURNING id
-$$;
+    RETURNING id INTO v_id;
+    RETURN v_id;
+END $$;
 
 SET ROLE cde_app;
 
@@ -166,7 +182,7 @@ SELECT t_expect_error($$
         revision_major, suitability_code, cde_state, object_key, sha256, size_bytes, mime_type, original_filename)
     VALUES ('d0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001',
             'a0000000-0000-0000-0000-000000000001', 'P', 1, 'S2', 'SHARED', 'k', '\x00', 10, 'x', 'x') $$,
-    'check constraint');
+    'upload the file again');   -- rejected by the upload binding before the CHECKs run
 
 SELECT t_rev('d0000000-0000-0000-0000-000000000001', 'P', 1, NULL, 'S2', 'SHARED');
 
@@ -335,13 +351,13 @@ SELECT t_expect_error($$
                                   sheet_page, sheet_x_norm, sheet_y_norm, assigned_to)
     SELECT 'c0000000-0000-0000-0000-000000000001', 'WIR', 'WIR-0001', id, 1, 1.2, 0.5,
            'b0000000-0000-0000-0000-000000000003'
-      FROM cde_document_revisions WHERE document_id = 'd0000000-0000-0000-0000-000000000001' LIMIT 1 $$,
+      FROM cde_document_revisions WHERE document_id = 'd0000000-0000-0000-0000-000000000001' AND cde_state <> 'WIP' LIMIT 1 $$,
     'check constraint');
 -- Half a pin (sheet without coordinates).
 SELECT t_expect_error($$
     INSERT INTO site_inspections (project_id, inspection_type, inspection_number, sheet_revision_id, assigned_to)
     SELECT 'c0000000-0000-0000-0000-000000000001', 'WIR', 'WIR-0001', id, 'b0000000-0000-0000-0000-000000000003'
-      FROM cde_document_revisions WHERE document_id = 'd0000000-0000-0000-0000-000000000001' LIMIT 1 $$,
+      FROM cde_document_revisions WHERE document_id = 'd0000000-0000-0000-0000-000000000001' AND cde_state <> 'WIP' LIMIT 1 $$,
     'check constraint');
 -- Assigned to someone who is not on the project.
 SELECT t_expect_error($$
@@ -358,8 +374,82 @@ SELECT 'c0000000-0000-0000-0000-000000000001', 'WIR', 'WIR-0001', 'L01 riser',
  WHERE m.document_id = 'd0000000-0000-0000-0000-000000000002' AND m.revision_label = 'P01'
    AND s.document_id = 'd0000000-0000-0000-0000-000000000001' AND s.revision_label = 'P01';
 
-SELECT t_as('b0000000-0000-0000-0000-000000000003');   -- assignee records the result
+-- The requester cannot record the result of their own inspection (RLS: zero rows).
 UPDATE site_inspections SET status = 'INSPECTED_PASS' WHERE inspection_number = 'WIR-0001';
+SELECT t_assert((SELECT status FROM site_inspections WHERE inspection_number = 'WIR-0001') = 'REQUESTED',
+                'requester cannot pass their own inspection');
+-- Pins must point at revisions everyone can see.
+SELECT t_expect_error($$
+    INSERT INTO site_inspections (project_id, inspection_type, inspection_number, sheet_revision_id,
+                                  sheet_page, sheet_x_norm, sheet_y_norm, assigned_to)
+    SELECT 'c0000000-0000-0000-0000-000000000001', 'WIR', 'WIR-0002', id, 1, 0.5, 0.5,
+           'b0000000-0000-0000-0000-000000000003'
+      FROM cde_document_revisions WHERE cde_state = 'WIP' LIMIT 1 $$, 'shared or published');
+SELECT t_expect_error($$
+    INSERT INTO site_inspections (project_id, inspection_type, inspection_number, status, assigned_to)
+    VALUES ('c0000000-0000-0000-0000-000000000001', 'WIR', 'WIR-0003', 'INSPECTED_PASS',
+            'b0000000-0000-0000-0000-000000000003') $$, 'starts as REQUESTED');
+
+SELECT t_as('b0000000-0000-0000-0000-000000000003');   -- assignee records the result
+SELECT t_expect_error($$ UPDATE site_inspections SET location_description = 'moved'
+                          WHERE inspection_number = 'WIR-0001' $$, 'only the result');
+UPDATE site_inspections SET status = 'INSPECTED_PASS' WHERE inspection_number = 'WIR-0001';
+-- Results are final.
+SELECT t_expect_error($$ UPDATE site_inspections SET status = 'INSPECTED_FAIL'
+                          WHERE inspection_number = 'WIR-0001' $$, 'already has a result');
+
+-- ------------------------------------------------------------ upload binding
+\echo upload binding
+-- The consultant knows the hash of a contractor WIP file (e.g. from the audit
+-- trail) and tries to attach that file to a document of their own.
+RESET ROLE;
+INSERT INTO cde_documents (id, project_id, project_code, originator_org_id, originator_code,
+                           volume_code, level_code, type_code, role_code, number_code, title, created_by)
+VALUES ('d0000000-0000-0000-0000-000000000009', 'c0000000-0000-0000-0000-000000000001', 'PRJ1',
+        'a0000000-0000-0000-0000-000000000002', 'CONS', 'ZZ', '01', 'DR', 'M', '0001', 'Consultant doc',
+        'b0000000-0000-0000-0000-000000000003');
+CREATE TEMP TABLE t_wip_key AS
+SELECT object_key FROM cde_document_revisions WHERE cde_state = 'WIP' LIMIT 1;
+GRANT SELECT ON t_wip_key TO cde_app;
+SET ROLE cde_app;
+SELECT t_as('b0000000-0000-0000-0000-000000000003');
+SELECT t_expect_error($$
+    INSERT INTO cde_document_revisions (document_id, project_id, originator_org_id, revision_prefix,
+        revision_major, suitability_code, cde_state, object_key, sha256, size_bytes, mime_type, original_filename)
+    SELECT 'd0000000-0000-0000-0000-000000000009', 'c0000000-0000-0000-0000-000000000001',
+           'a0000000-0000-0000-0000-000000000002', 'P', 1, 'S2', 'SHARED', object_key, decode(object_key, 'hex'),
+           1, 'application/pdf', 'x.pdf'
+      FROM t_wip_key $$, 'upload the file again');
+-- Their own upload works, but only once.
+SELECT t_upload('c0000000-0000-0000-0000-000000000001', 'consultant file');
+INSERT INTO cde_document_revisions (document_id, project_id, originator_org_id, revision_prefix,
+    revision_major, suitability_code, cde_state, object_key, sha256, size_bytes, mime_type, original_filename)
+VALUES ('d0000000-0000-0000-0000-000000000009', 'c0000000-0000-0000-0000-000000000001',
+        'a0000000-0000-0000-0000-000000000002', 'P', 1, 'S2', 'SHARED',
+        encode(sha256('consultant file'::bytea), 'hex'), sha256('consultant file'::bytea), 999, 'text/html', 'x.pdf');
+SELECT t_assert((SELECT size_bytes = 15 AND mime_type = 'application/pdf' FROM cde_document_revisions
+                  WHERE document_id = 'd0000000-0000-0000-0000-000000000009'),
+                'size and type come from the upload, not the client');
+SELECT t_expect_error($$
+    INSERT INTO cde_document_revisions (document_id, project_id, originator_org_id, revision_prefix,
+        revision_major, suitability_code, cde_state, object_key, sha256, size_bytes, mime_type, original_filename)
+    VALUES ('d0000000-0000-0000-0000-000000000009', 'c0000000-0000-0000-0000-000000000001',
+            'a0000000-0000-0000-0000-000000000002', 'P', 2, 'S2', 'SHARED',
+            encode(sha256('consultant file'::bytea), 'hex'), sha256('consultant file'::bytea), 15,
+            'application/pdf', 'x.pdf') $$, 'upload the file again');
+-- Key and hash must agree.
+SELECT t_upload('c0000000-0000-0000-0000-000000000001', 'another file');
+SELECT t_expect_error($$
+    INSERT INTO cde_document_revisions (document_id, project_id, originator_org_id, revision_prefix,
+        revision_major, suitability_code, cde_state, object_key, sha256, size_bytes, mime_type, original_filename)
+    VALUES ('d0000000-0000-0000-0000-000000000009', 'c0000000-0000-0000-0000-000000000001',
+            'a0000000-0000-0000-0000-000000000002', 'P', 2, 'S2', 'SHARED',
+            encode(sha256('another file'::bytea), 'hex'), sha256('x'::bytea), 12,
+            'application/pdf', 'x.pdf') $$, 'check constraint');
+-- Nobody else can see your uploads.
+SELECT t_as('b0000000-0000-0000-0000-000000000001');
+SELECT t_assert(NOT EXISTS (SELECT 1 FROM cde_uploads WHERE uploaded_by <> 'b0000000-0000-0000-0000-000000000001'),
+                'uploads are private to the uploader');
 
 -- ------------------------------------------------------------ audit trail
 \echo audit trail
@@ -370,6 +460,11 @@ SELECT audit_append('c0000000-0000-0000-0000-000000000001', 'DOCUMENT_DOWNLOADED
 SELECT t_assert((SELECT count(*) FROM audit_trail) = 0, 'members cannot read the audit trail');
 SELECT t_as('b0000000-0000-0000-0000-000000000005');
 SELECT t_assert((SELECT count(*) FROM audit_trail WHERE action = 'CODE_STAMPED') = 2, 'code stamps audited');
+SELECT t_assert(NOT EXISTS (SELECT 1 FROM audit_trail a
+                             WHERE a.resource_type = 'REVISION'
+                               AND a.actor_id = 'b0000000-0000-0000-0000-000000000001'
+                               AND a.details->>'suitability' = 'S0'),
+                'other organisations cannot see audit entries about your WIP');
 SELECT t_assert((SELECT count(*) FROM audit_trail WHERE action = 'TRANSMITTAL_ISSUED') = 1, 'issue audited');
 SELECT t_assert((SELECT actor_ip FROM audit_trail WHERE action = 'DOCUMENT_DOWNLOADED') = '203.0.113.10',
                 'actor IP comes from the request context');
