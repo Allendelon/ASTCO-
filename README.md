@@ -20,6 +20,19 @@ Dependencies (loaded from CDN): Tailwind CSS Play CDN v3, Three.js r128 (cdnjs).
   overloads it could not resolve.
 - Editable activities, steps, relationships, actual dates, costs and resources; data is saved to localStorage; CSV/JSON export and JSON import.
 
+## Location-based views (after ConstructIQ "Construction in Motion")
+- **Viewing date** (orange) drives every view; the **data date** (amber) is the status cutoff. Play / −7d / +7d / go-to-date,
+  speed, "Follow work", jump buttons (Foundations, Structure, Envelope, Fit-out, Data date, Handover), drag the Gantt sideways.
+- **KPI strip:** levels structurally complete, floors handover-ready, and topping-out / permanent-power / handover
+  forecasts against the selected baseline.
+- **Elevation:** each floor is coloured by the last trade it has completed, and window bays fill as the current trade progresses. Click a floor to filter the Gantt.
+- **Floor sequence:** a location × trade matrix showing % and done/total at the viewing date, plus each floor's forecast ready date.
+- **Compare:** any two of BL0 / BL1 / BL2 / current. Shows milestone movement and per-activity finish slip.
+- Each activity carries a trade `phase` and a `floors` range (0 = foundation, 21 = roof), editable on the General tab.
+
+Progress on dates other than the data date is **illustrative**. It is interpolated from start to the recorded status,
+then forecast linearly to the finish, with floors worked bottom-up. It is not measured progress.
+
 ## Known simplifications
 - Calendars are labels only. All durations count on a single project-day timeline.
 - No P6 XER/XML export. The previous stubs did not produce files P6 can import, so they were removed rather than kept as fakes.

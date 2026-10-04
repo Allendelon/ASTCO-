@@ -31,7 +31,7 @@
     ::-webkit-scrollbar-thumb:hover { background: #334155; }
     input[type=range] { accent-color: #0284c7; }
     /* Table rows and Gantt rows share one fixed height so they line up */
-    #p6ActivityTable thead tr { height: 24px; }
+    #p6ActivityTable thead tr { height: 36px; }
     #p6ActivityTable tbody tr { height: 28px; }
     .gantt-row { height: 28px; }
   </style>
@@ -113,57 +113,48 @@
     </div>
   </header>
 
+  <!-- ======================== KPI STRIP ======================== -->
+  <div id="kpiStrip" class="h-14 bg-[#0b1324] border-b border-slate-800 grid grid-cols-6 shrink-0 divide-x divide-slate-800 whitespace-nowrap"></div>
+
   <!-- ======================== TIME RIBBON ======================== -->
-  <div class="h-10 bg-[#0a1020] border-b border-slate-800/90 flex items-center justify-between px-3 shrink-0 text-xs whitespace-nowrap">
-    <div class="flex items-center space-x-2">
-      <button id="playBtn" onclick="toggle4DPlay()" class="w-7 h-7 rounded bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center" title="Play / Pause 4D Simulation">
-        <svg id="playIcon" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-        <svg id="pauseIcon" class="w-3.5 h-3.5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-      </button>
-      <button onclick="reset4DTimeline()" class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-slate-300" title="Rewind to Day 0">⏮</button>
-      <button onclick="jumpToDataDate()" class="px-2 h-7 rounded bg-amber-950 border border-amber-700 text-amber-300 font-mono text-[10px]" title="Move 4D cursor to the status Data Date">→ DD</button>
-
-      <div class="flex items-center space-x-1 bg-[#121c33] px-2 py-0.5 rounded border border-slate-700/60 font-mono text-[11px]">
-        <span class="text-slate-400">4D CURSOR:</span>
-        <span id="displaySimulationDate" class="text-sky-400 font-bold">Day 70</span>
-        <span id="displayCalendarDate" class="hidden xl:inline text-sky-300/80">—</span>
-        <span class="text-slate-600">|</span>
-        <span class="text-slate-400">DATA DATE:</span>
-        <span id="displayDataDate" class="text-amber-400 font-bold">Day 70</span>
-      </div>
-
-      <div class="flex items-center space-x-1 text-[11px] text-slate-400" id="speedBtns">
-        <span class="hidden xl:inline">Speed:</span>
-        <button data-speed="0.5" class="speed-btn px-1.5 py-0.5 rounded">0.5x</button>
-        <button data-speed="1" class="speed-btn px-1.5 py-0.5 rounded">1x</button>
-        <button data-speed="2" class="speed-btn px-1.5 py-0.5 rounded">2x</button>
-        <button data-speed="4" class="speed-btn px-1.5 py-0.5 rounded">4x</button>
-      </div>
-    </div>
-
-    <div class="flex-1 max-w-xl mx-4 flex items-center space-x-2">
-      <span class="text-[10px] font-mono text-slate-400">D0</span>
-      <input type="range" id="timeScrubber" min="0" max="185" value="70" oninput="handleScrubberInput(this.value)" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
-      <span class="text-[10px] font-mono text-slate-400" id="scrubberMaxLabel">D185</span>
-    </div>
-
-    <div class="hidden 2xl:flex items-center space-x-3 text-[10px] font-mono">
-      <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-sm bg-slate-600/70 border border-slate-500"></span><span class="text-slate-400">Planned</span></span>
-      <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-sm bg-sky-500"></span><span class="text-sky-300">Active</span></span>
-      <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span><span class="text-emerald-300">Complete</span></span>
-      <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500"></span><span class="text-red-400" id="legendCritical">Critical (TF ≤ 0)</span></span>
-    </div>
+  <div class="h-11 bg-[#0a1020] border-b border-slate-800/90 flex items-center gap-2 px-3 shrink-0 text-xs whitespace-nowrap">
+    <button id="playBtn" onclick="toggle4DPlay()" class="h-7 px-3 rounded bg-orange-500 hover:bg-orange-400 text-white font-bold flex items-center gap-1.5" title="Play / Pause (Space)">
+      <svg id="playIcon" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      <svg id="pauseIcon" class="w-3.5 h-3.5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      <span id="playLabel">Play</span>
+    </button>
+    <button onclick="stepDays(-7)" class="h-7 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono" title="Back one week">−7d</button>
+    <button onclick="stepDays(7)" class="h-7 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono" title="Forward one week">+7d</button>
+    <label class="flex items-center gap-1 text-slate-400"><span class="hidden xl:inline">Speed</span>
+      <select id="speedSelect" onchange="setSimSpeed(num(this.value))" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-slate-200">
+        <option value="0.5">Slow</option><option value="1" selected>Normal</option><option value="2">Fast</option><option value="4">Very fast</option>
+      </select>
+    </label>
+    <label class="flex items-center gap-1 text-slate-300 cursor-pointer" title="Keep the Gantt scrolled to the viewing date while playing">
+      <input type="checkbox" id="followWorkChk" checked onchange="ui.followWork = this.checked; if (ui.followWork) scrollGanttToCursor()" class="w-3.5 h-3.5 accent-orange-500"> Follow work
+    </label>
+    <label class="flex items-center gap-1 text-slate-400"><span class="hidden xl:inline">Go to date</span>
+      <input type="date" id="goToDateInput" onchange="goToDate(this.value)" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200 font-mono text-[11px]">
+    </label>
+    <span class="font-mono text-[10px] text-slate-400" title="4D cursor day / status data date"><span id="displaySimulationDate" class="text-orange-400 font-bold">D70</span> · DD <span id="displayDataDate" class="text-amber-400 font-bold">D70</span></span>
+    <input type="range" id="timeScrubber" min="0" max="185" value="70" oninput="handleScrubberInput(this.value)" class="flex-1 min-w-[80px] h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+    <span class="text-[10px] font-mono text-slate-500" id="scrubberMaxLabel">D185</span>
+    <div id="stopChips" class="hidden xl:flex items-center gap-1"></div>
   </div>
 
   <!-- ======================== WORKSPACE ======================== -->
   <main class="flex-1 flex overflow-hidden relative" id="workspaceContainer">
 
-    <!-- LEFT: 4D BIM -->
+    <!-- LEFT: location views -->
     <section id="bimPane" class="w-1/2 flex flex-col bg-[#050914] border-r border-slate-800 relative">
-      <div class="h-8 bg-[#090f1d] px-3 flex items-center justify-between border-b border-slate-800 shrink-0 text-slate-300 text-xs">
-        <span class="font-bold text-sky-400">4D BIM DIGITAL TWIN</span>
-        <div class="flex items-center space-x-2 text-[10px]">
-          <span class="text-slate-400">Camera:</span>
+      <div class="h-8 bg-[#090f1d] px-2 flex items-center justify-between border-b border-slate-800 shrink-0 text-slate-300 text-xs whitespace-nowrap">
+        <div class="flex items-center gap-0.5">
+          <button onclick="switchLeftTab('model')" id="leftTab_model" class="left-tab"><span class="text-slate-500 mr-1">01</span>3D model</button>
+          <button onclick="switchLeftTab('elevation')" id="leftTab_elevation" class="left-tab"><span class="text-slate-500 mr-1">02</span>Elevation</button>
+          <button onclick="switchLeftTab('sequence')" id="leftTab_sequence" class="left-tab"><span class="text-slate-500 mr-1">03</span>Floor sequence</button>
+          <button onclick="switchLeftTab('compare')" id="leftTab_compare" class="left-tab"><span class="text-slate-500 mr-1">04</span>Compare</button>
+        </div>
+        <div id="bimCamControls" class="flex items-center space-x-1 text-[10px]">
           <button onclick="resetBIMCamera('isometric')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-mono">ISO</button>
           <button onclick="resetBIMCamera('top')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-mono">Top</button>
           <button onclick="resetBIMCamera('front')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-mono">Front</button>
@@ -171,39 +162,85 @@
         </div>
       </div>
 
-      <div id="threeCanvasContainer" class="flex-1 relative w-full h-full cursor-grab active:cursor-grabbing overflow-hidden">
+      <div id="threeCanvasContainer" class="left-view flex-1 relative w-full h-full cursor-grab active:cursor-grabbing overflow-hidden">
         <canvas id="bimCanvas" class="w-full h-full block"></canvas>
         <div id="bimUnavailable" class="hidden absolute inset-0 flex items-center justify-center text-slate-400 text-xs p-6 text-center">
-          3D view unavailable: Three.js could not be loaded (offline or blocked CDN). Scheduling, Gantt, EVM and resources still work.
+          3D view unavailable: Three.js could not be loaded (offline or blocked CDN). Use the Elevation and Floor sequence tabs.
         </div>
-
         <div class="absolute top-2 left-2 pointer-events-none bg-slate-900/85 border border-slate-700/80 rounded-lg p-2.5 font-mono text-[11px] space-y-1 shadow-lg min-w-[260px]">
-          <div class="text-slate-400 text-[10px] uppercase">Work in progress at cursor</div>
+          <div class="text-slate-400 text-[10px] uppercase">Work in progress at viewing date</div>
           <div id="hudActiveList" class="space-y-0.5"></div>
         </div>
-
         <div class="absolute bottom-2 right-2 pointer-events-none bg-slate-900/80 border border-slate-800 rounded px-2 py-1 text-[10px] font-mono text-slate-400">
-          Drag: Rotate | Scroll: Zoom | Click Gantt row: highlight element
+          Drag: Rotate | Scroll: Zoom
         </div>
+      </div>
+
+      <div id="elevationView" class="left-view hidden flex-1 overflow-hidden flex">
+        <div class="flex-1 flex flex-col p-3 min-w-0">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[11px] font-bold tracking-widest text-slate-300">THE BUILDING, THROUGH TIME</span>
+            <span class="text-[10px] text-slate-500">Click a floor to filter the Gantt</span>
+          </div>
+          <div class="flex-1 relative min-h-0"><svg id="elevationSvg" class="w-full h-full"></svg></div>
+          <div id="phaseLegend" class="flex flex-wrap gap-3 text-[10px] text-slate-400 pt-1"></div>
+        </div>
+        <aside class="w-60 shrink-0 border-l border-slate-800 p-3 overflow-auto">
+          <div class="text-[10px] uppercase text-slate-500 font-mono">What is happening</div>
+          <div id="happeningHeadline" class="text-sm font-bold text-white mt-1 mb-3"></div>
+          <div id="phasePanel" class="space-y-3"></div>
+        </aside>
+      </div>
+
+      <div id="sequenceView" class="left-view hidden flex-1 overflow-auto p-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[11px] font-bold tracking-widest text-slate-300">FLOOR-BY-FLOOR SEQUENCE</span>
+          <span class="text-[10px] text-slate-500">% complete at the viewing date · click a row to filter the Gantt</span>
+        </div>
+        <table class="w-full text-[11px] border-separate" style="border-spacing:3px">
+          <thead id="sequenceHead" class="text-[9px] uppercase font-mono text-slate-500"></thead>
+          <tbody id="sequenceBody"></tbody>
+        </table>
+      </div>
+
+      <div id="compareView" class="left-view hidden flex-1 overflow-auto p-3 text-xs">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-[11px] font-bold tracking-widest text-slate-300 mr-2">COMPARE UPDATES</span>
+          <select id="compareA" onchange="renderCompare()" class="fld" style="width:150px"></select>
+          <span class="text-slate-500">vs</span>
+          <select id="compareB" onchange="renderCompare()" class="fld" style="width:150px"></select>
+        </div>
+        <div id="compareMilestones" class="grid grid-cols-3 gap-2 mb-3"></div>
+        <table class="w-full text-[11px]">
+          <thead class="text-[9px] uppercase font-mono text-slate-500 text-left"><tr><th class="p-1">Activity</th><th class="p-1 text-center">Finish A</th><th class="p-1 text-center">Finish B</th><th class="p-1 text-center">Δ days</th><th class="p-1 w-[40%]">A (thin) vs B (bar)</th></tr></thead>
+          <tbody id="compareBody"></tbody>
+        </table>
       </div>
     </section>
 
     <!-- RIGHT: Schedule -->
     <section id="p6Pane" class="w-1/2 flex flex-col bg-[#0b1222] overflow-hidden">
       <div class="h-[60%] flex flex-col border-b border-slate-800 overflow-hidden">
-        <div class="h-8 bg-[#0d162a] px-3 flex items-center justify-between gap-2 border-b border-slate-800 shrink-0 text-slate-300 text-xs whitespace-nowrap">
-          <div class="flex items-center space-x-2">
-            <span class="font-bold text-white">ACTIVITIES</span>
+        <div class="h-9 bg-[#0d162a] px-3 flex items-center justify-between gap-2 border-b border-slate-800 shrink-0 text-slate-300 text-xs whitespace-nowrap">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="font-bold text-white shrink-0" id="ganttScopeLabel">GANTT · PROJECT OVERVIEW</span>
             <span class="hidden 2xl:inline text-[10px] text-slate-500 font-mono" id="activityCountLabel"></span>
-            <button onclick="addActivity()" class="px-1.5 py-0.5 bg-sky-700 hover:bg-sky-600 text-white rounded text-[10px] font-semibold">+ Activity</button>
-            <button onclick="deleteSelectedActivity()" class="px-1.5 py-0.5 bg-slate-800 hover:bg-red-900 text-slate-300 rounded text-[10px]">Delete</button>
+            <button onclick="addActivity()" title="Add activity" class="px-1.5 py-0.5 bg-sky-700 hover:bg-sky-600 text-white rounded text-[10px] font-semibold">+</button>
+            <button onclick="deleteSelectedActivity()" class="px-1.5 py-0.5 bg-slate-800 hover:bg-red-900 text-slate-300 rounded text-[10px]" title="Delete selected activity">✕</button>
           </div>
-          <div class="flex items-center space-x-2 text-[10px]">
-            <span class="hidden xl:inline text-slate-400">Scale:</span>
-            <button onclick="setGanttZoom('week')" id="zoomBtn_week" class="zoom-btn px-1.5 py-0.5 rounded font-mono">Weeks</button>
-            <button onclick="setGanttZoom('month')" id="zoomBtn_month" class="zoom-btn px-1.5 py-0.5 rounded font-mono">Months</button>
+          <div class="flex items-center gap-1.5 text-[10px]">
+            <input type="search" id="activitySearch" oninput="ui.search = this.value; renderScheduleTable(); renderGanttChart()" placeholder="Find activity" class="fld" style="width:100px;padding:2px 6px">
+            <select id="rowsSelect" onchange="setRowsMode(this.value)" class="fld" style="width:auto;padding:2px 4px">
+              <option value="all">Project overview</option>
+              <option value="floor">Selected floor</option>
+              <option value="critical">Critical path</option>
+            </select>
+            <select id="scaleSelect" onchange="ui.scale = this.value; renderGanttChart(); scrollGanttToCursor()" class="fld" style="width:auto;padding:2px 4px">
+              <option value="12w">12 weeks</option>
+              <option value="6m">6 months</option>
+              <option value="all">Whole project</option>
+            </select>
             <button onclick="toggleRelationshipLines()" id="relLinesBtn" class="px-1.5 py-0.5 rounded font-mono">Links</button>
-            <button onclick="toggleCriticalPathFilter()" id="criticalPathFilterBtn" class="px-1.5 py-0.5 rounded font-mono">Critical Only</button>
           </div>
         </div>
 
@@ -230,10 +267,14 @@
             </table>
           </div>
 
-          <div class="w-2/5 overflow-x-auto overflow-y-hidden bg-[#0a1020] relative" id="ganttTimelineContainer">
-            <div id="ganttTimelineHeader" class="sticky top-0 h-6 bg-[#121c33] border-b border-slate-700 flex items-center text-[9px] font-mono text-slate-400 whitespace-nowrap z-10"></div>
+          <div class="w-2/5 overflow-x-auto overflow-y-hidden bg-[#0a1020] relative cursor-grab" id="ganttTimelineContainer" title="Drag sideways to move through time">
+            <div id="ganttTimelineHeader" class="sticky top-0 bg-[#121c33] border-b border-slate-700 text-[9px] font-mono text-slate-400 whitespace-nowrap z-10 relative" style="height:36px"></div>
             <div id="ganttBarsContainer" class="relative"></div>
           </div>
+        </div>
+        <div class="h-5 px-3 flex items-center justify-between text-[9px] text-slate-500 bg-[#090f1d] border-t border-slate-800 shrink-0 whitespace-nowrap overflow-hidden">
+          <span>Orange line = viewing date · amber line = data date · thin bar = baseline · bar fill = progress at viewing date</span>
+          <span class="hidden xl:inline">Drag / Shift+wheel to pan</span>
         </div>
       </div>
 
@@ -307,6 +348,11 @@
               </div>
               <div><label class="lbl">Contractor / OBS</label><input type="text" id="genContractor" onchange="updateActiveField('contractor', this.value)" class="fld"></div>
               <div><label class="lbl">Original Duration (days)</label><input type="number" min="0" id="genOD" onchange="updateActiveNumber('duration', this.value)" class="fld font-mono"></div>
+              <div><label class="lbl">Trade phase (location views)</label>
+                <select id="genPhase" onchange="updateActiveField('phase', this.value || null)" class="fld"><option value="">— none —</option></select>
+              </div>
+              <div><label class="lbl">Floors from (0 = fdn, 21 = roof)</label><input type="number" min="0" max="21" id="genFloorFrom" onchange="updateFloors()" class="fld font-mono"></div>
+              <div><label class="lbl">Floors to</label><input type="number" min="0" max="21" id="genFloorTo" onchange="updateFloors()" class="fld font-mono"></div>
             </div>
           </div>
 
@@ -515,10 +561,17 @@
     .view-btn.active { background: #0284c7; color: #fff; }
     .tab-btn { white-space: nowrap; padding: 4px 10px; font-size: 12px; color: #94a3b8; border-radius: 4px 4px 0 0; }
     .tab-btn.active { background: #16233d; color: #38bdf8; font-weight: 700; border: 1px solid #334155; border-bottom: 0; }
-    .speed-btn, .zoom-btn, #relLinesBtn, #criticalPathFilterBtn { background: #1e293b; color: #cbd5e1; }
-    .speed-btn.active, .zoom-btn.active, #relLinesBtn.active { background: #0284c7; color: #fff; font-weight: 700; }
-    #criticalPathFilterBtn { color: #f87171; }
-    #criticalPathFilterBtn.active { background: #7f1d1d; color: #fff; font-weight: 700; }
+    #relLinesBtn { background: #1e293b; color: #cbd5e1; }
+    #relLinesBtn.active { background: #0284c7; color: #fff; font-weight: 700; }
+    .left-tab { white-space: nowrap; padding: 4px 8px; font-size: 12px; color: #94a3b8; border-bottom: 2px solid transparent; }
+    .left-tab.active { color: #fff; border-bottom-color: #f97316; font-weight: 600; }
+    .stop-chip { padding: 3px 8px; border-radius: 4px; background: #1e293b; color: #cbd5e1; font-size: 11px; border: 1px solid #334155; }
+    .stop-chip:hover { background: #334155; color: #fff; }
+    .kpi-cell { padding: 6px 14px; overflow: hidden; }
+    .kpi-cell .k { font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: #64748b; font-family: 'JetBrains Mono', monospace; }
+    .kpi-cell .v { font-size: 17px; font-weight: 700; color: #f1f5f9; line-height: 1.3; }
+    .kpi-cell .d { font-size: 10px; }
+    #ganttTimelineContainer.dragging { cursor: grabbing; }
     .lbl { display: block; color: #94a3b8; font-size: 10px; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; margin-bottom: 4px; }
     .fld { width: 100%; background: #16233d; border: 1px solid #334155; border-radius: 4px; padding: 4px 8px; color: #e2e8f0; }
     .fld.fld-inline { width: 72px; display: inline-block; margin-left: 4px; }
@@ -535,7 +588,21 @@
   <script>
     'use strict';
 
-    const STORAGE_KEY = 'astco4d.project.v2';
+    const STORAGE_KEY = 'astco4d.project.v3';
+
+    /* ---------- Locations & trade phases (location-based view) ---------- */
+    const FLOOR_COUNT = 20;            // L1..L20
+    const ROOF = FLOOR_COUNT + 1;      // 0 = foundation, 21 = roof
+    const PHASES = [
+      { key: 'Substructure', color: '#8b7355' },
+      { key: 'Structure', color: '#94a3b8' },
+      { key: 'Envelope', color: '#3b82f6' },
+      { key: 'Rough-in', color: '#14b8a6' },
+      { key: 'Finishes', color: '#f59e0b' },
+      { key: 'Close-out', color: '#22c55e' }
+    ];
+    const PHASE_COLOR = Object.fromEntries(PHASES.map(p => [p.key, p.color]));
+    function floorName(k) { return k === 0 ? 'Foundation' : k === ROOF ? 'Roof' : 'Level ' + k; }
 
     /* ---------- Utilities ---------- */
     function esc(v) {
@@ -571,79 +638,113 @@
         version: 2,
         settings: {
           dataDate: 70, projectStart: '2026-04-03', critThreshold: 0, mustFinish: null,
-          stepsDrivePhysical: true, defaultPctType: 'Physical', laborLimit: 120, plantLimit: 10
+          stepsDrivePhysical: true, defaultPctType: 'Physical', laborLimit: 150, plantLimit: 10
         },
         periods: [
           { day: 30, pv: 778000, ev: 770000, ac: 790000 },
           { day: 50, pv: 1588000, ev: 1590000, ac: 1625000 }
         ],
         activities: [
-          { id: 'ACT-1010', name: 'Subsurface Excavation & Shoring', wbs: '1.1 Substructure', contractor: 'Atlas Geotech', calendar: 'CAL-6D',
+          { id: 'ACT-1010', phase: 'Substructure', floors: [0, 0], name: 'Subsurface Excavation & Shoring', wbs: '1.1 Substructure', contractor: 'Atlas Geotech', calendar: 'CAL-6D',
             duration: 25, remainingDuration: 0, actualStart: 0, actualFinish: 25, percentCompleteType: 'Physical', physicalManual: 100,
             cost: 450000, actualCost: 440000, budgetUnits: 6000, actualUnits: 5900, labor: 30, plant: 4,
             cbs: { labor: 180000, plant: 180000, materials: 70000, indirect: 20000 }, predecessors: [], meshKey: 'excavation',
             steps: steps([['Site Clearance & Topsoil Stripping', 2, 100], ['Secant Piles & Shoring Guide Wall', 4, 100], ['Bulk Excavation (-8m)', 3, 100], ['Formation Level & Blinding', 1, 100]]),
             baselines: { BL0: bl(0, 25), BL1: bl(0, 25), BL2: bl(0, 25) } },
-          { id: 'ACT-1020', name: 'Deep Piling & Foundation Raft', wbs: '1.1 Substructure', contractor: 'Atlas Geotech', calendar: 'CAL-7D',
+          { id: 'ACT-1020', phase: 'Substructure', floors: [0, 0], name: 'Deep Piling & Foundation Raft', wbs: '1.1 Substructure', contractor: 'Atlas Geotech', calendar: 'CAL-7D',
             duration: 25, remainingDuration: 0, actualStart: 20, actualFinish: 45, percentCompleteType: 'Physical', physicalManual: 100,
             cost: 820000, actualCost: 810000, budgetUnits: 8000, actualUnits: 8100, labor: 40, plant: 5,
             cbs: { labor: 320000, plant: 220000, materials: 240000, indirect: 40000 }, predecessors: [{ id: 'ACT-1010', type: 'FS', lag: -5 }], meshKey: 'foundation',
             steps: steps([['1200mm Bored Piles (48 No.)', 3, 100], ['Raft Waterproofing', 2, 100], ['Raft Rebar Mat', 3, 100], ['Mass Concrete Pour', 2, 100]]),
             baselines: { BL0: bl(20, 45), BL1: bl(20, 45), BL2: bl(20, 45) } },
-          { id: 'ACT-1030', name: 'Tower Crane Erection & Certification', wbs: '1.2 Superstructure', contractor: 'Apex Consortium', calendar: 'CAL-6D',
+          { id: 'ACT-1030', phase: null, floors: null, name: 'Tower Crane Erection & Certification', wbs: '1.2 Superstructure', contractor: 'Apex Consortium', calendar: 'CAL-6D',
             duration: 10, remainingDuration: 0, actualStart: 35, actualFinish: 45, percentCompleteType: 'Physical', physicalManual: 100,
             cost: 160000, actualCost: 165000, budgetUnits: 900, actualUnits: 950, labor: 10, plant: 3,
             cbs: { labor: 60000, plant: 80000, materials: 10000, indirect: 10000 }, predecessors: [{ id: 'ACT-1020', type: 'SS', lag: 15 }], meshKey: 'towerCrane',
             steps: steps([['Base Mast Anchor Embedment', 3, 100], ['Mast Climbing & Jib Assembly', 4, 100], ['Counterweight & Hoist Rigging', 2, 100], ['Load Testing', 1, 100]]),
             baselines: { BL0: bl(35, 45), BL1: bl(35, 45), BL2: bl(35, 45) } },
-          { id: 'ACT-2010', name: 'Podium & Columns Level 1-4', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
+          { id: 'ACT-2010', phase: 'Structure', floors: [1, 4], name: 'Podium & Columns Level 1-4', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
             duration: 30, remainingDuration: 0, actualStart: 45, actualFinish: 69, percentCompleteType: 'Physical', physicalManual: 100,
             cost: 950000, actualCost: 965000, budgetUnits: 9600, actualUnits: 9800, labor: 40, plant: 3,
             cbs: { labor: 450000, plant: 200000, materials: 260000, indirect: 40000 }, predecessors: [{ id: 'ACT-1020', type: 'FS', lag: 0 }], meshKey: 'columnsLower',
             steps: steps([['Column Starter Couplers', 2, 100], ['Steel Formwork Assembly', 3, 100], ['SCC Pour', 4, 100], ['Curing & De-shuttering', 1, 100]]),
             baselines: { BL0: bl(45, 75), BL1: bl(45, 75), BL2: bl(45, 75) } },
-          { id: 'ACT-2020', name: 'Mid-Rise Concrete Slabs L5-L12', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
+          { id: 'ACT-2020', phase: 'Structure', floors: [5, 12], name: 'Mid-Rise Concrete Slabs L5-L12', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
             duration: 45, remainingDuration: 30, actualStart: 65, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
             cost: 1200000, actualCost: 650000, budgetUnits: 14000, actualUnits: 6200, labor: 45, plant: 3,
             cbs: { labor: 540000, plant: 260000, materials: 340000, indirect: 60000 }, predecessors: [{ id: 'ACT-2010', type: 'SS', lag: 20 }], meshKey: 'slabsMid',
             steps: steps([['Soffit Shoring & Deck Formwork', 3, 100], ['PT Ducting & Rebar', 4, 50], ['Slab Pour & Laser Screed', 3, 0], ['PT Stressing & Stripping', 0, 0]]),
             baselines: { BL0: bl(65, 110), BL1: bl(65, 110), BL2: bl(65, 105) } },
-          { id: 'ACT-3010', name: 'Core Shear Wall Vertical Ext.', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
+          { id: 'ACT-3010', phase: 'Structure', floors: [1, 20], name: 'Core Shear Wall Vertical Ext.', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
             duration: 60, remainingDuration: 24, actualStart: 55, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
             cost: 780000, actualCost: 480000, budgetUnits: 9000, actualUnits: 5600, labor: 30, plant: 2,
             cbs: { labor: 350000, plant: 180000, materials: 210000, indirect: 40000 }, predecessors: [{ id: 'ACT-2010', type: 'SS', lag: 10 }], meshKey: 'shearCore',
             steps: steps([['Jump-Form Setup', 2, 100], ['Embed Plates & Vertical Rebar', 4, 100], ['Wall Pour L8-L14', 3, 0], ['Shaft Plumbness Survey', 1, 0]]),
             baselines: { BL0: bl(55, 115), BL1: bl(55, 115), BL2: bl(55, 112) } },
-          { id: 'ACT-4010', name: 'Lower Tier MEP Primary Risers', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-5D',
+          { id: 'ACT-4010', phase: 'Rough-in', floors: [1, 10], name: 'Lower Tier MEP Primary Risers', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-5D',
             duration: 50, remainingDuration: 35, actualStart: 60, actualFinish: null, percentCompleteType: 'Units', physicalManual: 0,
             cost: 540000, actualCost: 190000, budgetUnits: 7000, actualUnits: 2100, labor: 25, plant: 1,
             cbs: { labor: 270000, plant: 90000, materials: 150000, indirect: 30000 }, predecessors: [{ id: 'ACT-2010', type: 'SS', lag: 15 }], meshKey: 'mepLower',
             steps: steps([['Shaft Coring & Sleeving', 1.5, 100], ['CHW & Fire Riser Headers', 1.5, 100], ['Cable Tray & Busducts', 4.5, 0], ['Pressure Testing', 2.5, 0]]),
             baselines: { BL0: bl(70, 120), BL1: bl(70, 120), BL2: bl(70, 120) } },
-          { id: 'ACT-4020', name: 'Upper Tier MEP Risers', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-5D',
+          { id: 'ACT-4020', phase: 'Rough-in', floors: [11, 20], name: 'Upper Tier MEP Risers', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-5D',
             duration: 40, remainingDuration: 40, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
             cost: 420000, actualCost: 0, budgetUnits: 5600, actualUnits: 0, labor: 35, plant: 1,
             cbs: { labor: 210000, plant: 60000, materials: 130000, indirect: 20000 }, predecessors: [{ id: 'ACT-4010', type: 'FS', lag: 0 }, { id: 'ACT-3010', type: 'FS', lag: 0 }], meshKey: 'mepUpper',
             steps: steps(STEP_TEMPLATES.mep_risers.steps.map(s => [s.name, s.weight, 0])),
             baselines: { BL0: bl(120, 160), BL1: bl(120, 160), BL2: bl(118, 158) } },
-          { id: 'ACT-5010', name: 'Curtain Wall Unitized Facade L1-8', wbs: '1.4 Architectural Envelope', contractor: 'Horizon Glazing Inc', calendar: 'CAL-6D',
+          { id: 'ACT-5010', phase: 'Envelope', floors: [1, 8], name: 'Curtain Wall Unitized Facade L1-8', wbs: '1.4 Architectural Envelope', contractor: 'Horizon Glazing Inc', calendar: 'CAL-6D',
             duration: 50, remainingDuration: 50, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
             cost: 650000, actualCost: 0, budgetUnits: 8000, actualUnits: 0, labor: 50, plant: 2,
             cbs: { labor: 280000, plant: 110000, materials: 230000, indirect: 30000 }, predecessors: [{ id: 'ACT-2020', type: 'FS', lag: 10 }], meshKey: 'facadeLower',
             steps: steps(STEP_TEMPLATES.curtain_wall.steps.map(s => [s.name, s.weight, 0])),
             baselines: { BL0: bl(85, 135), BL1: bl(85, 135), BL2: bl(85, 135) } },
-          { id: 'ACT-2030', name: 'Upper High-Rise Slabs L13-L20', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
+          { id: 'ACT-2030', phase: 'Structure', floors: [13, 20], name: 'Upper High-Rise Slabs L13-L20', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
             duration: 50, remainingDuration: 50, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
             cost: 850000, actualCost: 0, budgetUnits: 11000, actualUnits: 0, labor: 45, plant: 3,
             cbs: { labor: 380000, plant: 180000, materials: 240000, indirect: 50000 }, predecessors: [{ id: 'ACT-2020', type: 'FS', lag: -5 }], meshKey: 'slabsUpper',
             steps: steps(STEP_TEMPLATES.concrete_pour.steps.map(s => [s.name, s.weight, 0])),
             baselines: { BL0: bl(105, 155), BL1: bl(105, 155), BL2: bl(100, 150) } },
-          { id: 'ACT-6010', name: 'Rooftop Plant Room & Chillers', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-6D',
+          { id: 'ACT-6010', phase: 'Rough-in', floors: [21, 21], name: 'Rooftop Plant Room & Chillers', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-6D',
             duration: 30, remainingDuration: 30, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
             cost: 450000, actualCost: 0, budgetUnits: 4800, actualUnits: 0, labor: 25, plant: 4,
             cbs: { labor: 200000, plant: 90000, materials: 130000, indirect: 30000 }, predecessors: [{ id: 'ACT-2030', type: 'FS', lag: 0 }], meshKey: 'roofPlant',
             steps: steps([['Acoustic Plinths & Inertia Pads', 2, 0], ['Chiller Rigging & Heavy Lift', 5, 0], ['Refrigerant & Piping Tie-in', 2, 0], ['BMS Integration & Startup', 1, 0]]),
-            baselines: { BL0: bl(155, 185), BL1: bl(150, 180), BL2: bl(150, 180) } }
+            baselines: { BL0: bl(155, 185), BL1: bl(150, 180), BL2: bl(150, 180) } },
+          { id: 'ACT-6020', phase: null, floors: null, kpi: 'power', name: 'Permanent Power Energised', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-6D',
+            duration: 0, remainingDuration: 0, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 0, actualCost: 0, budgetUnits: 0, actualUnits: 0, labor: 0, plant: 0,
+            cbs: { labor: 0, plant: 0, materials: 0, indirect: 0 }, predecessors: [{ id: 'ACT-4010', type: 'FS', lag: 10 }], meshKey: null, steps: [],
+            baselines: { BL0: bl(130, 130), BL1: bl(130, 130), BL2: bl(128, 128) } },
+          { id: 'ACT-5020', phase: 'Envelope', floors: [9, 20], name: 'Curtain Wall Unitized Facade L9-20', wbs: '1.4 Architectural Envelope', contractor: 'Horizon Glazing Inc', calendar: 'CAL-6D',
+            duration: 45, remainingDuration: 45, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 900000, actualCost: 0, budgetUnits: 11000, actualUnits: 0, labor: 45, plant: 2,
+            cbs: { labor: 380000, plant: 150000, materials: 330000, indirect: 40000 }, predecessors: [{ id: 'ACT-5010', type: 'FS', lag: 0 }, { id: 'ACT-2030', type: 'SS', lag: 20 }], meshKey: 'facadeUpper',
+            steps: steps(STEP_TEMPLATES.curtain_wall.steps.map(s => [s.name, s.weight, 0])),
+            baselines: { BL0: bl(135, 180), BL1: bl(135, 180), BL2: bl(135, 180) } },
+          { id: 'ACT-7010', phase: 'Finishes', floors: [1, 10], name: 'Interior Fit-out & Finishes L1-10', wbs: '1.5 Interiors', contractor: 'Apex Consortium', calendar: 'CAL-6D',
+            duration: 50, remainingDuration: 50, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 1100000, actualCost: 0, budgetUnits: 15000, actualUnits: 0, labor: 40, plant: 1,
+            cbs: { labor: 520000, plant: 40000, materials: 480000, indirect: 60000 }, predecessors: [{ id: 'ACT-4010', type: 'FS', lag: 0 }, { id: 'ACT-5010', type: 'SS', lag: 20 }], meshKey: null,
+            steps: steps([['Drywall & Ceilings', 3, 0], ['Floor & Wall Finishes', 3, 0], ['Joinery & Fixtures', 2, 0], ['Snagging', 2, 0]]),
+            baselines: { BL0: bl(120, 170), BL1: bl(120, 170), BL2: bl(118, 168) } },
+          { id: 'ACT-7020', phase: 'Finishes', floors: [11, 20], name: 'Interior Fit-out & Finishes L11-20', wbs: '1.5 Interiors', contractor: 'Apex Consortium', calendar: 'CAL-6D',
+            duration: 50, remainingDuration: 50, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 1100000, actualCost: 0, budgetUnits: 15000, actualUnits: 0, labor: 40, plant: 1,
+            cbs: { labor: 520000, plant: 40000, materials: 480000, indirect: 60000 }, predecessors: [{ id: 'ACT-4020', type: 'FS', lag: 0 }, { id: 'ACT-7010', type: 'SS', lag: 25 }, { id: 'ACT-5020', type: 'SS', lag: 15 }], meshKey: null,
+            steps: steps([['Drywall & Ceilings', 3, 0], ['Floor & Wall Finishes', 3, 0], ['Joinery & Fixtures', 2, 0], ['Snagging', 2, 0]]),
+            baselines: { BL0: bl(165, 215), BL1: bl(165, 215), BL2: bl(160, 210) } },
+          { id: 'ACT-8010', phase: 'Close-out', floors: [1, 21], name: 'Testing, Commissioning & Inspections', wbs: '1.6 Close-out', contractor: 'Vertex MEP Solutions', calendar: 'CAL-6D',
+            duration: 15, remainingDuration: 15, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 200000, actualCost: 0, budgetUnits: 2400, actualUnits: 0, labor: 20, plant: 0,
+            cbs: { labor: 140000, plant: 10000, materials: 20000, indirect: 30000 }, predecessors: [{ id: 'ACT-7020', type: 'FS', lag: 0 }, { id: 'ACT-6010', type: 'FS', lag: 0 }], meshKey: null,
+            steps: steps([['Life-safety Systems Test', 4, 0], ['Authority Inspections', 4, 0], ['As-built & O&M Manuals', 2, 0]]),
+            baselines: { BL0: bl(215, 230), BL1: bl(215, 230), BL2: bl(210, 225) } },
+          { id: 'ACT-8020', phase: null, floors: null, kpi: 'handover', name: 'Handover / Completion Certificate', wbs: '1.6 Close-out', contractor: 'Apex Consortium', calendar: 'CAL-6D',
+            duration: 0, remainingDuration: 0, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 0, actualCost: 0, budgetUnits: 0, actualUnits: 0, labor: 0, plant: 0,
+            cbs: { labor: 0, plant: 0, materials: 0, indirect: 0 }, predecessors: [{ id: 'ACT-8010', type: 'FS', lag: 0 }], meshKey: null, steps: [],
+            baselines: { BL0: bl(230, 230), BL1: bl(230, 230), BL2: bl(225, 225) } }
         ]
       };
     }
@@ -657,8 +758,9 @@
 
     const ui = {
       view: 'splitView', simDay: 70, playing: false, timer: null, speed: 1,
-      baseline: 'BL0', selectedId: 'ACT-2020', contractor: 'ALL', criticalOnly: false,
-      zoom: 'week', showLinks: true, craneAnimating: true, tab: 'steps',
+      baseline: 'BL0', selectedId: 'ACT-2020', contractor: 'ALL',
+      scale: '6m', showLinks: true, craneAnimating: true, tab: 'steps', leftTab: 'model',
+      rows: 'all', selectedFloor: null, search: '', followWork: true,
       stepsCols: { weight: true, weightPercent: true, stepPercent: true, completed: true }
     };
 
@@ -866,13 +968,200 @@
       if (ui.view === 'resourceHistogram') renderResourceHistograms();
       updateBIMProgress(ui.simDay);
       updateTimeLabels();
+      renderStopChips();
+      renderKPIs();
+      renderLocationViews();
+      if (ui.leftTab === 'compare') renderCompare();
+    }
+
+    /* ---------- Location views (elevation, floor sequence, compare, KPIs) ---------- */
+    function switchLeftTab(tab) {
+      ui.leftTab = tab;
+      ['model', 'elevation', 'sequence', 'compare'].forEach(t => $('leftTab_' + t).classList.toggle('active', t === tab));
+      $('threeCanvasContainer').classList.toggle('hidden', tab !== 'model');
+      $('elevationView').classList.toggle('hidden', tab !== 'elevation');
+      $('sequenceView').classList.toggle('hidden', tab !== 'sequence');
+      $('compareView').classList.toggle('hidden', tab !== 'compare');
+      $('bimCamControls').classList.toggle('hidden', tab !== 'model');
+      if (tab === 'model') onWindowResize();
+      if (tab === 'compare') renderCompare(); else renderLocationViews();
+    }
+
+    function renderLocationViews() {
+      if (ui.leftTab !== 'elevation' && ui.leftTab !== 'sequence') return;
+      const matrix = locationMatrix(ui.simDay);
+      if (ui.leftTab === 'elevation') { renderElevation(matrix); renderPhasePanel(matrix); }
+      else renderSequence(matrix);
+    }
+
+    function stageColor(stage) { return stage === 'Future' ? 'transparent' : PHASE_COLOR[stage]; }
+
+    function renderElevation(matrix) {
+      const svg = $('elevationSvg');
+      const W = svg.clientWidth || 500, H = svg.clientHeight || 400;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      const n = matrix.length, rowH = Math.max(8, (H - 30) / n), bw = Math.min(W * 0.6, 340), x0 = (W - bw) / 2, bays = 8;
+      let out = '';
+      matrix.forEach((row, i) => {
+        const y = 6 + i * rowH;
+        const st = floorStage(row);
+        const isRoof = row.k === ROOF, isFdn = row.k === 0;
+        const rx = isRoof ? x0 + bw * 0.2 : isFdn ? x0 - 10 : x0, rw = isRoof ? bw * 0.6 : isFdn ? bw + 20 : bw;
+        const sel = ui.selectedFloor === row.k;
+        const base = stageColor(st.stage);
+        const fillN = st.active ? Math.round(st.activePct * bays) : 0;
+        const tip = `${floorName(row.k)} — ${st.stage === 'Future' ? 'not started' : st.stage + ' complete'}${st.active ? ` · ${st.active} ${Math.round(st.activePct * 100)}%` : ''}${row.ready != null ? ` · ready ${shortDate(row.ready)}` : ''}`;
+        out += `<g class="cursor-pointer" onclick="selectFloor(${row.k})"><title>${esc(tip)}</title>
+          <rect x="${rx}" y="${y}" width="${rw}" height="${rowH - 2}" rx="1.5" fill="${base === 'transparent' ? '#0f172a' : base + '55'}" stroke="${sel ? '#f97316' : '#334155'}" stroke-width="${sel ? 2 : 1}" ${st.stage === 'Future' ? 'stroke-dasharray="3,2"' : ''}/>`;
+        if (!isFdn && !isRoof) {
+          const bwid = (rw - 8) / bays;
+          for (let j = 0; j < bays; j++) {
+            const c = j < fillN ? PHASE_COLOR[st.active] : base === 'transparent' ? '#1e293b' : base;
+            out += `<rect x="${rx + 4 + j * bwid + 1}" y="${y + rowH * 0.2}" width="${bwid - 2}" height="${Math.max(2, rowH * 0.5)}" fill="${c}" opacity="${j < fillN || base !== 'transparent' ? 0.9 : 0.6}"/>`;
+          }
+        }
+        out += `<text x="${x0 - 16}" y="${y + rowH / 2 + 3}" fill="${sel ? '#fb923c' : '#64748b'}" font-size="9" font-family="monospace" text-anchor="end">${isRoof ? 'RF' : isFdn ? 'FDN' : 'L' + String(row.k).padStart(2, '0')}</text>`;
+        if (st.active) out += `<circle cx="${x0 + bw + 14}" cy="${y + rowH / 2}" r="3" fill="${PHASE_COLOR[st.active]}"/>`;
+        out += '</g>';
+      });
+      out += `<line x1="${x0 - 40}" y1="${6 + n * rowH}" x2="${x0 + bw + 40}" y2="${6 + n * rowH}" stroke="#475569" stroke-width="2"/>`;
+      svg.innerHTML = out;
+      $('phaseLegend').innerHTML = `<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 border border-dashed border-slate-500"></span>Future</span>` +
+        PHASES.map(p => `<span class="flex items-center gap-1"><span class="w-2.5 h-2.5" style="background:${p.color}"></span>${p.key}</span>`).join('');
+    }
+
+    function phaseSummary(matrix, key) {
+      const cells = matrix.map(r => r.cells[key]).filter(Boolean);
+      const acts = activities.filter(a => a.phase === key);
+      if (!cells.length || !acts.length) return null;
+      return {
+        pct: cells.reduce((x, c) => x + c.pct, 0) / cells.length,
+        done: cells.filter(c => c.pct >= 1).length, total: cells.length,
+        start: Math.min(...acts.map(a => a.es)), finish: Math.max(...acts.map(a => a.ef))
+      };
+    }
+
+    function renderPhasePanel(matrix) {
+      const sums = PHASES.map(p => ({ p, s: phaseSummary(matrix, p.key) })).filter(x => x.s);
+      const active = sums.filter(x => x.s.pct > 0 && x.s.pct < 1).map(x => x.p.key);
+      const next = sums.find(x => x.s.pct === 0);
+      $('happeningHeadline').innerText = sums.every(x => x.s.pct >= 1) ? 'All work complete.'
+        : active.length ? `${active.join(', ')} under way.${next ? ' ' + next.p.key + ' follows.' : ''}`
+        : next ? `Waiting to start ${next.p.key}.` : '';
+      $('phasePanel').innerHTML = sums.map(({ p, s }) => `
+        <div>
+          <div class="flex justify-between text-xs"><span class="font-semibold text-slate-200">${p.key}</span><span class="font-mono ${s.pct >= 1 ? 'text-emerald-400' : 'text-slate-300'}">${s.pct >= 1 ? '✓' : Math.round(s.pct * 100) + '%'}</span></div>
+          <div class="h-1.5 bg-slate-800 rounded mt-1"><div class="h-full rounded" style="width:${s.pct * 100}%;background:${p.color}"></div></div>
+          <div class="text-[10px] text-slate-500 mt-0.5">${s.done}/${s.total} locations · ${shortDate(s.start)}–${shortDate(s.finish)}</div>
+        </div>`).join('');
+    }
+
+    function renderSequence(matrix) {
+      $('sequenceHead').innerHTML = `<tr><th class="text-left p-1">Location</th>${PHASES.map(p => `<th class="p-1" style="color:${p.color}">${p.key}</th>`).join('')}<th class="p-1">Ready (fcst)</th></tr>`;
+      $('sequenceBody').innerHTML = matrix.map(row => {
+        const sel = ui.selectedFloor === row.k;
+        return `<tr class="cursor-pointer ${sel ? 'outline outline-1 outline-orange-500' : ''}" onclick="selectFloor(${row.k})">
+          <td class="p-1 pr-3 whitespace-nowrap ${sel ? 'text-orange-400 font-bold' : 'text-slate-300'}">${floorName(row.k)}</td>
+          ${PHASES.map(p => {
+            const c = row.cells[p.key];
+            if (!c) return '<td class="text-center text-slate-700">—</td>';
+            const pct = Math.round(c.pct * 100);
+            return `<td class="p-0" title="${p.key} · ${floorName(row.k)} · finishes ${shortDate(c.finish)}"><div class="relative h-5 rounded overflow-hidden ${c.critical && c.pct < 1 ? 'ring-1 ring-red-500/70' : ''}" style="background:${p.color}22">
+              <div class="absolute inset-y-0 left-0" style="width:${pct}%;background:${p.color}${c.pct >= 1 ? 'aa' : '77'}"></div>
+              <span class="absolute inset-0 flex items-center justify-between px-1.5 text-[10px] font-mono ${pct > 0 ? 'text-white' : 'text-slate-500'}"><span>${c.pct >= 1 ? '✓' : pct + '%'}</span><span class="opacity-70">${c.done}/${c.total}</span></span>
+            </div></td>`;
+          }).join('')}
+          <td class="p-1 text-center font-mono text-[10px] ${row.complete ? 'text-emerald-400' : 'text-slate-400'}">${row.ready == null ? '—' : row.complete ? '✓ ' + shortDate(row.ready) : shortDate(row.ready)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    /* Key dates: forecast vs selected baseline */
+    function keyDates(snap) {
+      const fin = a => snap === 'CUR' ? a.ef : a.baselines?.[snap]?.end;
+      const pick = list => { const v = list.map(fin).filter(x => x != null); return v.length ? Math.max(...v) : null; };
+      return {
+        topping: pick(activities.filter(a => a.phase === 'Structure')),
+        power: pick(activities.filter(a => a.kpi === 'power')),
+        handover: pick(activities.filter(a => a.kpi === 'handover')) ?? pick(activities)
+      };
+    }
+
+    function renderKPIs() {
+      const m = locationMatrix(ui.simDay);
+      const floors = m.filter(r => r.k >= 1 && r.k <= FLOOR_COUNT);
+      const structDone = floors.filter(r => r.cells.Structure && r.cells.Structure.pct >= 1).length;
+      const ready = floors.filter(r => r.complete).length;
+      const cur = keyDates('CUR'), bl = keyDates(ui.baseline);
+      const dateCell = (label, d, b) => {
+        if (d == null) return `<div class="kpi-cell"><div class="k">${label}</div><div class="v">—</div></div>`;
+        const delta = b == null ? null : d - b;
+        const done = ui.simDay >= d;
+        return `<div class="kpi-cell"><div class="k">${label}${done ? ' · achieved' : ''}</div><div class="v">${dateFromDay(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+          <div class="d ${delta == null ? 'text-slate-500' : delta > 0 ? 'text-red-400' : delta < 0 ? 'text-emerald-400' : 'text-slate-400'}">${delta == null ? 'no baseline' : delta === 0 ? 'on ' + ui.baseline : Math.abs(delta) + 'd ' + (delta > 0 ? 'later' : 'earlier') + ' than ' + ui.baseline}</div></div>`;
+      };
+      $('kpiStrip').innerHTML = `
+        <div class="kpi-cell"><div class="k">Viewing date</div><div class="v text-orange-400">${dateFromDay(ui.simDay).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div><div class="d text-slate-500">Day ${ui.simDay} · data date D${S.dataDate}${ui.simDay > S.dataDate ? ' · forecast' : ''}</div></div>
+        <div class="kpi-cell"><div class="k">Structure</div><div class="v">${structDone} / ${FLOOR_COUNT} levels</div><div class="d text-slate-500">frame complete</div></div>
+        <div class="kpi-cell"><div class="k">Floors handover-ready</div><div class="v">${ready} / ${FLOOR_COUNT} floors</div><div class="d text-slate-500">all trades complete</div></div>
+        ${dateCell('Topping out', cur.topping, bl.topping)}
+        ${dateCell('Permanent power', cur.power, bl.power)}
+        ${dateCell('Handover', cur.handover, bl.handover)}`;
+    }
+
+    function stopDays() {
+      const range = key => { const a = activities.filter(x => x.phase === key); return a.length ? Math.round((Math.min(...a.map(x => x.es)) + Math.max(...a.map(x => x.ef))) / 2) : null; };
+      return [['Foundations', range('Substructure')], ['Structure', range('Structure')], ['Envelope', range('Envelope')],
+        ['Fit-out', range('Finishes')], ['Data date', S.dataDate], ['Handover', keyDates('CUR').handover]].filter(x => x[1] != null);
+    }
+    function renderStopChips() {
+      $('stopChips').innerHTML = stopDays().map(([l, d]) => `<button class="stop-chip" onclick="jumpTo(${d})" title="Jump to ${shortDate(d)}">${l}</button>`).join('');
+    }
+    function jumpTo(d) { if (ui.playing) toggle4DPlay(); setSimDay(d); scrollGanttToCursor(); }
+
+    function renderCompare() {
+      const opts = [['CUR', 'Current schedule'], ['BL0', 'BL0 Contract'], ['BL1', 'BL1 Rev 1'], ['BL2', 'BL2 Recovery']];
+      ['compareA', 'compareB'].forEach((id, i) => {
+        const sel = $(id), v = sel.value || (i === 0 ? 'BL0' : 'CUR');
+        sel.innerHTML = opts.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+        sel.value = v;
+      });
+      const A = $('compareA').value, B = $('compareB').value;
+      const fin = (a, k) => k === 'CUR' ? a.ef : a.baselines?.[k]?.end;
+      const sta = (a, k) => k === 'CUR' ? a.es : a.baselines?.[k]?.start;
+      const ka = keyDates(A), kb = keyDates(B);
+      $('compareMilestones').innerHTML = [['Topping out', 'topping'], ['Permanent power', 'power'], ['Handover', 'handover']].map(([l, k]) => {
+        const d = ka[k] != null && kb[k] != null ? kb[k] - ka[k] : null;
+        return `<div class="kpi"><div class="lbl">${l}</div><div class="font-mono text-slate-200">${ka[k] != null ? shortDate(ka[k]) : '—'} → ${kb[k] != null ? shortDate(kb[k]) : '—'}</div>
+          <div class="text-[11px] font-bold ${d > 0 ? 'text-red-400' : d < 0 ? 'text-emerald-400' : 'text-slate-400'}">${d == null ? 'n/a' : d === 0 ? 'no change' : (d > 0 ? '+' : '') + d + ' days'}</div></div>`;
+      }).join('');
+      const maxD = Math.max(1, ...activities.flatMap(a => [fin(a, A) || 0, fin(a, B) || 0]));
+      const rows = activities.map(a => ({ a, fa: fin(a, A), fb: fin(a, B), sa: sta(a, A), sb: sta(a, B) }))
+        .map(r => ({ ...r, d: r.fa != null && r.fb != null ? r.fb - r.fa : null }))
+        .sort((x, y) => Math.abs(y.d ?? -1) - Math.abs(x.d ?? -1));
+      $('compareBody').innerHTML = rows.map(r => `
+        <tr class="border-b border-slate-800/60 cursor-pointer hover:bg-slate-800/40" onclick="selectActivity('${esc(r.a.id)}')">
+          <td class="p-1"><span class="font-mono text-sky-400">${esc(r.a.id)}</span> <span class="text-slate-300">${esc(r.a.name)}</span></td>
+          <td class="p-1 text-center font-mono text-slate-400">${r.fa != null ? shortDate(r.fa) : '—'}</td>
+          <td class="p-1 text-center font-mono text-slate-400">${r.fb != null ? shortDate(r.fb) : '—'}</td>
+          <td class="p-1 text-center font-mono font-bold ${r.d > 0 ? 'text-red-400' : r.d < 0 ? 'text-emerald-400' : 'text-slate-500'}">${r.d == null ? '—' : (r.d > 0 ? '+' : '') + r.d}</td>
+          <td class="p-1"><div class="relative h-4">
+            ${r.fa != null ? `<div class="absolute top-[11px] h-[3px] bg-slate-400/70 rounded" style="left:${r.sa / maxD * 100}%;width:${Math.max(0.5, (r.fa - r.sa) / maxD * 100)}%"></div>` : ''}
+            ${r.fb != null ? `<div class="absolute top-0 h-[9px] rounded-sm" style="left:${r.sb / maxD * 100}%;width:${Math.max(0.5, (r.fb - r.sb) / maxD * 100)}%;background:${r.a.phase ? PHASE_COLOR[r.a.phase] : '#64748b'}"></div>` : ''}
+          </div></td>
+        </tr>`).join('');
     }
 
     /* ---------- Filters ---------- */
+    function coversFloor(a, k) { return Array.isArray(a.floors) && a.floors[0] <= k && k <= a.floors[1]; }
+
     function visibleActivities() {
+      const q = ui.search.trim().toLowerCase();
       return activities.filter(a =>
         (ui.contractor === 'ALL' || a.contractor === ui.contractor) &&
-        (!ui.criticalOnly || a.isCritical));
+        (ui.rows !== 'critical' || a.isCritical) &&
+        (ui.rows !== 'floor' || ui.selectedFloor == null || coversFloor(a, ui.selectedFloor)) &&
+        (!q || a.id.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)));
     }
 
     function renderContractorFilter() {
@@ -885,10 +1174,85 @@
     }
 
     function filterByContractor(v) { ui.contractor = v; renderScheduleTable(); renderGanttChart(); }
-    function toggleCriticalPathFilter() {
-      ui.criticalOnly = !ui.criticalOnly;
-      $('criticalPathFilterBtn').classList.toggle('active', ui.criticalOnly);
-      renderScheduleTable(); renderGanttChart();
+
+    function setRowsMode(mode) {
+      ui.rows = mode;
+      $('rowsSelect').value = mode;
+      if (mode === 'floor' && ui.selectedFloor == null) showToast('Pick a floor', 'Click a floor in the Elevation or Floor sequence tab.');
+      renderScheduleTable(); renderGanttChart(); renderLocationViews();
+    }
+
+    function selectFloor(k) {
+      ui.selectedFloor = ui.selectedFloor === k && ui.rows === 'floor' ? null : k;
+      ui.rows = ui.selectedFloor == null ? 'all' : 'floor';
+      $('rowsSelect').value = ui.rows;
+      renderScheduleTable(); renderGanttChart(); renderLocationViews();
+    }
+
+    /* ---------- Progress at a viewing date ----------
+       Before the data date: interpolated from start to the status (Performance %) at the data date.
+       After the data date: forecast, interpolated from that status to 100% at the forecast finish.
+       This is an illustration of flow, not measured progress for dates other than the data date. */
+    function progressAt(a, t) {
+      if (a.ef <= a.es) return t >= a.ef ? 1 : 0; // milestone
+      if (t <= a.es) return 0;
+      if (t >= a.ef) return 1;
+      const dd = num(S.dataDate);
+      if (a.status === 'active') {
+        const p = clamp(a.performancePercent / 100, 0, 1);
+        if (t <= dd) return p * (t - a.es) / Math.max(1, dd - a.es);
+        return p + (1 - p) * (t - dd) / Math.max(1, a.ef - dd);
+      }
+      return (t - a.es) / (a.ef - a.es);
+    }
+
+    // Floors of an activity are worked bottom-up, one after another.
+    function floorProgress(a, k, t) {
+      if (!coversFloor(a, k)) return null;
+      const n = a.floors[1] - a.floors[0] + 1;
+      return clamp(progressAt(a, t) * n - (k - a.floors[0]), 0, 1);
+    }
+    // Day on which floor k of activity a is forecast to complete (inverse of floorProgress, forecast segment).
+    function floorDoneDay(a, k) {
+      const n = a.floors[1] - a.floors[0] + 1;
+      const target = (k - a.floors[0] + 1) / n;
+      for (let d = a.es; d <= a.ef; d++) if (progressAt(a, d) >= target - 1e-9) return d;
+      return a.ef;
+    }
+
+    // Per floor, per phase: { pct, done, total, finish }
+    function locationMatrix(t) {
+      const rows = [];
+      for (let k = ROOF; k >= 0; k--) {
+        const cells = {};
+        PHASES.forEach(ph => {
+          const acts = activities.filter(a => a.phase === ph.key && coversFloor(a, k));
+          if (!acts.length) { cells[ph.key] = null; return; }
+          const vals = acts.map(a => floorProgress(a, k, t));
+          cells[ph.key] = {
+            pct: vals.reduce((x, y) => x + y, 0) / vals.length,
+            done: vals.filter(v => v >= 1).length, total: vals.length,
+            finish: Math.max(...acts.map(a => floorDoneDay(a, k))),
+            critical: acts.some(a => a.isCritical)
+          };
+        });
+        const present = Object.values(cells).filter(Boolean);
+        rows.push({ k, cells, ready: present.length ? Math.max(...present.map(c => c.finish)) : null,
+          complete: present.length > 0 && present.every(c => c.pct >= 1) });
+      }
+      return rows;
+    }
+
+    // Furthest phase completed on a floor, and the phase currently being worked.
+    function floorStage(row) {
+      let stage = 'Future', active = null, activePct = 0;
+      PHASES.forEach(ph => {
+        const c = row.cells[ph.key];
+        if (!c) return;
+        if (c.pct >= 1) stage = ph.key;
+        else if (c.pct > 0 && !active) { active = ph.key; activePct = c.pct; }
+      });
+      return { stage, active, activePct };
     }
 
     /* ---------- Activity table ---------- */
@@ -926,47 +1290,70 @@
 
     /* ---------- Gantt ---------- */
     const ROW_H = 28;
-    function dayPx() { return ui.zoom === 'week' ? 7 : 2.5; }
+    function ganttSpan() {
+      const blEnds = activities.map(a => baselineOf(a)?.end || 0);
+      return Math.max(projectFinish, ...blEnds, ui.simDay) + 14;
+    }
+    function dayPx() {
+      const w = $('ganttTimelineContainer').clientWidth || 400;
+      const days = ui.scale === '12w' ? 84 : ui.scale === '6m' ? 182 : ganttSpan();
+      return Math.max(0.5, w / days);
+    }
 
     function renderGanttChart() {
       const header = $('ganttTimelineHeader');
       const container = $('ganttBarsContainer');
       const px = dayPx();
-      const blEnds = activities.map(a => baselineOf(a)?.end || 0);
-      const span = Math.max(projectFinish, ...blEnds, ui.simDay) + 10;
-      const width = span * px;
+      const span = ganttSpan();
+      const width = Math.ceil(span * px);
       header.style.width = container.style.width = width + 'px';
 
-      const tick = ui.zoom === 'week' ? 7 : 30;
-      let h = '';
-      for (let d = 0; d < span; d += tick) {
-        h += `<div class="inline-block border-r border-slate-700/80 px-1 shrink-0 overflow-hidden" style="width:${tick * px}px">${ui.zoom === 'week' ? shortDate(d) : 'M' + (d / 30 + 1) + ' · ' + shortDate(d)}</div>`;
+      // Header row 1: calendar months; row 2: weekly ticks (day of month)
+      let months = '', weeks = '';
+      let segStart = 0;
+      for (let d = 1; d <= span; d++) {
+        if (d === span || dateFromDay(d).getDate() === 1) {
+          const lbl = dateFromDay(segStart).toLocaleDateString('en-GB', { month: (d - segStart) * px > 70 ? 'long' : 'short', year: (d - segStart) * px > 90 ? 'numeric' : undefined });
+          months += `<div class="absolute top-0 h-[18px] border-l border-slate-700 px-1 text-[10px] font-sans font-semibold text-slate-200 overflow-hidden" style="left:${segStart * px}px;width:${(d - segStart) * px}px">${(d - segStart) * px > 24 ? lbl : ''}</div>`;
+          segStart = d;
+        }
       }
-      header.innerHTML = h;
+      if (px * 7 >= 18) {
+        for (let d = 0; d < span; d += 7) weeks += `<div class="absolute top-[18px] h-[18px] border-l border-slate-700/70 pl-1 text-slate-400" style="left:${d * px}px">${dateFromDay(d).getDate()}</div>`;
+      }
+      const cursorLbl = dateFromDay(ui.simDay).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      header.innerHTML = months + weeks +
+        `<div class="absolute top-[17px] -translate-x-1/2 px-1.5 rounded bg-orange-500 text-white font-sans font-bold text-[10px] leading-[16px] z-10" style="left:${ui.simDay * px}px">${cursorLbl}</div>`;
 
       const rows = visibleActivities();
       const rowIndex = new Map(rows.map((a, i) => [a.id, i]));
       let html = '';
+      // weekly grid
+      if (px * 7 >= 6) for (let d = 0; d < span; d += 7) html += `<div class="absolute top-0 bottom-0 border-l border-slate-800/60" style="left:${d * px}px"></div>`;
       rows.forEach(a => {
         const sel = a.id === ui.selectedId;
         const b = baselineOf(a);
-        const barCls = a.status === 'complete' ? 'bg-emerald-700 border-emerald-400'
-          : a.isCritical ? 'bg-red-950 border-red-500' : 'bg-sky-950 border-sky-500';
-        const fillCls = a.status === 'complete' ? 'bg-emerald-500' : a.isCritical ? 'bg-red-500' : 'bg-sky-500';
+        const p = progressAt(a, ui.simDay);
+        const crit = a.isCritical && a.status !== 'complete';
+        const fillColor = a.phase ? PHASE_COLOR[a.phase] : '#64748b';
         const left = a.es * px;
-        const w = Math.max(3, (a.ef - a.es) * px);
-        const actualW = a.status === 'active' ? Math.max(0, (S.dataDate - a.es) * px) : 0;
-        html += `<div class="gantt-row relative border-b border-slate-800/40 ${sel ? 'bg-sky-950/30' : ''}" data-id="${esc(a.id)}">
-          ${b ? `<div class="absolute h-1 bg-amber-400/70 rounded-full" style="left:${b.start * px}px;width:${Math.max(2, (b.end - b.start) * px)}px;top:21px" title="${ui.baseline}: D${b.start}–D${b.end}"></div>` : ''}
-          <div class="absolute h-3.5 rounded-sm border overflow-hidden ${barCls}" style="left:${left}px;width:${w}px;top:4px" title="${esc(a.name)} | D${a.es}–D${a.ef} | Perf ${a.performancePercent}%">
-            ${actualW ? `<div class="absolute inset-y-0 left-0 bg-emerald-600/60" style="width:${actualW}px"></div>` : ''}
-            <div class="absolute inset-y-0 left-0 ${fillCls} opacity-80" style="width:${a.performancePercent}%;height:4px;top:auto;bottom:0"></div>
-            <span class="absolute left-1 text-[8px] font-mono text-white font-bold leading-[14px]">${a.performancePercent}%</span>
-          </div>
+        let bar;
+        if (a.ef <= a.es) {
+          bar = `<div class="absolute w-3 h-3 rotate-45 border ${p >= 1 ? 'bg-emerald-500 border-emerald-300' : crit ? 'bg-red-600 border-red-300' : 'bg-slate-300 border-white'}" style="left:${left - 6}px;top:7px" title="${esc(a.name)} | D${a.es}"></div>
+                 <span class="absolute text-[9px] text-slate-300 font-sans whitespace-nowrap" style="left:${left + 10}px;top:6px">${esc(a.name)}</span>`;
+        } else {
+          const w = Math.max(3, (a.ef - a.es) * px);
+          bar = `<div class="absolute h-[15px] rounded-sm overflow-hidden border ${crit ? 'border-red-500' : 'border-slate-500/70'}" style="left:${left}px;width:${w}px;top:4px;background:${fillColor}33" title="${esc(a.name)} | D${a.es}–D${a.ef} | ${Math.round(p * 100)}% at viewing date | status ${a.performancePercent}%">
+              <div class="absolute inset-y-0 left-0" style="width:${p * 100}%;background:${fillColor}"></div>
+              <span class="absolute left-1 text-[8px] font-mono text-white font-bold leading-[13px] drop-shadow">${w > 60 ? esc(a.id) + ' · ' : ''}${Math.round(p * 100)}%</span>
+            </div>`;
+        }
+        html += `<div class="gantt-row relative border-b border-slate-800/40 ${sel ? 'bg-sky-950/40' : ''}" data-id="${esc(a.id)}">
+          ${b ? `<div class="absolute h-[3px] bg-slate-400/60 rounded-full" style="left:${b.start * px}px;width:${Math.max(2, (b.end - b.start) * px)}px;top:22px" title="${ui.baseline}: D${b.start}–D${b.end}"></div>` : ''}
+          ${bar}
         </div>`;
       });
 
-      // Relationship lines (only between visible rows)
       let svg = '';
       if (ui.showLinks) {
         const byId = new Map(activities.map(a => [a.id, a]));
@@ -981,10 +1368,10 @@
           const y2 = rowIndex.get(a.id) * ROW_H + 11;
           const crit = pa.isCritical && a.isCritical;
           const mid = fromStart ? Math.min(x1, x2) - 6 : Math.max(x1 + 6, Math.min(x2, x1 + 6));
-          svg += `<path d="M${x1},${y1} H${mid} V${y2} H${x2}" fill="none" stroke="${crit ? '#ef4444' : '#64748b'}" stroke-width="1" marker-end="url(#arr${crit ? 'R' : 'G'})" opacity="0.8"/>`;
+          svg += `<path d="M${x1},${y1} H${mid} V${y2} H${x2}" fill="none" stroke="${crit ? '#ef4444' : '#64748b'}" stroke-width="1" marker-end="url(#arr${crit ? 'R' : 'G'})" opacity="0.7"/>`;
         }));
       }
-      const totalH = rows.length * ROW_H;
+      const totalH = Math.max(rows.length * ROW_H, 1);
       const ddX = S.dataDate * px, simX = ui.simDay * px;
       html += `<svg class="absolute inset-0 pointer-events-none" width="${width}" height="${totalH}" style="top:0;left:0">
         <defs>
@@ -992,19 +1379,38 @@
           <marker id="arrR" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#ef4444"/></marker>
         </defs>
         ${svg}
-        <line x1="${ddX}" y1="0" x2="${ddX}" y2="${totalH}" stroke="#f59e0b" stroke-width="2"><title>Data date D${S.dataDate}</title></line>
-        <line x1="${simX}" y1="0" x2="${simX}" y2="${totalH}" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3,3"><title>4D cursor D${ui.simDay}</title></line>
+        <line x1="${ddX}" y1="0" x2="${ddX}" y2="${totalH}" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3"><title>Data date D${S.dataDate}</title></line>
+        <line x1="${simX}" y1="0" x2="${simX}" y2="${totalH}" stroke="#f97316" stroke-width="2"><title>Viewing date D${ui.simDay}</title></line>
       </svg>`;
       container.innerHTML = html;
       container.style.height = totalH + 'px';
-      container.querySelectorAll('.gantt-row').forEach(r => r.onclick = () => selectActivity(r.dataset.id));
+      container.querySelectorAll('.gantt-row').forEach(r => r.onclick = () => { if (!ganttDrag.moved) selectActivity(r.dataset.id); });
       $('ganttTimelineContainer').scrollTop = $('activityTableContainer').scrollTop;
-
-      document.querySelectorAll('.zoom-btn').forEach(b => b.classList.toggle('active', b.id === 'zoomBtn_' + ui.zoom));
       $('relLinesBtn').classList.toggle('active', ui.showLinks);
+      $('ganttScopeLabel').innerText = 'GANTT · ' + (ui.rows === 'floor' && ui.selectedFloor != null ? floorName(ui.selectedFloor).toUpperCase()
+        : ui.rows === 'critical' ? 'CRITICAL PATH' : 'PROJECT OVERVIEW');
     }
 
-    function setGanttZoom(z) { ui.zoom = z; renderGanttChart(); }
+    function scrollGanttToCursor(onlyIfOffscreen) {
+      const c = $('ganttTimelineContainer');
+      const x = ui.simDay * dayPx();
+      if (onlyIfOffscreen && x > c.scrollLeft + 20 && x < c.scrollLeft + c.clientWidth - 20) return;
+      c.scrollLeft = Math.max(0, x - c.clientWidth * 0.35);
+    }
+
+    const ganttDrag = { active: false, moved: false, x: 0, left: 0 };
+    function setupGanttDrag() {
+      const c = $('ganttTimelineContainer');
+      c.addEventListener('mousedown', e => { ganttDrag.active = true; ganttDrag.moved = false; ganttDrag.x = e.clientX; ganttDrag.left = c.scrollLeft; });
+      window.addEventListener('mousemove', e => {
+        if (!ganttDrag.active) return;
+        const dx = e.clientX - ganttDrag.x;
+        if (Math.abs(dx) > 3) { ganttDrag.moved = true; c.classList.add('dragging'); }
+        c.scrollLeft = ganttDrag.left - dx;
+      });
+      window.addEventListener('mouseup', () => { ganttDrag.active = false; c.classList.remove('dragging'); setTimeout(() => ganttDrag.moved = false, 0); });
+    }
+
     function toggleRelationshipLines() { ui.showLinks = !ui.showLinks; renderGanttChart(); }
 
     /* ---------- Selection & details ---------- */
@@ -1038,6 +1444,10 @@
       $('genCalendar').value = a.calendar || 'CAL-6D';
       $('genContractor').value = a.contractor || '';
       $('genOD').value = a.duration;
+      $('genPhase').innerHTML = '<option value="">— none —</option>' + PHASES.map(p => `<option>${p.key}</option>`).join('');
+      $('genPhase').value = a.phase || '';
+      $('genFloorFrom').value = a.floors ? a.floors[0] : '';
+      $('genFloorTo').value = a.floors ? a.floors[1] : '';
 
       // Status
       $('statAS').value = a.actualStart ?? '';
@@ -1174,6 +1584,16 @@
       } else a[field] = n;
       afterEdit();
     }
+    function updateFloors() {
+      const a = selectedAct(); if (!a) return;
+      const f = $('genFloorFrom').value, t = $('genFloorTo').value;
+      if (f === '' && t === '') a.floors = null;
+      else {
+        const lo = clamp(Math.round(num(f, num(t))), 0, ROOF), hi = clamp(Math.round(num(t, lo)), 0, ROOF);
+        a.floors = [Math.min(lo, hi), Math.max(lo, hi)];
+      }
+      afterEdit();
+    }
     function updateActiveRemainingDuration(val) {
       const a = selectedAct(); if (!a) return;
       a.remainingDuration = Math.max(0, Math.round(num(val)));
@@ -1290,7 +1710,6 @@
       const mf = $('inpMustFinish').value;
       S.mustFinish = mf === '' ? null : Math.max(0, Math.round(num(mf)));
       S.defaultPctType = $('selDefaultPctType').value;
-      $('legendCritical').innerText = `Critical (TF ≤ ${S.critThreshold})`;
       closeModal('calcSettingsModal');
       runCPM();
     }
@@ -1449,35 +1868,51 @@
       return out;
     }
 
+    // Total excess over the limits from the data date on; plant is scaled so both resources weigh comparably.
+    function overloadScore(profile) {
+      let score = 0;
+      const plantW = S.laborLimit / Math.max(1, S.plantLimit);
+      for (let d = S.dataDate; d < profile.labor.length; d++) {
+        score += Math.max(0, profile.labor[d] - S.laborLimit) + Math.max(0, profile.plant[d] - S.plantLimit) * plantW;
+      }
+      return score;
+    }
+
     function runResourceLeveling() {
       if (!calculateSchedule()) { showToast('Leveling aborted', 'Fix the logic loop first.', true); return; }
       const before = overloadedDays(resourceProfile()).length;
       const finishBefore = projectFinish;
+      let score = overloadScore(resourceProfile());
       let moves = 0;
-      for (let iter = 0; iter < 600; iter++) {
-        const days = overloadedDays(resourceProfile());
-        let moved = false;
-        for (const d of days) {
-          const prof = resourceProfile();
-          const laborOver = prof.labor[d] > S.laborLimit;
-          const cands = activities.filter(a => a.status === 'planned' && !a.isCritical && a.totalFloat > 0 && a.es <= d && d < a.ef &&
-            (laborOver ? num(a.labor) > 0 : num(a.plant) > 0));
-          if (!cands.length) continue;
-          cands.sort((x, y) => y.totalFloat - x.totalFloat || y.es - x.es);
-          cands[0].levelDelay = (cands[0].levelDelay || 0) + 1;
-          moves++; moved = true;
-          calculateSchedule();
-          break;
-        }
-        if (!moved) break;
+      // Greedy: each round, try every unstarted non-critical activity at every shift within its float,
+      // and keep only the single best shift that lowers total overload without moving the finish.
+      for (let round = 0; round < 40 && score > 0; round++) {
+        let best = null;
+        activities.filter(a => a.status === 'planned' && !a.isCritical && a.totalFloat > 0 && (num(a.labor) > 0 || num(a.plant) > 0)).forEach(a => {
+          const orig = a.levelDelay || 0, maxShift = Math.min(a.totalFloat, 90);
+          for (let k = 1; k <= maxShift; k++) {
+            a.levelDelay = orig + k;
+            calculateSchedule();
+            if (projectFinish > finishBefore) continue;
+            const sc = overloadScore(resourceProfile());
+            if (sc < score - 1e-9 && (!best || sc < best.score)) best = { a, delay: orig + k, score: sc };
+          }
+          a.levelDelay = orig;
+        });
+        calculateSchedule();
+        if (!best) break;
+        best.a.levelDelay = best.delay;
+        calculateSchedule();
+        score = best.score;
+        moves++;
       }
       const after = overloadedDays(resourceProfile()).length;
       refreshAll();
       persist();
       const delayed = activities.filter(a => a.levelDelay > 0).map(a => `${a.id} +${a.levelDelay}d`);
       $('levelingReport').innerHTML = `Overloaded days: <b>${before}</b> → <b class="${after ? 'text-red-400' : 'text-emerald-400'}">${after}</b> · project finish D${finishBefore} → D${projectFinish} · delays: ${delayed.length ? esc(delayed.join(', ')) : 'none'}` +
-        (after ? '<br><span class="text-amber-400">Remaining overloads sit on critical, in-progress or zero-float work. Resolve them by re-sequencing, adding a shift, or raising the limit — leveling will not extend the finish.</span>' : '');
-      showToast('Leveling complete', `${moves} one-day delay(s) applied within float; ${after} overloaded day(s) remain.`);
+        (after ? '<br><span class="text-amber-400">Remaining overloads involve critical or in-progress work, or no shift within float reduces them. Resolve by re-sequencing, adding a shift, or raising the limit — leveling will not extend the finish.</span>' : '');
+      showToast('Leveling complete', `${moves} shift(s) applied within float; ${after} overloaded day(s) remain.`);
     }
 
     function clearLeveling() {
@@ -1568,6 +2003,7 @@
       reg('mepLower', groupOf([0, 1, 2].map(r => place(addMesh(new THREE.CylinderGeometry(0.4, 0.4, 18, 12), 0x34d399), 5.5, 11, -3 + r * 2.5))));
       reg('mepUpper', groupOf([0, 1, 2].map(r => place(addMesh(new THREE.CylinderGeometry(0.4, 0.4, 16, 12), 0x10b981), 5.5, 28, -3 + r * 2.5))));
       reg('facadeLower', place(addMesh(new THREE.BoxGeometry(27, 14, 27), 0x0284c7, { opacity: 0.45, roughness: 0.1, metalness: 0.8 }), 0, 13, 0));
+      reg('facadeUpper', place(addMesh(new THREE.BoxGeometry(25, 18, 25), 0x0369a1, { opacity: 0.4, roughness: 0.1, metalness: 0.8 }), 0, 29, 0));
       reg('slabsUpper', groupOf([0, 1, 2, 3].map(i => place(addMesh(new THREE.BoxGeometry(24, 0.8, 24), 0xa855f7), 0, 27 + i * 3.2, 0))));
       reg('roofPlant', groupOf([place(addMesh(new THREE.BoxGeometry(10, 3, 10), 0xf59e0b), 0, 41.5, 0)]));
       // Tower crane: jib rotates about the mast axis via a pivot group
@@ -1592,7 +2028,7 @@
     }
 
     function updateBIMProgress(day) {
-      const active = activities.filter(a => a.es <= day && day < a.ef);
+      const active = activities.filter(a => { const p = progressAt(a, day); return p > 0 && p < 1; });
       $('hudActiveList').innerHTML = active.length ? active.map(a =>
         `<div class="flex justify-between gap-3"><span class="${a.isCritical ? 'text-red-400' : 'text-sky-300'}">${esc(a.id)}</span><span class="text-slate-300 truncate max-w-[170px]">${esc(a.name)}</span></div>`).join('')
         : '<span class="text-slate-500">No work scheduled at this day</span>';
@@ -1601,10 +2037,11 @@
       activities.forEach(a => {
         const obj = a.meshKey && bimMeshes[a.meshKey];
         if (!obj) return;
-        const state = day >= a.ef ? 'complete' : day >= a.es ? 'active' : 'planned';
+        const p = progressAt(a, day);
+        const state = p >= 1 ? 'complete' : p > 0 ? 'active' : 'planned';
         const meshes = meshesOf(obj);
         if (state !== 'active') { meshes.forEach(m => styleMesh(m, state, a.isCritical)); return; }
-        const frac = clamp((day - a.es) / Math.max(1, a.ef - a.es), 0.05, 1);
+        const frac = clamp(p, 0.05, 1);
         if (meshes.length > 1) {
           const built = Math.ceil(frac * meshes.length);
           meshes.forEach((m, i) => styleMesh(m, i < built ? 'active' : 'planned', a.isCritical));
@@ -1679,32 +2116,45 @@
     }
     function updateTimeLabels() {
       $('timeScrubber').value = ui.simDay;
-      $('displaySimulationDate').innerText = `Day ${ui.simDay}`;
-      $('displayCalendarDate').innerText = dateFromDay(ui.simDay).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-      $('displayDataDate').innerText = `Day ${S.dataDate} (${shortDate(S.dataDate)})`;
+      $('displaySimulationDate').innerText = `D${ui.simDay}`;
+      $('displayDataDate').innerText = `D${S.dataDate}`;
+      const d = dateFromDay(ui.simDay);
+      $('goToDateInput').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
     function setSimDay(d) {
-      ui.simDay = d;
+      ui.simDay = clamp(Math.round(d), 0, num($('timeScrubber').max, d));
       updateTimeLabels();
       renderGanttChart();
-      updateBIMProgress(d);
+      updateBIMProgress(ui.simDay);
+      renderKPIs();
+      renderLocationViews();
+      if (ui.playing && ui.followWork) scrollGanttToCursor(true);
     }
     function handleScrubberInput(v) { setSimDay(parseInt(v, 10) || 0); }
-    function jumpToDataDate() { setSimDay(S.dataDate); }
-    function reset4DTimeline() { if (ui.playing) toggle4DPlay(); setSimDay(0); }
+    function stepDays(n) { setSimDay(ui.simDay + n); scrollGanttToCursor(true); }
+    function goToDate(v) {
+      if (!v) return;
+      const [y, m, d] = v.split('-').map(Number);
+      const start = dateFromDay(0);
+      const day = Math.round((new Date(y, m - 1, d) - start) / 86400000);
+      setSimDay(day); scrollGanttToCursor();
+    }
+    function jumpToDataDate() { jumpTo(S.dataDate); }
+    function reset4DTimeline() { if (ui.playing) toggle4DPlay(); setSimDay(0); scrollGanttToCursor(); }
     function toggle4DPlay() {
       ui.playing = !ui.playing;
       $('playIcon').classList.toggle('hidden', ui.playing);
       $('pauseIcon').classList.toggle('hidden', !ui.playing);
+      $('playLabel').innerText = ui.playing ? 'Pause' : 'Play';
       if (ui.playing) startSimLoop(); else clearInterval(ui.timer);
     }
     function startSimLoop() {
       clearInterval(ui.timer);
-      ui.timer = setInterval(() => setSimDay(ui.simDay >= num($('timeScrubber').max) ? 0 : ui.simDay + 1), 400 / ui.speed);
+      ui.timer = setInterval(() => setSimDay(ui.simDay >= num($('timeScrubber').max) ? 0 : ui.simDay + 1), 250 / ui.speed);
     }
     function setSimSpeed(mult) {
       ui.speed = mult;
-      document.querySelectorAll('.speed-btn').forEach(b => b.classList.toggle('active', num(b.dataset.speed) === mult));
+      $('speedSelect').value = String(mult);
       if (ui.playing) startSimLoop();
     }
 
@@ -1770,10 +2220,12 @@
 
     /* ---------- Keyboard ---------- */
     window.addEventListener('keydown', e => {
-      const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
+      const typing = /INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement?.tagName || '');
       if (e.key === 'F9') { e.preventDefault(); runCPM(); }
       else if ((e.altKey && e.key.toLowerCase() === 'c') || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w')) { e.preventDefault(); openCalcSettings(); }
       else if (e.key === 'Escape') document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+      else if (!typing && e.key === ' ') { e.preventDefault(); toggle4DPlay(); }
+      else if (!typing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); stepDays(e.key === 'ArrowLeft' ? -1 : 1); }
       else if (!typing && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
         const rows = visibleActivities(); const i = rows.findIndex(a => a.id === ui.selectedId);
         const n = rows[clamp(i + (e.key === 'ArrowDown' ? 1 : -1), 0, rows.length - 1)];
@@ -1789,15 +2241,17 @@
     window.addEventListener('load', () => {
       loadProject();
       ui.simDay = S.dataDate;
-      document.querySelectorAll('.speed-btn').forEach(b => b.onclick = () => setSimSpeed(num(b.dataset.speed)));
       $('activityTableContainer').addEventListener('scroll', e => { $('ganttTimelineContainer').scrollTop = e.target.scrollTop; });
-      $('legendCritical').innerText = `Critical (TF ≤ ${S.critThreshold})`;
       setSimSpeed(1);
       switchDetailsTab('steps');
       try { initThreeJS(); } catch (err) { console.error('3D init failed', err); $('bimUnavailable').classList.remove('hidden'); }
       switchMainView('splitView');
+      setupGanttDrag();
+      switchLeftTab('model');
+      $('scaleSelect').value = ui.scale;
       runCPM(true);
-      window.addEventListener('resize', () => { onWindowResize(); if (ui.view === 'evmDashboard') calculateEVM(); if (ui.view === 'resourceHistogram') renderResourceHistograms(); });
+      scrollGanttToCursor();
+      window.addEventListener('resize', () => { onWindowResize(); renderGanttChart(); renderLocationViews(); if (ui.view === 'evmDashboard') calculateEVM(); if (ui.view === 'resourceHistogram') renderResourceHistograms(); });
     });
   </script>
 </body>
