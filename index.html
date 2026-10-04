@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-[#0a0f1d] text-slate-100 antialiased">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASTCO 4D Planner</title>
+  <!-- Tailwind CSS Play CDN (v3) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js r128 (global THREE build) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <script>
+    if (window.tailwind) {
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] }
+          }
+        }
+      };
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b1120; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    input[type=range] { accent-color: #0284c7; }
+    /* Table rows and Gantt rows share one fixed height so they line up */
+    #p6ActivityTable thead tr { height: 24px; }
+    #p6ActivityTable tbody tr { height: 28px; }
+    .gantt-row { height: 28px; }
+  </style>
+</head>
+<body class="h-full flex flex-col overflow-hidden select-none text-[12px]">
+
+  <!-- ======================== HEADER ======================== -->
+  <header class="h-12 bg-[#0d1527] border-b border-slate-800 flex items-center justify-between px-3 shrink-0 z-30 shadow-md">
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-600 via-indigo-600 to-amber-500 flex items-center justify-center border border-sky-400/30">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+        </div>
+        <div>
+          <span class="font-extrabold text-sm tracking-tight bg-gradient-to-r from-sky-400 via-white to-amber-300 bg-clip-text text-transparent">ASTCO 4D PLANNER</span>
+          <p class="text-[9px] text-slate-400 tracking-wider">4D BIM &amp; CPM PROJECT PLANNING</p>
+        </div>
+      </div>
+
+      <div class="h-6 w-px bg-slate-800 mx-1"></div>
+
+      <div class="flex items-center space-x-1.5 bg-[#141e34] px-2.5 py-1 rounded-md border border-slate-700/70">
+        <span class="text-[10px] uppercase font-mono text-slate-400">EPS:</span>
+        <select id="epsProjectSelect" class="bg-transparent text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer">
+          <option value="PRJ-101" class="bg-slate-900">PRJ-101: Kingdom Commercial High-Rise Tower</option>
+          <option value="PRJ-102" class="bg-slate-900" disabled>PRJ-102: Red Sea Resort (no data loaded)</option>
+          <option value="PRJ-103" class="bg-slate-900" disabled>PRJ-103: Jeddah Metro Stn 4 (no data loaded)</option>
+        </select>
+      </div>
+
+      <div class="flex items-center space-x-1.5 bg-[#141e34] px-2 py-1 rounded-md border border-slate-700/70">
+        <span class="text-[10px] uppercase font-mono text-slate-400">OBS:</span>
+        <select id="obsContractorFilter" onchange="filterByContractor(this.value)" class="bg-transparent text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer">
+          <option value="ALL" class="bg-slate-900">All Prime &amp; Subcontractors</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="flex items-center bg-[#090f1d] p-0.5 rounded-lg border border-slate-800">
+      <button onclick="switchMainView('splitView')" id="viewBtn_split" class="view-btn">4D Split</button>
+      <button onclick="switchMainView('ganttFull')" id="viewBtn_gantt" class="view-btn">Gantt &amp; WBS</button>
+      <button onclick="switchMainView('bimFull')" id="viewBtn_bim" class="view-btn">Full 4D BIM</button>
+      <button onclick="switchMainView('evmDashboard')" id="viewBtn_evm" class="view-btn">EVM S-Curves</button>
+      <button onclick="switchMainView('resourceHistogram')" id="viewBtn_res" class="view-btn">Resource Leveling</button>
+    </div>
+
+    <div class="flex items-center space-x-2">
+      <button onclick="openCalcSettings()" class="px-2.5 py-1 bg-amber-950/70 hover:bg-amber-900 border border-amber-600/70 text-amber-300 rounded text-xs font-semibold" title="Project Calculations (Alt+C). Ctrl+W is reserved by most browsers.">
+        Calculations
+      </button>
+      <button onclick="openModal('stepTemplatesModal')" class="px-2.5 py-1 bg-purple-950/70 hover:bg-purple-900 border border-purple-600/70 text-purple-300 rounded text-xs font-semibold">
+        Step Templates
+      </button>
+      <button onclick="runCPM()" class="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/70 text-emerald-300 rounded text-xs font-semibold" title="Calculate Schedule (F9)">
+        Schedule (F9)
+      </button>
+      <div class="flex items-center space-x-1 bg-[#141e34] px-2 py-1 rounded border border-slate-700/70">
+        <span class="text-[10px] text-slate-400 font-mono">BL:</span>
+        <select id="baselineSelector" onchange="changeBaseline(this.value)" class="bg-transparent text-slate-200 text-xs font-medium focus:outline-none cursor-pointer">
+          <option value="BL0" class="bg-slate-900">BL0: Contract Baseline</option>
+          <option value="BL1" class="bg-slate-900">BL1: Approved Rev 1</option>
+          <option value="BL2" class="bg-slate-900">BL2: Recovery Plan</option>
+        </select>
+      </div>
+      <div class="relative inline-block text-left">
+        <button onclick="toggleExportMenu()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded text-xs font-semibold">
+          Data ▾
+        </button>
+        <div id="exportDropdownMenu" class="hidden absolute right-0 mt-1 w-56 bg-[#0d1629] border border-slate-700 rounded-lg shadow-2xl py-1 z-50">
+          <a href="javascript:void(0)" onclick="exportCSV()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Export activities (.csv)</a>
+          <a href="javascript:void(0)" onclick="exportJSON()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Export full project (.json)</a>
+          <a href="javascript:void(0)" onclick="document.getElementById('importFileInput').click()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Import project (.json)…</a>
+          <div class="border-t border-slate-800 my-1"></div>
+          <a href="javascript:void(0)" onclick="baselineCurrentSchedule()" class="block px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-950">Save current schedule as selected baseline</a>
+          <a href="javascript:void(0)" onclick="resetToSample()" class="block px-3 py-1.5 text-xs text-red-400 hover:bg-red-950">Reset to sample project</a>
+        </div>
+        <input type="file" id="importFileInput" accept=".json,application/json" class="hidden" onchange="importJSON(this)">
+      </div>
+    </div>
+  </header>
+
+  <!-- ======================== TIME RIBBON ======================== -->
+  <div class="h-10 bg-[#0a1020] border-b border-slate-800/90 flex items-center justify-between px-3 shrink-0 text-xs">
+    <div class="flex items-center space-x-2">
+      <button id="playBtn" onclick="toggle4DPlay()" class="w-7 h-7 rounded bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center" title="Play / Pause 4D Simulation">
+        <svg id="playIcon" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="pauseIcon" class="w-3.5 h-3.5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <button onclick="reset4DTimeline()" class="w-7 h-7 rounded bg-slate-800 hover:bg-slate-700 text-slate-300" title="Rewind to Day 0">⏮</button>
+      <button onclick="jumpToDataDate()" class="px-2 h-7 rounded bg-amber-950 border border-amber-700 text-amber-300 font-mono text-[10px]" title="Move 4D cursor to the status Data Date">→ DD</button>
+
+      <div class="flex items-center space-x-1 bg-[#121c33] px-2 py-0.5 rounded border border-slate-700/60 font-mono text-[11px]">
+        <span class="text-slate-400">4D CURSOR:</span>
+        <span id="displaySimulationDate" class="text-sky-400 font-bold">Day 70</span>
+        <span id="displayCalendarDate" class="text-sky-300/80">—</span>
+        <span class="text-slate-600">|</span>
+        <span class="text-slate-400">DATA DATE:</span>
+        <span id="displayDataDate" class="text-amber-400 font-bold">Day 70</span>
+      </div>
+
+      <div class="flex items-center space-x-1 text-[11px] text-slate-400" id="speedBtns">
+        <span>Speed:</span>
+        <button data-speed="0.5" class="speed-btn px-1.5 py-0.5 rounded">0.5x</button>
+        <button data-speed="1" class="speed-btn px-1.5 py-0.5 rounded">1x</button>
+        <button data-speed="2" class="speed-btn px-1.5 py-0.5 rounded">2x</button>
+        <button data-speed="4" class="speed-btn px-1.5 py-0.5 rounded">4x</button>
+      </div>
+    </div>
+
+    <div class="flex-1 max-w-xl mx-4 flex items-center space-x-2">
+      <span class="text-[10px] font-mono text-slate-400">D0</span>
+      <input type="range" id="timeScrubber" min="0" max="185" value="70" oninput="handleScrubberInput(this.value)" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+      <span class="text-[10px] font-mono text-slate-400" id="scrubberMaxLabel">D185</span>
+    </div>
+
+    <div class="flex items-center space-x-3 text-[10px] font-mono">
+      <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-sm bg-slate-600/70 border border-slate-500"></span><span class="text-slate-400">Planned</span></span>
+      <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-sm bg-sky-500"></span><span class="text-sky-300">Active</span></span>
+      <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span><span class="text-emerald-300">Complete</span></span>
+      <span class="flex items-center space-x-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500"></span><span class="text-red-400" id="legendCritical">Critical (TF ≤ 0)</span></span>
+    </div>
+  </div>
+
+  <!-- ======================== WORKSPACE ======================== -->
+  <main class="flex-1 flex overflow-hidden relative" id="workspaceContainer">
+
+    <!-- LEFT: 4D BIM -->
+    <section id="bimPane" class="w-1/2 flex flex-col bg-[#050914] border-r border-slate-800 relative">
+      <div class="h-8 bg-[#090f1d] px-3 flex items-center justify-between border-b border-slate-800 shrink-0 text-slate-300 text-xs">
+        <span class="font-bold text-sky-400">4D BIM DIGITAL TWIN</span>
+        <div class="flex items-center space-x-2 text-[10px]">
+          <span class="text-slate-400">Camera:</span>
+          <button onclick="resetBIMCamera('isometric')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-mono">ISO</button>
+          <button onclick="resetBIMCamera('top')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-mono">Top</button>
+          <button onclick="resetBIMCamera('front')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-mono">Front</button>
+          <button onclick="toggleCraneAnimation()" id="craneToggleBtn" class="px-1.5 py-0.5 bg-amber-900/60 border border-amber-600/70 text-amber-300 rounded font-mono">Crane: ON</button>
+        </div>
+      </div>
+
+      <div id="threeCanvasContainer" class="flex-1 relative w-full h-full cursor-grab active:cursor-grabbing overflow-hidden">
+        <canvas id="bimCanvas" class="w-full h-full block"></canvas>
+        <div id="bimUnavailable" class="hidden absolute inset-0 flex items-center justify-center text-slate-400 text-xs p-6 text-center">
+          3D view unavailable: Three.js could not be loaded (offline or blocked CDN). Scheduling, Gantt, EVM and resources still work.
+        </div>
+
+        <div class="absolute top-2 left-2 pointer-events-none bg-slate-900/85 border border-slate-700/80 rounded-lg p-2.5 font-mono text-[11px] space-y-1 shadow-lg min-w-[260px]">
+          <div class="text-slate-400 text-[10px] uppercase">Work in progress at cursor</div>
+          <div id="hudActiveList" class="space-y-0.5"></div>
+        </div>
+
+        <div class="absolute bottom-2 right-2 pointer-events-none bg-slate-900/80 border border-slate-800 rounded px-2 py-1 text-[10px] font-mono text-slate-400">
+          Drag: Rotate | Scroll: Zoom | Click Gantt row: highlight element
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Schedule -->
+    <section id="p6Pane" class="w-1/2 flex flex-col bg-[#0b1222] overflow-hidden">
+      <div class="h-[60%] flex flex-col border-b border-slate-800 overflow-hidden">
+        <div class="h-8 bg-[#0d162a] px-3 flex items-center justify-between border-b border-slate-800 shrink-0 text-slate-300 text-xs">
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-white">ACTIVITIES &amp; CPM GANTT</span>
+            <span class="text-[10px] text-slate-500 font-mono" id="activityCountLabel"></span>
+            <button onclick="addActivity()" class="px-1.5 py-0.5 bg-sky-700 hover:bg-sky-600 text-white rounded text-[10px] font-semibold">+ Activity</button>
+            <button onclick="deleteSelectedActivity()" class="px-1.5 py-0.5 bg-slate-800 hover:bg-red-900 text-slate-300 rounded text-[10px]">Delete</button>
+          </div>
+          <div class="flex items-center space-x-2 text-[10px]">
+            <span class="text-slate-400">Scale:</span>
+            <button onclick="setGanttZoom('week')" id="zoomBtn_week" class="zoom-btn px-1.5 py-0.5 rounded font-mono">Weeks</button>
+            <button onclick="setGanttZoom('month')" id="zoomBtn_month" class="zoom-btn px-1.5 py-0.5 rounded font-mono">Months</button>
+            <button onclick="toggleRelationshipLines()" id="relLinesBtn" class="px-1.5 py-0.5 rounded font-mono">Links</button>
+            <button onclick="toggleCriticalPathFilter()" id="criticalPathFilterBtn" class="px-1.5 py-0.5 rounded font-mono">Critical Only</button>
+          </div>
+        </div>
+
+        <div class="flex-1 flex overflow-hidden">
+          <div class="w-3/5 overflow-auto border-r border-slate-800 bg-[#090f1d]" id="activityTableContainer">
+            <table class="w-full text-left text-[11px] border-collapse" id="p6ActivityTable">
+              <thead class="sticky top-0 bg-[#141e34] text-slate-400 border-b border-slate-700 uppercase font-mono text-[9px] tracking-wider z-10">
+                <tr>
+                  <th class="px-1.5 w-8 text-center">#</th>
+                  <th class="px-1.5 w-20">Activity ID</th>
+                  <th class="px-1.5 min-w-[160px]">Activity Name</th>
+                  <th class="px-1.5 w-10 text-center">OD</th>
+                  <th class="px-1.5 w-10 text-center text-amber-300">RD</th>
+                  <th class="px-1.5 w-12 text-center">Start</th>
+                  <th class="px-1.5 w-12 text-center">Finish</th>
+                  <th class="px-1.5 w-12 text-center" title="Baseline finish minus current finish (negative = late)">BL Var</th>
+                  <th class="px-1.5 w-10 text-center">TF</th>
+                  <th class="px-1.5 w-12 text-center text-emerald-400">Phys %</th>
+                  <th class="px-1.5 w-12 text-center text-sky-400">Perf %</th>
+                  <th class="px-1.5 w-24">Contractor</th>
+                </tr>
+              </thead>
+              <tbody id="activityTableBody" class="text-slate-300"></tbody>
+            </table>
+          </div>
+
+          <div class="w-2/5 overflow-x-auto overflow-y-hidden bg-[#0a1020] relative" id="ganttTimelineContainer">
+            <div id="ganttTimelineHeader" class="sticky top-0 h-6 bg-[#121c33] border-b border-slate-700 flex items-center text-[9px] font-mono text-slate-400 whitespace-nowrap z-10"></div>
+            <div id="ganttBarsContainer" class="relative"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Details dock -->
+      <div class="h-[40%] flex flex-col bg-[#0d1527] overflow-hidden" id="activityDetailsPane">
+        <div class="h-8 bg-[#101b33] border-b border-slate-800 px-3 flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-1">
+            <button onclick="switchDetailsTab('steps')" id="tabBtn_steps" class="tab-btn">Steps</button>
+            <button onclick="switchDetailsTab('general')" id="tabBtn_general" class="tab-btn">General</button>
+            <button onclick="switchDetailsTab('status')" id="tabBtn_status" class="tab-btn">Status</button>
+            <button onclick="switchDetailsTab('relationships')" id="tabBtn_relationships" class="tab-btn">Relationships</button>
+            <button onclick="switchDetailsTab('cbs')" id="tabBtn_cbs" class="tab-btn">Costs &amp; Resources</button>
+          </div>
+          <div class="flex items-center space-x-2 text-[11px] min-w-0">
+            <span id="detailActivityIdBadge" class="font-mono text-sky-300 font-bold bg-sky-950 px-1.5 py-0.5 rounded border border-sky-800 truncate max-w-[260px]"></span>
+            <span id="stepProgressBadge" class="font-mono text-[10px] px-2 py-0.5 rounded font-bold"></span>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-hidden flex flex-col bg-[#0b1222]">
+          <!-- Steps -->
+          <div id="tabContentSteps" class="p-2.5 flex-1 flex flex-col overflow-hidden">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-[11px]">
+                <span class="text-slate-300 font-semibold">Activity Steps</span>
+                <span class="text-[10px] text-slate-400 font-mono ml-2">Physical % = Σ (Step Weight % × Step % Complete)</span>
+                <span id="stepsDrivingNote" class="text-[10px] ml-2"></span>
+              </div>
+              <div class="flex items-center space-x-1.5">
+                <button onclick="openModal('customizeStepsColumnsModal')" class="px-2 py-1 bg-[#16233d] hover:bg-[#1f3154] border border-slate-700 text-slate-300 rounded text-[11px]">Columns…</button>
+                <button onclick="openModal('applyTemplateModal')" class="px-2 py-1 bg-purple-950/80 hover:bg-purple-900 border border-purple-700 text-purple-300 rounded text-[11px]">Add from Template</button>
+                <button onclick="addNewStepToActiveAct()" class="px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded text-[11px] font-semibold">Add Step</button>
+              </div>
+            </div>
+            <div class="flex-1 overflow-auto rounded border border-slate-800 bg-[#090f1d]" oncontextmenu="event.preventDefault(); openModal('customizeStepsColumnsModal')">
+              <table class="w-full text-left text-[11px] border-collapse">
+                <thead class="sticky top-0 bg-[#141e34] text-slate-400 border-b border-slate-700 uppercase font-mono text-[9px] tracking-wider">
+                  <tr id="stepsTableHeaderRow"></tr>
+                </thead>
+                <tbody id="stepsTableBody" class="text-slate-300"></tbody>
+              </table>
+            </div>
+            <div class="mt-1.5 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+              <span id="stepsSummaryInfo"></span>
+              <span class="text-amber-400/90 font-sans">'Completed' locks a step at 100%. Uncheck to enter partial progress.</span>
+            </div>
+          </div>
+
+          <!-- General -->
+          <div id="tabContentGeneral" class="p-4 flex-1 overflow-auto hidden">
+            <div class="grid grid-cols-4 gap-3 max-w-5xl text-xs">
+              <div><label class="lbl">Activity ID</label><input type="text" id="genActId" disabled class="fld font-mono"></div>
+              <div class="col-span-2"><label class="lbl">Activity Name</label><input type="text" id="genActName" onchange="updateActiveField('name', this.value)" class="fld"></div>
+              <div><label class="lbl">WBS</label><input type="text" id="genWbs" onchange="updateActiveField('wbs', this.value)" class="fld"></div>
+              <div class="p-2 rounded-lg bg-sky-950/40 border border-sky-600/50">
+                <label class="lbl text-sky-300">% Complete Type</label>
+                <select id="genPctCompleteType" onchange="updateActiveField('percentCompleteType', this.value)" class="fld">
+                  <option value="Physical">Physical</option>
+                  <option value="Duration">Duration</option>
+                  <option value="Units">Units</option>
+                </select>
+                <p class="text-[9px] text-sky-400/80 mt-1">Performance % (used for EV) follows this type.</p>
+              </div>
+              <div><label class="lbl">Calendar (label only)</label>
+                <select id="genCalendar" onchange="updateActiveField('calendar', this.value)" class="fld">
+                  <option value="CAL-6D">CAL-6D (6-Day Site)</option>
+                  <option value="CAL-5D">CAL-5D (5-Day Office)</option>
+                  <option value="CAL-7D">CAL-7D (7-Day Continuous)</option>
+                </select>
+                <p class="text-[9px] text-slate-500 mt-1">Durations are counted on one project-day timeline.</p>
+              </div>
+              <div><label class="lbl">Contractor / OBS</label><input type="text" id="genContractor" onchange="updateActiveField('contractor', this.value)" class="fld"></div>
+              <div><label class="lbl">Original Duration (days)</label><input type="number" min="0" id="genOD" onchange="updateActiveNumber('duration', this.value)" class="fld font-mono"></div>
+            </div>
+          </div>
+
+          <!-- Status -->
+          <div id="tabContentStatus" class="p-4 flex-1 overflow-auto hidden">
+            <div class="grid grid-cols-4 gap-3 max-w-5xl text-xs">
+              <div><label class="lbl">Actual Start (day)</label><input type="number" min="0" id="statAS" onchange="updateActualDate('actualStart', this.value)" class="fld font-mono" placeholder="not started"></div>
+              <div><label class="lbl">Actual Finish (day)</label><input type="number" min="0" id="statAF" onchange="updateActualDate('actualFinish', this.value)" class="fld font-mono" placeholder="not finished"></div>
+              <div class="p-2 rounded bg-amber-950/30 border border-amber-700/60">
+                <label class="lbl text-amber-300">Remaining Duration</label>
+                <input type="number" id="statRD" min="0" onchange="updateActiveRemainingDuration(this.value)" class="fld font-mono text-amber-200">
+                <span class="text-[9px] text-amber-400/80 block mt-1">Independent of steps; drives the forecast finish.</span>
+              </div>
+              <div class="p-2 rounded bg-emerald-950/40 border border-emerald-600/70">
+                <label class="lbl text-emerald-300">Physical % Complete</label>
+                <input type="number" min="0" max="100" id="statPhysManual" onchange="updateManualPhysical(this.value)" class="fld font-mono text-emerald-300">
+                <span id="statPhysNote" class="text-[9px] text-emerald-400/80 block mt-1"></span>
+              </div>
+              <div class="bg-[#121c33] p-2 rounded border border-slate-800"><span class="lbl">Duration %</span><span id="statDurPct" class="font-mono font-bold"></span></div>
+              <div class="bg-[#121c33] p-2 rounded border border-slate-800"><span class="lbl">Units %</span><span id="statUnitsPct" class="font-mono font-bold"></span></div>
+              <div class="bg-sky-950/40 p-2 rounded border border-sky-600/70"><span class="lbl text-sky-300">Performance %</span><span id="statPerfPct" class="font-mono font-extrabold text-sky-400"></span></div>
+              <div class="bg-[#121c33] p-2 rounded border border-slate-800"><span class="lbl">Status</span><span id="statStatus" class="font-mono font-bold"></span></div>
+              <div><label class="lbl">Start / Remaining Start</label><input type="text" id="statES" disabled class="fld font-mono"></div>
+              <div><label class="lbl">Finish (forecast)</label><input type="text" id="statEF" disabled class="fld font-mono"></div>
+              <div><label class="lbl">Late Start / Late Finish</label><input type="text" id="statLSLF" disabled class="fld font-mono"></div>
+              <div><label class="lbl">Total Float</label><span id="statCritBadge" class="inline-block mt-1 font-mono text-xs px-2 py-0.5 rounded font-bold"></span></div>
+            </div>
+          </div>
+
+          <!-- Relationships -->
+          <div id="tabContentRelationships" class="p-3 flex-1 overflow-auto hidden">
+            <div class="flex items-end gap-2 mb-2 text-[11px]">
+              <div><label class="lbl">Predecessor</label><select id="relPredSelect" class="fld w-56"></select></div>
+              <div><label class="lbl">Type</label>
+                <select id="relTypeSelect" class="fld w-20"><option>FS</option><option>SS</option><option>FF</option><option>SF</option></select>
+              </div>
+              <div><label class="lbl">Lag (d)</label><input type="number" id="relLagInput" value="0" class="fld w-20 font-mono"></div>
+              <button onclick="addPredecessorFromForm()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded font-semibold">Assign</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="border border-slate-800 rounded bg-[#090f1d] p-2">
+                <div class="text-[11px] font-bold text-slate-300 mb-1">Predecessors</div>
+                <div id="predecessorsList" class="space-y-1 text-[11px] font-mono"></div>
+              </div>
+              <div class="border border-slate-800 rounded bg-[#090f1d] p-2">
+                <div class="text-[11px] font-bold text-slate-300 mb-1">Successors</div>
+                <div id="successorsList" class="space-y-1 text-[11px] font-mono"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Costs & Resources -->
+          <div id="tabContentCbs" class="p-4 flex-1 overflow-auto hidden">
+            <div class="grid grid-cols-4 gap-3 max-w-5xl text-xs font-mono">
+              <div class="kpi"><span class="lbl">Budget (BAC)</span><input type="number" min="0" id="cbsBACInput" onchange="updateActiveNumber('cost', this.value)" class="fld text-emerald-300"></div>
+              <div class="kpi"><span class="lbl">Actual Cost (AC)</span><input type="number" min="0" id="cbsACInput" onchange="updateActiveNumber('actualCost', this.value)" class="fld text-amber-300"></div>
+              <div class="kpi"><span class="lbl">Earned Value (BAC × Perf%)</span><span id="cbsEV" class="text-sm font-bold text-sky-400"></span></div>
+              <div class="kpi"><span class="lbl">Cost Variance (EV − AC)</span><span id="cbsCV" class="text-sm font-bold"></span></div>
+              <div class="kpi"><span class="lbl">Budgeted Labor Units (h)</span><input type="number" min="0" id="resBudgetUnits" onchange="updateActiveNumber('budgetUnits', this.value)" class="fld"></div>
+              <div class="kpi"><span class="lbl">Actual Labor Units (h)</span><input type="number" min="0" id="resActualUnits" onchange="updateActiveNumber('actualUnits', this.value)" class="fld"></div>
+              <div class="kpi"><span class="lbl">Crew (men / day)</span><input type="number" min="0" id="resLabor" onchange="updateActiveNumber('labor', this.value)" class="fld text-sky-300"></div>
+              <div class="kpi"><span class="lbl">Plant (rigs / day)</span><input type="number" min="0" id="resPlant" onchange="updateActiveNumber('plant', this.value)" class="fld text-amber-300"></div>
+            </div>
+            <div class="mt-3 border border-slate-800 rounded bg-[#090f1d] p-3 max-w-5xl">
+              <h5 class="text-slate-300 font-bold text-xs mb-2">Cost Breakdown Structure (CBS)</h5>
+              <div class="grid grid-cols-4 gap-3 text-xs" id="cbsBreakdownRows"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EVM dashboard -->
+    <section id="evmDashboardPane" class="hidden absolute inset-0 bg-[#090f1d] flex flex-col p-4 z-20 overflow-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h2 class="text-base font-extrabold text-white">EARNED VALUE MANAGEMENT &amp; S-CURVES</h2>
+          <p class="text-xs text-slate-400">PV from the selected baseline · EV from Performance % · AC as entered · history from stored periods</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="storePeriodPerformance()" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs font-bold" title="Snapshot EV/AC/PV at the current Data Date">Store Period Performance</button>
+          <button onclick="clearPeriodHistory()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs">Clear History</button>
+          <button onclick="switchMainView('splitView')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs font-semibold">&times; Return</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-8 gap-3 my-4" id="evmCards"></div>
+      <div class="flex-1 bg-[#0d1629] border border-slate-800 rounded-xl p-4 flex flex-col min-h-[300px]">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-xs font-bold text-slate-300">Cumulative cost curves</span>
+          <div class="flex items-center space-x-4 text-xs font-mono">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-slate-400"></span> PV</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-sky-400"></span> EV</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-amber-400"></span> AC</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-purple-400"></span> EAC forecast</span>
+          </div>
+        </div>
+        <div class="flex-1 relative"><svg id="sCurveSvg" class="w-full h-full"></svg></div>
+      </div>
+    </section>
+
+    <!-- Resource dashboard -->
+    <section id="resourceDashboardPane" class="hidden absolute inset-0 bg-[#090f1d] flex flex-col p-4 z-20 overflow-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h2 class="text-base font-extrabold text-white">RESOURCE LOADING &amp; LEVELING</h2>
+          <p class="text-xs text-slate-400">Loads come from each activity's crew/plant rate over its scheduled dates. Leveling delays only unstarted, non-critical work within its total float.</p>
+        </div>
+        <div class="flex items-center space-x-2 text-xs">
+          <label class="text-slate-400">Labor limit <input type="number" id="laborLimitInput" min="1" class="fld w-16 inline-block font-mono" onchange="updateResourceLimits()"></label>
+          <label class="text-slate-400">Plant limit <input type="number" id="plantLimitInput" min="1" class="fld w-16 inline-block font-mono" onchange="updateResourceLimits()"></label>
+          <button onclick="runResourceLeveling()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded font-bold">Level Resources</button>
+          <button onclick="clearLeveling()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded">Clear Leveling</button>
+          <button onclick="switchMainView('splitView')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-semibold">&times; Return</button>
+        </div>
+      </div>
+      <div id="levelingReport" class="text-xs font-mono text-slate-300 mt-3"></div>
+      <div class="grid grid-cols-2 gap-4 my-4 flex-1">
+        <div class="bg-[#0d1629] border border-slate-800 rounded-xl p-4 flex flex-col min-h-[260px]">
+          <h4 class="text-xs font-bold text-sky-300 mb-2">Direct labor (men/day, peak per week)</h4>
+          <div class="flex-1 relative"><svg id="laborHistogramSvg" class="w-full h-full"></svg></div>
+        </div>
+        <div class="bg-[#0d1629] border border-slate-800 rounded-xl p-4 flex flex-col min-h-[260px]">
+          <h4 class="text-xs font-bold text-amber-300 mb-2">Heavy plant (rigs/day, peak per week)</h4>
+          <div class="flex-1 relative"><svg id="equipmentHistogramSvg" class="w-full h-full"></svg></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ======================== MODALS ======================== -->
+  <div id="calcSettingsModal" class="modal hidden">
+    <div class="modal-box max-w-lg">
+      <div class="modal-head"><h3 class="font-bold text-white text-sm">Project Calculations &amp; Data Date</h3><button onclick="closeModal('calcSettingsModal')" class="text-slate-400 hover:text-white text-lg">&times;</button></div>
+      <div class="p-5 space-y-4 text-xs">
+        <label class="flex items-start space-x-3 cursor-pointer p-3 rounded-xl bg-amber-950/30 border border-amber-600/70">
+          <input type="checkbox" id="chkStepWeighting" class="mt-0.5 w-4 h-4">
+          <div>
+            <span class="font-bold text-amber-300 block">Activity percent complete based on activity steps</span>
+            <span class="text-slate-400 text-[11px] block mt-0.5">On: Physical % is rolled up from steps. Off: Physical % is entered manually on the Status tab.</span>
+          </div>
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="lbl">Data Date (status cutoff, day)</label><input type="number" min="0" id="inpDataDate" class="fld font-mono text-amber-300"></div>
+          <div><label class="lbl">Project start (calendar date)</label><input type="date" id="inpProjectStart" class="fld font-mono"></div>
+          <div><label class="lbl">Critical if Total Float ≤ (days)</label><input type="number" id="inpCritThreshold" class="fld font-mono text-red-400"></div>
+          <div><label class="lbl">Must finish by (day, optional)</label><input type="number" min="0" id="inpMustFinish" class="fld font-mono" placeholder="calculated finish"></div>
+          <div class="col-span-2"><label class="lbl">Default % Complete Type for new activities</label>
+            <select id="selDefaultPctType" class="fld"><option>Physical</option><option>Duration</option><option>Units</option></select>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400">Scheduling uses progress override: completed work keeps its actual dates, in-progress work finishes at Data Date + Remaining Duration, and nothing unstarted may start before the Data Date.</p>
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+          <button onclick="closeModal('calcSettingsModal')" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">Cancel</button>
+          <button onclick="saveProjectCalcSettings()" class="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold">Save &amp; Schedule</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="stepTemplatesModal" class="modal hidden">
+    <div class="modal-box max-w-2xl max-h-[85vh] flex flex-col">
+      <div class="modal-head"><h3 class="font-bold text-white text-sm">Activity Step Templates</h3><button onclick="closeModal('stepTemplatesModal')" class="text-slate-400 hover:text-white text-lg">&times;</button></div>
+      <div class="p-5 flex-1 overflow-auto text-xs"><div class="grid grid-cols-2 gap-3" id="templatesGrid"></div></div>
+    </div>
+  </div>
+
+  <div id="applyTemplateModal" class="modal hidden">
+    <div class="modal-box max-w-md">
+      <div class="modal-head"><h4 class="font-bold text-white text-xs">Apply Step Template to Selected Activity</h4><button onclick="closeModal('applyTemplateModal')" class="text-slate-400 hover:text-white text-lg">&times;</button></div>
+      <div class="p-5 space-y-3 text-xs">
+        <select id="selectedTemplateKey" class="fld"></select>
+        <p class="text-amber-400 text-[11px]">This replaces the current steps and sets % Complete Type to Physical.</p>
+        <div class="flex justify-end space-x-2">
+          <button onclick="closeModal('applyTemplateModal')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300">Cancel</button>
+          <button onclick="applyTemplateDirectly(document.getElementById('selectedTemplateKey').value)" class="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="customizeStepsColumnsModal" class="modal hidden">
+    <div class="modal-box max-w-md">
+      <div class="modal-head"><h4 class="font-bold text-white text-xs">Customize Steps Columns</h4><button onclick="closeModal('customizeStepsColumnsModal')" class="text-slate-400 hover:text-white text-lg">&times;</button></div>
+      <div class="p-5 space-y-2 text-xs">
+        <label class="col-opt"><span>Step Name (always shown)</span><input type="checkbox" checked disabled></label>
+        <label class="col-opt"><span>Step Weight</span><input type="checkbox" id="colVisible_weight"></label>
+        <label class="col-opt"><span>Step Weight %</span><input type="checkbox" id="colVisible_weightPercent"></label>
+        <label class="col-opt"><span>Step % Complete</span><input type="checkbox" id="colVisible_stepPercent"></label>
+        <label class="col-opt"><span>Completed</span><input type="checkbox" id="colVisible_completed"></label>
+        <div class="flex justify-end space-x-2 pt-2">
+          <button onclick="closeModal('customizeStepsColumnsModal')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300">Cancel</button>
+          <button onclick="applyStepsColumnsCustomization()" class="px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="notificationToast" class="fixed bottom-4 right-4 z-50 translate-y-20 opacity-0 transition-all duration-300 bg-sky-950/95 border border-sky-500 text-white px-4 py-2.5 rounded-xl shadow-2xl pointer-events-none max-w-md">
+    <h5 id="toastTitle" class="font-bold text-xs"></h5>
+    <p id="toastMessage" class="text-[11px] text-slate-300"></p>
+  </div>
+
+  <style>
+    .view-btn { padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; color: #94a3b8; }
+    .view-btn:hover { color: #e2e8f0; }
+    .view-btn.active { background: #0284c7; color: #fff; }
+    .tab-btn { padding: 4px 10px; font-size: 12px; color: #94a3b8; border-radius: 4px 4px 0 0; }
+    .tab-btn.active { background: #16233d; color: #38bdf8; font-weight: 700; border: 1px solid #334155; border-bottom: 0; }
+    .speed-btn, .zoom-btn, #relLinesBtn, #criticalPathFilterBtn { background: #1e293b; color: #cbd5e1; }
+    .speed-btn.active, .zoom-btn.active, #relLinesBtn.active { background: #0284c7; color: #fff; font-weight: 700; }
+    #criticalPathFilterBtn { color: #f87171; }
+    #criticalPathFilterBtn.active { background: #7f1d1d; color: #fff; font-weight: 700; }
+    .lbl { display: block; color: #94a3b8; font-size: 10px; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; margin-bottom: 4px; }
+    .fld { width: 100%; background: #16233d; border: 1px solid #334155; border-radius: 4px; padding: 4px 8px; color: #e2e8f0; }
+    .fld:disabled { color: #94a3b8; }
+    .kpi { background: #141e34; border: 1px solid #334155; border-radius: 6px; padding: 8px; }
+    .modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.8); display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .modal.hidden { display: none; }
+    .modal-box { background: #0f172a; border: 1px solid #334155; border-radius: 16px; width: 100%; overflow: hidden; }
+    .modal-head { padding: 12px 20px; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(90deg, #1e1b4b, #0f172a, #082f49); }
+    .col-opt { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-radius: 4px; background: rgba(15,23,42,.8); color: #e2e8f0; cursor: pointer; }
+  </style>
+
+  <!-- ======================== APPLICATION ======================== -->
+  <script>
+    'use strict';
+
+    const STORAGE_KEY = 'astco4d.project.v2';
+
+    /* ---------- Utilities ---------- */
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function money(n) { return '$' + Math.round(n || 0).toLocaleString('en-US'); }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    function num(v, fallback = 0) { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback; }
+    function $(id) { return document.getElementById(id); }
+
+    /* ---------- Step templates ---------- */
+    const STEP_TEMPLATES = {
+      concrete_pour: { name: 'Reinforced Concrete Structure', wbsCategory: '1.2 Superstructure', steps: [
+        { name: 'Formwork & Falsework Setup', weight: 2 }, { name: 'Rebar Placement, Tying & Inspection', weight: 3 },
+        { name: 'Concrete Pour & Vibration', weight: 4 }, { name: 'Curing, Testing & Stripping', weight: 1 } ] },
+      mep_risers: { name: 'MEP Pipework & Risers', wbsCategory: '1.3 Building Services (MEP)', steps: [
+        { name: 'Trapeze & Hanger Installation', weight: 1.5 }, { name: 'Pipe Erection & Alignment', weight: 4.5 },
+        { name: 'Insulation & Joint Sealing', weight: 2.5 }, { name: 'Hydrostatic Pressure Testing', weight: 1.5 } ] },
+      curtain_wall: { name: 'Unitized Curtain Wall', wbsCategory: '1.4 Architectural Envelope', steps: [
+        { name: 'Anchor Bracket Survey & Torque', weight: 2 }, { name: 'Panel Hoisting & Bolting', weight: 5 },
+        { name: 'Backer Rod & Structural Sealant', weight: 2 }, { name: 'Water Penetration Testing', weight: 1 } ] },
+      piling_geotech: { name: 'Bored Cast-in-Situ Piling', wbsCategory: '1.1 Substructure', steps: [
+        { name: 'Drilling & Bentonite Prep', weight: 2.5 }, { name: 'Cage Lowering & Splicing', weight: 3.5 },
+        { name: 'Tremie Pour to Cut-off', weight: 3 }, { name: 'Pile Head Chipping & Integrity Test', weight: 1 } ] }
+    };
+
+    /* ---------- Sample project (status at Data Date = Day 70) ---------- */
+    function bl(s, e) { return { start: s, end: e }; }
+    function steps(list) { return list.map((s, i) => ({ id: i + 1, name: s[0], weight: s[1], stepPercent: s[2], completed: s[2] >= 100 })); }
+
+    function sampleProject() {
+      return {
+        version: 2,
+        settings: {
+          dataDate: 70, projectStart: '2026-04-03', critThreshold: 0, mustFinish: null,
+          stepsDrivePhysical: true, defaultPctType: 'Physical', laborLimit: 120, plantLimit: 10
+        },
+        periods: [
+          { day: 30, pv: 778000, ev: 770000, ac: 790000 },
+          { day: 50, pv: 1588000, ev: 1590000, ac: 1625000 }
+        ],
+        activities: [
+          { id: 'ACT-1010', name: 'Subsurface Excavation & Shoring', wbs: '1.1 Substructure', contractor: 'Atlas Geotech', calendar: 'CAL-6D',
+            duration: 25, remainingDuration: 0, actualStart: 0, actualFinish: 25, percentCompleteType: 'Physical', physicalManual: 100,
+            cost: 450000, actualCost: 440000, budgetUnits: 6000, actualUnits: 5900, labor: 30, plant: 4,
+            cbs: { labor: 180000, plant: 180000, materials: 70000, indirect: 20000 }, predecessors: [], meshKey: 'excavation',
+            steps: steps([['Site Clearance & Topsoil Stripping', 2, 100], ['Secant Piles & Shoring Guide Wall', 4, 100], ['Bulk Excavation (-8m)', 3, 100], ['Formation Level & Blinding', 1, 100]]),
+            baselines: { BL0: bl(0, 25), BL1: bl(0, 25), BL2: bl(0, 25) } },
+          { id: 'ACT-1020', name: 'Deep Piling & Foundation Raft', wbs: '1.1 Substructure', contractor: 'Atlas Geotech', calendar: 'CAL-7D',
+            duration: 25, remainingDuration: 0, actualStart: 20, actualFinish: 45, percentCompleteType: 'Physical', physicalManual: 100,
+            cost: 820000, actualCost: 810000, budgetUnits: 8000, actualUnits: 8100, labor: 40, plant: 5,
+            cbs: { labor: 320000, plant: 220000, materials: 240000, indirect: 40000 }, predecessors: [{ id: 'ACT-1010', type: 'FS', lag: -5 }], meshKey: 'foundation',
+            steps: steps([['1200mm Bored Piles (48 No.)', 3, 100], ['Raft Waterproofing', 2, 100], ['Raft Rebar Mat', 3, 100], ['Mass Concrete Pour', 2, 100]]),
+            baselines: { BL0: bl(20, 45), BL1: bl(20, 45), BL2: bl(20, 45) } },
+          { id: 'ACT-1030', name: 'Tower Crane Erection & Certification', wbs: '1.2 Superstructure', contractor: 'Apex Consortium', calendar: 'CAL-6D',
+            duration: 10, remainingDuration: 0, actualStart: 35, actualFinish: 45, percentCompleteType: 'Physical', physicalManual: 100,
+            cost: 160000, actualCost: 165000, budgetUnits: 900, actualUnits: 950, labor: 10, plant: 3,
+            cbs: { labor: 60000, plant: 80000, materials: 10000, indirect: 10000 }, predecessors: [{ id: 'ACT-1020', type: 'SS', lag: 15 }], meshKey: 'towerCrane',
+            steps: steps([['Base Mast Anchor Embedment', 3, 100], ['Mast Climbing & Jib Assembly', 4, 100], ['Counterweight & Hoist Rigging', 2, 100], ['Load Testing', 1, 100]]),
+            baselines: { BL0: bl(35, 45), BL1: bl(35, 45), BL2: bl(35, 45) } },
+          { id: 'ACT-2010', name: 'Podium & Columns Level 1-4', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
+            duration: 30, remainingDuration: 0, actualStart: 45, actualFinish: 69, percentCompleteType: 'Physical', physicalManual: 100,
+            cost: 950000, actualCost: 965000, budgetUnits: 9600, actualUnits: 9800, labor: 40, plant: 3,
+            cbs: { labor: 450000, plant: 200000, materials: 260000, indirect: 40000 }, predecessors: [{ id: 'ACT-1020', type: 'FS', lag: 0 }], meshKey: 'columnsLower',
+            steps: steps([['Column Starter Couplers', 2, 100], ['Steel Formwork Assembly', 3, 100], ['SCC Pour', 4, 100], ['Curing & De-shuttering', 1, 100]]),
+            baselines: { BL0: bl(45, 75), BL1: bl(45, 75), BL2: bl(45, 75) } },
+          { id: 'ACT-2020', name: 'Mid-Rise Concrete Slabs L5-L12', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
+            duration: 45, remainingDuration: 30, actualStart: 65, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 1200000, actualCost: 650000, budgetUnits: 14000, actualUnits: 6200, labor: 45, plant: 3,
+            cbs: { labor: 540000, plant: 260000, materials: 340000, indirect: 60000 }, predecessors: [{ id: 'ACT-2010', type: 'SS', lag: 20 }], meshKey: 'slabsMid',
+            steps: steps([['Soffit Shoring & Deck Formwork', 3, 100], ['PT Ducting & Rebar', 4, 50], ['Slab Pour & Laser Screed', 3, 0], ['PT Stressing & Stripping', 0, 0]]),
+            baselines: { BL0: bl(65, 110), BL1: bl(65, 110), BL2: bl(65, 105) } },
+          { id: 'ACT-3010', name: 'Core Shear Wall Vertical Ext.', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
+            duration: 60, remainingDuration: 24, actualStart: 55, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 780000, actualCost: 480000, budgetUnits: 9000, actualUnits: 5600, labor: 30, plant: 2,
+            cbs: { labor: 350000, plant: 180000, materials: 210000, indirect: 40000 }, predecessors: [{ id: 'ACT-2010', type: 'SS', lag: 10 }], meshKey: 'shearCore',
+            steps: steps([['Jump-Form Setup', 2, 100], ['Embed Plates & Vertical Rebar', 4, 100], ['Wall Pour L8-L14', 3, 0], ['Shaft Plumbness Survey', 1, 0]]),
+            baselines: { BL0: bl(55, 115), BL1: bl(55, 115), BL2: bl(55, 112) } },
+          { id: 'ACT-4010', name: 'Lower Tier MEP Primary Risers', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-5D',
+            duration: 50, remainingDuration: 35, actualStart: 60, actualFinish: null, percentCompleteType: 'Units', physicalManual: 0,
+            cost: 540000, actualCost: 190000, budgetUnits: 7000, actualUnits: 2100, labor: 25, plant: 1,
+            cbs: { labor: 270000, plant: 90000, materials: 150000, indirect: 30000 }, predecessors: [{ id: 'ACT-2010', type: 'SS', lag: 15 }], meshKey: 'mepLower',
+            steps: steps([['Shaft Coring & Sleeving', 1.5, 100], ['CHW & Fire Riser Headers', 1.5, 100], ['Cable Tray & Busducts', 4.5, 0], ['Pressure Testing', 2.5, 0]]),
+            baselines: { BL0: bl(70, 120), BL1: bl(70, 120), BL2: bl(70, 120) } },
+          { id: 'ACT-4020', name: 'Upper Tier MEP Risers', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-5D',
+            duration: 40, remainingDuration: 40, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 420000, actualCost: 0, budgetUnits: 5600, actualUnits: 0, labor: 35, plant: 1,
+            cbs: { labor: 210000, plant: 60000, materials: 130000, indirect: 20000 }, predecessors: [{ id: 'ACT-4010', type: 'FS', lag: 0 }, { id: 'ACT-3010', type: 'FS', lag: 0 }], meshKey: 'mepUpper',
+            steps: steps(STEP_TEMPLATES.mep_risers.steps.map(s => [s.name, s.weight, 0])),
+            baselines: { BL0: bl(120, 160), BL1: bl(120, 160), BL2: bl(118, 158) } },
+          { id: 'ACT-5010', name: 'Curtain Wall Unitized Facade L1-8', wbs: '1.4 Architectural Envelope', contractor: 'Horizon Glazing Inc', calendar: 'CAL-6D',
+            duration: 50, remainingDuration: 50, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 650000, actualCost: 0, budgetUnits: 8000, actualUnits: 0, labor: 50, plant: 2,
+            cbs: { labor: 280000, plant: 110000, materials: 230000, indirect: 30000 }, predecessors: [{ id: 'ACT-2020', type: 'FS', lag: 10 }], meshKey: 'facadeLower',
+            steps: steps(STEP_TEMPLATES.curtain_wall.steps.map(s => [s.name, s.weight, 0])),
+            baselines: { BL0: bl(85, 135), BL1: bl(85, 135), BL2: bl(85, 135) } },
+          { id: 'ACT-2030', name: 'Upper High-Rise Slabs L13-L20', wbs: '1.2 Superstructure', contractor: 'Titan Steel Works', calendar: 'CAL-6D',
+            duration: 50, remainingDuration: 50, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 850000, actualCost: 0, budgetUnits: 11000, actualUnits: 0, labor: 45, plant: 3,
+            cbs: { labor: 380000, plant: 180000, materials: 240000, indirect: 50000 }, predecessors: [{ id: 'ACT-2020', type: 'FS', lag: -5 }], meshKey: 'slabsUpper',
+            steps: steps(STEP_TEMPLATES.concrete_pour.steps.map(s => [s.name, s.weight, 0])),
+            baselines: { BL0: bl(105, 155), BL1: bl(105, 155), BL2: bl(100, 150) } },
+          { id: 'ACT-6010', name: 'Rooftop Plant Room & Chillers', wbs: '1.3 Building Services (MEP)', contractor: 'Vertex MEP Solutions', calendar: 'CAL-6D',
+            duration: 30, remainingDuration: 30, actualStart: null, actualFinish: null, percentCompleteType: 'Physical', physicalManual: 0,
+            cost: 450000, actualCost: 0, budgetUnits: 4800, actualUnits: 0, labor: 25, plant: 4,
+            cbs: { labor: 200000, plant: 90000, materials: 130000, indirect: 30000 }, predecessors: [{ id: 'ACT-2030', type: 'FS', lag: 0 }], meshKey: 'roofPlant',
+            steps: steps([['Acoustic Plinths & Inertia Pads', 2, 0], ['Chiller Rigging & Heavy Lift', 5, 0], ['Refrigerant & Piping Tie-in', 2, 0], ['BMS Integration & Startup', 1, 0]]),
+            baselines: { BL0: bl(155, 185), BL1: bl(150, 180), BL2: bl(150, 180) } }
+        ]
+      };
+    }
+
+    /* ---------- State ---------- */
+    let project = null;
+    let activities = [];
+    let S = null; // settings shortcut
+    let scheduleOK = true;
+    let projectFinish = 185;
+
+    const ui = {
+      view: 'splitView', simDay: 70, playing: false, timer: null, speed: 1,
+      baseline: 'BL0', selectedId: 'ACT-2020', contractor: 'ALL', criticalOnly: false,
+      zoom: 'week', showLinks: true, craneAnimating: true, tab: 'steps',
+      stepsCols: { weight: true, weightPercent: true, stepPercent: true, completed: true }
+    };
+
+    function loadProject() {
+      let loaded = null;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) loaded = JSON.parse(raw);
+      } catch (e) { loaded = null; }
+      setProject(loaded && Array.isArray(loaded.activities) ? loaded : sampleProject());
+    }
+
+    function setProject(p) {
+      const base = sampleProject();
+      project = p;
+      project.settings = Object.assign({}, base.settings, p.settings || {});
+      project.periods = Array.isArray(p.periods) ? p.periods : [];
+      activities = project.activities;
+      activities.forEach(a => {
+        a.predecessors = Array.isArray(a.predecessors) ? a.predecessors : [];
+        a.steps = Array.isArray(a.steps) ? a.steps : [];
+        a.baselines = a.baselines || {};
+        a.cbs = a.cbs || { labor: 0, plant: 0, materials: 0, indirect: 0 };
+        if (a.levelDelay == null) a.levelDelay = 0;
+      });
+      S = project.settings;
+      if (!activities.find(a => a.id === ui.selectedId)) ui.selectedId = activities[0]?.id || null;
+    }
+
+    let saveTimer = null;
+    function saveNow() {
+      clearTimeout(saveTimer); saveTimer = null;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(project)); } catch (e) { /* storage unavailable */ }
+    }
+    function persist() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveNow, 250);
+    }
+    window.addEventListener('pagehide', () => { if (saveTimer) saveNow(); });
+
+    /* ---------- Progress engine (% complete types) ---------- */
+    function computeProgress(act) {
+      const totalW = act.steps.reduce((s, st) => s + Math.max(0, num(st.weight)), 0);
+      let stepPhys = 0;
+      act.steps.forEach(st => {
+        if (st.completed) st.stepPercent = 100;
+        st.stepPercent = clamp(num(st.stepPercent), 0, 100);
+        st.weightPercent = totalW > 0 ? Math.max(0, num(st.weight)) / totalW * 100 : 0;
+        stepPhys += st.weightPercent * st.stepPercent / 100;
+      });
+      const stepsDrive = S.stepsDrivePhysical && act.steps.length > 0 && totalW > 0;
+      act.stepsDrive = stepsDrive;
+      act.physicalPercent = round1(stepsDrive ? stepPhys : clamp(num(act.physicalManual), 0, 100));
+
+      const od = Math.max(0, num(act.duration));
+      const rd = Math.max(0, num(act.remainingDuration));
+      if (act.actualFinish != null) act.durationPercent = 100;
+      else if (act.actualStart == null) act.durationPercent = 0;
+      else act.durationPercent = od > 0 ? round1(clamp((od - rd) / od * 100, 0, 100)) : 0;
+
+      const au = Math.max(0, num(act.actualUnits));
+      const remU = Math.max(0, num(act.budgetUnits) - au);
+      act.unitsPercent = (au + remU) > 0 ? round1(au / (au + remU) * 100) : 0;
+      if (act.actualFinish != null) act.unitsPercent = 100;
+
+      act.performancePercent = act.percentCompleteType === 'Duration' ? act.durationPercent
+        : act.percentCompleteType === 'Units' ? act.unitsPercent
+        : act.physicalPercent;
+    }
+    function round1(v) { return Math.round(v * 10) / 10; }
+
+    /* ---------- CPM engine (progress override, data-date aware) ---------- */
+    function topoOrder() {
+      const ids = new Set(activities.map(a => a.id));
+      const indeg = new Map(activities.map(a => [a.id, 0]));
+      const succ = new Map(activities.map(a => [a.id, []]));
+      activities.forEach(a => a.predecessors.forEach(p => {
+        if (!ids.has(p.id)) return;
+        indeg.set(a.id, indeg.get(a.id) + 1);
+        succ.get(p.id).push(a.id);
+      }));
+      const queue = activities.filter(a => indeg.get(a.id) === 0).map(a => a.id);
+      const order = [];
+      while (queue.length) {
+        const id = queue.shift();
+        order.push(id);
+        succ.get(id).forEach(s => { indeg.set(s, indeg.get(s) - 1); if (indeg.get(s) === 0) queue.push(s); });
+      }
+      return order.length === activities.length ? order : null;
+    }
+
+    function wouldCreateCycle(predId, succId) {
+      if (predId === succId) return true;
+      // Is succId already upstream of predId?
+      const byId = new Map(activities.map(a => [a.id, a]));
+      const stack = [predId], seen = new Set();
+      while (stack.length) {
+        const id = stack.pop();
+        if (id === succId) return true;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        (byId.get(id)?.predecessors || []).forEach(p => stack.push(p.id));
+      }
+      return false;
+    }
+
+    function calculateSchedule() {
+      const order = topoOrder();
+      if (!order) { scheduleOK = false; return false; }
+      scheduleOK = true;
+      const dd = Math.max(0, Math.round(num(S.dataDate)));
+      const byId = new Map(activities.map(a => [a.id, a]));
+      activities.forEach(a => { a.successors = []; computeProgress(a); });
+      activities.forEach(a => a.predecessors.forEach(p => {
+        const pa = byId.get(p.id);
+        if (pa) pa.successors.push({ id: a.id, type: p.type || 'FS', lag: num(p.lag) });
+      }));
+
+      // Forward pass
+      order.forEach(id => {
+        const a = byId.get(id);
+        const od = Math.max(0, Math.round(num(a.duration)));
+        const rd = Math.max(0, Math.round(num(a.remainingDuration)));
+        if (a.actualFinish != null) {
+          a.status = 'complete';
+          a.es = num(a.actualStart, num(a.actualFinish) - od);
+          a.ef = num(a.actualFinish);
+          a.remStart = a.ef; a.remDur = 0;
+          return;
+        }
+        if (a.actualStart != null) {
+          a.status = 'active';
+          a.es = num(a.actualStart);
+          a.remStart = dd; a.remDur = rd;
+          a.ef = dd + rd;
+          return;
+        }
+        a.status = 'planned';
+        let es = dd;
+        a.predecessors.forEach(p => {
+          const pa = byId.get(p.id);
+          if (!pa) return;
+          const lag = num(p.lag);
+          const type = p.type || 'FS';
+          let d;
+          if (type === 'SS') d = pa.es + lag;
+          else if (type === 'FF') d = pa.ef + lag - rd;
+          else if (type === 'SF') d = pa.es + lag - rd;
+          else d = pa.ef + lag;
+          // An already-started predecessor cannot drive a start constraint into the past.
+          es = Math.max(es, d);
+        });
+        es += Math.max(0, Math.round(num(a.levelDelay)));
+        a.es = es; a.remStart = es; a.remDur = rd;
+        a.ef = es + rd;
+      });
+
+      projectFinish = Math.max(0, ...activities.map(a => a.ef));
+      const lfLimit = S.mustFinish != null && S.mustFinish !== '' ? num(S.mustFinish) : projectFinish;
+
+      // Backward pass (remaining work only)
+      [...order].reverse().forEach(id => {
+        const a = byId.get(id);
+        if (a.status === 'complete') { a.lf = a.ef; a.ls = a.es; a.totalFloat = null; a.isCritical = false; return; }
+        let lf = lfLimit;
+        a.successors.forEach(sr => {
+          const s = byId.get(sr.id);
+          if (!s || s.status === 'complete') return;
+          const lag = sr.lag;
+          let c;
+          if (sr.type === 'FS') c = s.ls - lag;
+          else if (sr.type === 'SS') c = a.status === 'active' ? Infinity : s.ls - lag + a.remDur;
+          else if (sr.type === 'FF') c = s.lf - lag;
+          else c = a.status === 'active' ? Infinity : s.lf - lag + a.remDur; // SF
+          // Started successors are not constrained by this activity's remaining work.
+          if (s.status === 'active' && (sr.type === 'FS' || sr.type === 'SS')) c = Infinity;
+          lf = Math.min(lf, c);
+        });
+        a.lf = lf;
+        a.ls = lf - a.remDur;
+        a.totalFloat = a.lf - a.ef;
+        a.isCritical = a.totalFloat <= num(S.critThreshold);
+      });
+      return true;
+    }
+
+    function runCPM(silent) {
+      const ok = calculateSchedule();
+      if (!ok) {
+        showToast('Schedule not calculated', 'The logic network contains a loop. Remove the circular relationship and press F9 again.', true);
+        return;
+      }
+      refreshAll();
+      persist();
+      if (!silent) showToast('Schedule calculated', `Data date D${S.dataDate} · finish D${projectFinish} · ${activities.filter(a => a.isCritical).length} critical activities.`);
+    }
+
+    function refreshAll() {
+      updateScrubberRange();
+      renderContractorFilter();
+      renderScheduleTable();
+      renderGanttChart();
+      renderActivityDetailsDock();
+      calculateEVM();
+      if (ui.view === 'resourceHistogram') renderResourceHistograms();
+      updateBIMProgress(ui.simDay);
+      updateTimeLabels();
+    }
+
+    /* ---------- Filters ---------- */
+    function visibleActivities() {
+      return activities.filter(a =>
+        (ui.contractor === 'ALL' || a.contractor === ui.contractor) &&
+        (!ui.criticalOnly || a.isCritical));
+    }
+
+    function renderContractorFilter() {
+      const sel = $('obsContractorFilter');
+      const names = [...new Set(activities.map(a => a.contractor).filter(Boolean))].sort();
+      if (ui.contractor !== 'ALL' && !names.includes(ui.contractor)) ui.contractor = 'ALL';
+      sel.innerHTML = '<option value="ALL" class="bg-slate-900">All Prime &amp; Subcontractors</option>' +
+        names.map(n => `<option value="${esc(n)}" class="bg-slate-900">${esc(n)}</option>`).join('');
+      sel.value = ui.contractor;
+    }
+
+    function filterByContractor(v) { ui.contractor = v; renderScheduleTable(); renderGanttChart(); }
+    function toggleCriticalPathFilter() {
+      ui.criticalOnly = !ui.criticalOnly;
+      $('criticalPathFilterBtn').classList.toggle('active', ui.criticalOnly);
+      renderScheduleTable(); renderGanttChart();
+    }
+
+    /* ---------- Activity table ---------- */
+    function baselineOf(a) { return a.baselines?.[ui.baseline] || null; }
+
+    function renderScheduleTable() {
+      const tbody = $('activityTableBody');
+      const rows = visibleActivities();
+      tbody.innerHTML = rows.map((a, i) => {
+        const b = baselineOf(a);
+        const variance = b ? b.end - a.ef : null;
+        const sel = a.id === ui.selectedId;
+        const tf = a.totalFloat == null ? '<span class="text-slate-600">—</span>'
+          : a.isCritical ? `<span class="px-1 rounded bg-red-950 text-red-400 font-bold text-[10px] border border-red-800">${a.totalFloat}</span>`
+          : `<span class="text-slate-400 text-[10px]">${a.totalFloat}</span>`;
+        const varHtml = variance == null ? '—' : `<span class="${variance < 0 ? 'text-red-400' : variance > 0 ? 'text-emerald-400' : 'text-slate-400'}">${variance > 0 ? '+' : ''}${variance}</span>`;
+        return `<tr data-id="${esc(a.id)}" class="cursor-pointer border-b border-slate-800/80 hover:bg-slate-800/50 ${sel ? 'bg-sky-950/50 text-white' : ''}">
+          <td class="px-1.5 text-center text-slate-500 font-mono text-[10px]">${i + 1}</td>
+          <td class="px-1.5 font-mono text-sky-400 whitespace-nowrap">${a.isCritical ? '<span class="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mr-1"></span>' : ''}${esc(a.id)}</td>
+          <td class="px-1.5 text-slate-200 truncate max-w-[200px]" title="${esc(a.name)}">${esc(a.name)}</td>
+          <td class="px-1.5 text-center font-mono">${a.duration}</td>
+          <td class="px-1.5 text-center font-mono text-amber-300 font-bold">${a.status === 'complete' ? 0 : a.remDur}</td>
+          <td class="px-1.5 text-center font-mono text-[10px] text-slate-400">D${a.es}${a.actualStart != null ? '<sup class="text-emerald-400">A</sup>' : ''}</td>
+          <td class="px-1.5 text-center font-mono text-[10px] text-slate-400">D${a.ef}${a.actualFinish != null ? '<sup class="text-emerald-400">A</sup>' : ''}</td>
+          <td class="px-1.5 text-center font-mono text-[10px]">${varHtml}</td>
+          <td class="px-1.5 text-center font-mono">${tf}</td>
+          <td class="px-1.5 text-center font-mono font-bold text-emerald-400">${a.physicalPercent}%</td>
+          <td class="px-1.5 text-center font-mono font-bold text-sky-400">${a.performancePercent}%</td>
+          <td class="px-1.5 text-slate-400 truncate max-w-[120px] text-[10px]">${esc(a.contractor)}</td>
+        </tr>`;
+      }).join('');
+      tbody.querySelectorAll('tr').forEach(tr => tr.onclick = () => selectActivity(tr.dataset.id));
+      $('activityCountLabel').innerText = `${rows.length} of ${activities.length} activities · finish D${projectFinish}`;
+    }
+
+    /* ---------- Gantt ---------- */
+    const ROW_H = 28;
+    function dayPx() { return ui.zoom === 'week' ? 5 : 2; }
+
+    function renderGanttChart() {
+      const header = $('ganttTimelineHeader');
+      const container = $('ganttBarsContainer');
+      const px = dayPx();
+      const blEnds = activities.map(a => baselineOf(a)?.end || 0);
+      const span = Math.max(projectFinish, ...blEnds, ui.simDay) + 10;
+      const width = span * px;
+      header.style.width = container.style.width = width + 'px';
+
+      const tick = ui.zoom === 'week' ? 7 : 30;
+      let h = '';
+      for (let d = 0; d < span; d += tick) {
+        h += `<div class="inline-block border-r border-slate-700/80 px-1 shrink-0" style="width:${tick * px}px">${ui.zoom === 'week' ? 'W' + (d / 7 + 1) : 'M' + (d / 30 + 1)} <span class="text-slate-500">${shortDate(d)}</span></div>`;
+      }
+      header.innerHTML = h;
+
+      const rows = visibleActivities();
+      const rowIndex = new Map(rows.map((a, i) => [a.id, i]));
+      let html = '';
+      rows.forEach(a => {
+        const sel = a.id === ui.selectedId;
+        const b = baselineOf(a);
+        const barCls = a.status === 'complete' ? 'bg-emerald-700 border-emerald-400'
+          : a.isCritical ? 'bg-red-950 border-red-500' : 'bg-sky-950 border-sky-500';
+        const fillCls = a.status === 'complete' ? 'bg-emerald-500' : a.isCritical ? 'bg-red-500' : 'bg-sky-500';
+        const left = a.es * px;
+        const w = Math.max(3, (a.ef - a.es) * px);
+        const actualW = a.status === 'active' ? Math.max(0, (S.dataDate - a.es) * px) : 0;
+        html += `<div class="gantt-row relative border-b border-slate-800/40 ${sel ? 'bg-sky-950/30' : ''}" data-id="${esc(a.id)}">
+          ${b ? `<div class="absolute h-1 bg-amber-400/70 rounded-full" style="left:${b.start * px}px;width:${Math.max(2, (b.end - b.start) * px)}px;top:21px" title="${ui.baseline}: D${b.start}–D${b.end}"></div>` : ''}
+          <div class="absolute h-3.5 rounded-sm border overflow-hidden ${barCls}" style="left:${left}px;width:${w}px;top:4px" title="${esc(a.name)} | D${a.es}–D${a.ef} | Perf ${a.performancePercent}%">
+            ${actualW ? `<div class="absolute inset-y-0 left-0 bg-emerald-600/60" style="width:${actualW}px"></div>` : ''}
+            <div class="absolute inset-y-0 left-0 ${fillCls} opacity-80" style="width:${a.performancePercent}%;height:4px;top:auto;bottom:0"></div>
+            <span class="absolute left-1 text-[8px] font-mono text-white font-bold leading-[14px]">${a.performancePercent}%</span>
+          </div>
+        </div>`;
+      });
+
+      // Relationship lines (only between visible rows)
+      let svg = '';
+      if (ui.showLinks) {
+        const byId = new Map(activities.map(a => [a.id, a]));
+        rows.forEach(a => a.predecessors.forEach(p => {
+          const pa = byId.get(p.id);
+          if (!pa || !rowIndex.has(pa.id)) return;
+          const fromStart = p.type === 'SS' || p.type === 'SF';
+          const toFinish = p.type === 'FF' || p.type === 'SF';
+          const x1 = (fromStart ? pa.es : pa.ef) * px;
+          const y1 = rowIndex.get(pa.id) * ROW_H + 11;
+          const x2 = (toFinish ? a.ef : a.es) * px;
+          const y2 = rowIndex.get(a.id) * ROW_H + 11;
+          const crit = pa.isCritical && a.isCritical;
+          const mid = fromStart ? Math.min(x1, x2) - 6 : Math.max(x1 + 6, Math.min(x2, x1 + 6));
+          svg += `<path d="M${x1},${y1} H${mid} V${y2} H${x2}" fill="none" stroke="${crit ? '#ef4444' : '#64748b'}" stroke-width="1" marker-end="url(#arr${crit ? 'R' : 'G'})" opacity="0.8"/>`;
+        }));
+      }
+      const totalH = rows.length * ROW_H;
+      const ddX = S.dataDate * px, simX = ui.simDay * px;
+      html += `<svg class="absolute inset-0 pointer-events-none" width="${width}" height="${totalH}" style="top:0;left:0">
+        <defs>
+          <marker id="arrG" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#64748b"/></marker>
+          <marker id="arrR" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#ef4444"/></marker>
+        </defs>
+        ${svg}
+        <line x1="${ddX}" y1="0" x2="${ddX}" y2="${totalH}" stroke="#f59e0b" stroke-width="2"><title>Data date D${S.dataDate}</title></line>
+        <line x1="${simX}" y1="0" x2="${simX}" y2="${totalH}" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3,3"><title>4D cursor D${ui.simDay}</title></line>
+      </svg>`;
+      container.innerHTML = html;
+      container.style.height = totalH + 'px';
+      container.querySelectorAll('.gantt-row').forEach(r => r.onclick = () => selectActivity(r.dataset.id));
+      $('ganttTimelineContainer').scrollTop = $('activityTableContainer').scrollTop;
+
+      document.querySelectorAll('.zoom-btn').forEach(b => b.classList.toggle('active', b.id === 'zoomBtn_' + ui.zoom));
+      $('relLinesBtn').classList.toggle('active', ui.showLinks);
+    }
+
+    function setGanttZoom(z) { ui.zoom = z; renderGanttChart(); }
+    function toggleRelationshipLines() { ui.showLinks = !ui.showLinks; renderGanttChart(); }
+
+    /* ---------- Selection & details ---------- */
+    function selectedAct() { return activities.find(a => a.id === ui.selectedId); }
+
+    function selectActivity(id) {
+      ui.selectedId = id;
+      renderScheduleTable();
+      renderGanttChart();
+      renderActivityDetailsDock();
+      highlight3DElement(id);
+    }
+
+    function renderActivityDetailsDock() {
+      const a = selectedAct();
+      if (!a) { $('detailActivityIdBadge').innerText = 'No activity'; return; }
+      $('detailActivityIdBadge').innerText = `${a.id} - ${a.name}`;
+      const badge = $('stepProgressBadge');
+      badge.innerText = `Phys ${a.physicalPercent}% · Perf ${a.performancePercent}% (${a.percentCompleteType})`;
+      badge.className = 'font-mono text-[10px] px-2 py-0.5 rounded font-bold border ' +
+        (a.performancePercent >= 100 ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
+          : a.performancePercent > 0 ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-slate-800 text-slate-400 border-slate-700');
+
+      renderStepsTable(a);
+
+      // General
+      $('genActId').value = a.id;
+      $('genActName').value = a.name;
+      $('genWbs').value = a.wbs || '';
+      $('genPctCompleteType').value = a.percentCompleteType;
+      $('genCalendar').value = a.calendar || 'CAL-6D';
+      $('genContractor').value = a.contractor || '';
+      $('genOD').value = a.duration;
+
+      // Status
+      $('statAS').value = a.actualStart ?? '';
+      $('statAF').value = a.actualFinish ?? '';
+      $('statRD').value = a.status === 'complete' ? 0 : a.remainingDuration;
+      $('statRD').disabled = a.status === 'complete';
+      $('statPhysManual').value = a.physicalPercent;
+      $('statPhysManual').disabled = a.stepsDrive;
+      $('statPhysNote').innerText = a.stepsDrive ? 'Driven by steps (see Calculations).' : 'Entered manually.';
+      $('statDurPct').innerText = a.durationPercent + '%';
+      $('statUnitsPct').innerText = a.unitsPercent + '%';
+      $('statPerfPct').innerText = a.performancePercent + '%';
+      $('statStatus').innerText = { complete: 'Completed', active: 'In Progress', planned: 'Not Started' }[a.status] || '—';
+      $('statES').value = a.status === 'active' ? `D${a.es} (A) / rem. D${a.remStart}` : `D${a.es}${a.actualStart != null ? ' (A)' : ''}`;
+      $('statEF').value = `D${a.ef}${a.actualFinish != null ? ' (A)' : ''}`;
+      $('statLSLF').value = a.status === 'complete' ? '—' : `D${a.ls} / D${a.lf}`;
+      const crit = $('statCritBadge');
+      if (a.totalFloat == null) { crit.innerText = 'n/a (complete)'; crit.className = 'inline-block mt-1 font-mono text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400'; }
+      else {
+        crit.innerText = `${a.totalFloat}d ${a.isCritical ? 'CRITICAL' : ''}`;
+        crit.className = 'inline-block mt-1 font-mono text-xs px-2 py-0.5 rounded font-bold border ' + (a.isCritical ? 'bg-red-950 text-red-300 border-red-800' : 'bg-emerald-950 text-emerald-300 border-emerald-800');
+      }
+
+      // Relationships
+      const byId = new Map(activities.map(x => [x.id, x]));
+      $('relPredSelect').innerHTML = activities.filter(x => x.id !== a.id && !a.predecessors.some(p => p.id === x.id))
+        .map(x => `<option value="${esc(x.id)}">${esc(x.id)} — ${esc(x.name)}</option>`).join('');
+      $('predecessorsList').innerHTML = a.predecessors.length ? a.predecessors.map((p, i) => `
+        <div class="p-1 rounded bg-slate-900 border border-slate-800 flex justify-between items-center gap-2">
+          <span class="text-sky-300 font-bold">${esc(p.id)}</span>
+          <span class="text-slate-400 text-[10px] truncate flex-1">${esc(byId.get(p.id)?.name || '(missing)')}</span>
+          <span class="text-amber-400 bg-amber-950 px-1 rounded text-[10px]">${esc(p.type)} ${p.lag >= 0 ? '+' : ''}${p.lag}d</span>
+          <button onclick="removePredecessor(${i})" class="text-slate-500 hover:text-red-400" title="Remove">&times;</button>
+        </div>`).join('') : '<span class="text-slate-500 text-[10px]">No predecessors (open start)</span>';
+      $('successorsList').innerHTML = (a.successors || []).length ? a.successors.map(s => `
+        <div class="p-1 rounded bg-slate-900 border border-slate-800 flex justify-between items-center gap-2">
+          <span class="text-sky-300 font-bold">${esc(s.id)}</span>
+          <span class="text-slate-400 text-[10px] truncate flex-1">${esc(byId.get(s.id)?.name || '')}</span>
+          <span class="text-emerald-400 bg-emerald-950 px-1 rounded text-[10px]">${esc(s.type)} ${s.lag >= 0 ? '+' : ''}${s.lag}d</span>
+        </div>`).join('') : '<span class="text-slate-500 text-[10px]">No successors (open end)</span>';
+
+      // Costs & resources
+      const ev = a.cost * a.performancePercent / 100;
+      const cv = ev - a.actualCost;
+      $('cbsBACInput').value = a.cost;
+      $('cbsACInput').value = a.actualCost;
+      $('cbsEV').innerText = money(ev);
+      $('cbsCV').innerText = money(cv);
+      $('cbsCV').className = 'text-sm font-bold ' + (cv >= 0 ? 'text-emerald-400' : 'text-red-400');
+      $('resBudgetUnits').value = a.budgetUnits ?? 0;
+      $('resActualUnits').value = a.actualUnits ?? 0;
+      $('resLabor').value = a.labor ?? 0;
+      $('resPlant').value = a.plant ?? 0;
+      const cbsSum = ['labor', 'plant', 'materials', 'indirect'].reduce((s, k) => s + num(a.cbs[k]), 0);
+      $('cbsBreakdownRows').innerHTML = [['labor', 'Direct Labor'], ['plant', 'Plant & Equipment'], ['materials', 'Permanent Materials'], ['indirect', 'Indirect / Overheads']]
+        .map(([k, l]) => `<div class="p-2 rounded bg-slate-900 border border-slate-800"><span class="text-slate-400 text-[10px] block">${l}</span><span class="font-bold font-mono">${money(a.cbs[k])}</span></div>`).join('') +
+        (Math.round(cbsSum) !== Math.round(a.cost) ? `<div class="col-span-4 text-[10px] text-amber-400">CBS total ${money(cbsSum)} differs from activity budget ${money(a.cost)}.</div>` : '');
+    }
+
+    function renderStepsTable(a) {
+      const c = ui.stepsCols;
+      $('stepsTableHeaderRow').innerHTML = '<th class="p-1.5 min-w-[180px]">Step Name</th>' +
+        (c.weight ? '<th class="p-1.5 w-24 text-center">Weight</th>' : '') +
+        (c.weightPercent ? '<th class="p-1.5 w-24 text-center text-emerald-400">Weight %</th>' : '') +
+        (c.stepPercent ? '<th class="p-1.5 w-28 text-center text-sky-400">Step % Complete</th>' : '') +
+        (c.completed ? '<th class="p-1.5 w-16 text-center">Completed</th>' : '') +
+        '<th class="p-1.5 w-20 text-center">Action</th>';
+      const note = $('stepsDrivingNote');
+      note.innerText = a.stepsDrive ? '● driving Physical %' : S.stepsDrivePhysical ? '○ no weighted steps — Physical % is manual' : '○ step roll-up disabled in Calculations';
+      note.className = 'text-[10px] ml-2 ' + (a.stepsDrive ? 'text-emerald-400' : 'text-amber-400');
+
+      const tbody = $('stepsTableBody');
+      if (!a.steps.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-slate-500">No steps. Click "Add Step" or "Add from Template".</td></tr>';
+      } else {
+        tbody.innerHTML = a.steps.map((st, i) => `
+          <tr class="border-b border-slate-800/60 ${st.completed ? 'bg-emerald-950/20' : st.stepPercent > 0 ? 'bg-sky-950/15' : ''}">
+            <td class="p-1"><input type="text" value="${esc(st.name)}" onchange="updateStep(${i}, 'name', this.value)" class="w-full bg-transparent text-slate-200 outline-none focus:bg-[#1a253c] rounded px-1.5 py-0.5"></td>
+            ${c.weight ? `<td class="p-1 text-center"><input type="number" min="0" step="0.5" value="${st.weight}" onchange="updateStep(${i}, 'weight', this.value)" class="w-16 bg-[#1a253c] border border-slate-700 text-amber-300 font-mono text-center rounded px-1"></td>` : ''}
+            ${c.weightPercent ? `<td class="p-1 text-center font-mono text-emerald-400">${round1(st.weightPercent)}%</td>` : ''}
+            ${c.stepPercent ? `<td class="p-1 text-center"><input type="number" min="0" max="100" value="${st.stepPercent}" ${st.completed ? 'disabled' : ''} onchange="updateStep(${i}, 'stepPercent', this.value)" class="w-16 bg-[#121c33] border ${st.completed ? 'border-slate-800 text-slate-500' : 'border-sky-600/70 text-sky-300'} font-mono text-center rounded px-1 font-bold"> %</td>` : ''}
+            ${c.completed ? `<td class="p-1 text-center"><input type="checkbox" ${st.completed ? 'checked' : ''} onchange="updateStep(${i}, 'completed', this.checked)" class="w-3.5 h-3.5 cursor-pointer"></td>` : ''}
+            <td class="p-1 text-center whitespace-nowrap">
+              <button onclick="moveStep(${i}, -1)" class="text-slate-500 hover:text-sky-300" title="Move up">▲</button>
+              <button onclick="moveStep(${i}, 1)" class="text-slate-500 hover:text-sky-300" title="Move down">▼</button>
+              <button onclick="deleteStep(${i})" class="text-slate-500 hover:text-red-400 font-bold ml-1" title="Delete">&times;</button>
+            </td>
+          </tr>`).join('');
+      }
+      const totalW = a.steps.reduce((s, st) => s + Math.max(0, num(st.weight)), 0);
+      $('stepsSummaryInfo').innerHTML = `Total weight <b class="text-amber-300">${round1(totalW)}</b> · Step roll-up <b class="text-emerald-400">${round1(a.steps.reduce((s, st) => s + st.weightPercent * st.stepPercent / 100, 0))}%</b>`;
+    }
+
+    /* ---------- Edits ---------- */
+    function afterEdit() { runCPM(true); }
+
+    function updateStep(i, field, val) {
+      const a = selectedAct(); const st = a?.steps[i]; if (!st) return;
+      if (field === 'name') st.name = val;
+      else if (field === 'weight') st.weight = Math.max(0, num(val));
+      else if (field === 'stepPercent') { st.stepPercent = clamp(num(val), 0, 100); st.completed = st.stepPercent >= 100; }
+      else if (field === 'completed') { st.completed = val; if (val) st.stepPercent = 100; else if (st.stepPercent >= 100) st.stepPercent = 99; }
+      afterEdit();
+    }
+    function moveStep(i, dir) {
+      const a = selectedAct(); const j = i + dir;
+      if (!a || j < 0 || j >= a.steps.length) return;
+      [a.steps[i], a.steps[j]] = [a.steps[j], a.steps[i]];
+      afterEdit();
+    }
+    function deleteStep(i) { const a = selectedAct(); if (!a) return; a.steps.splice(i, 1); afterEdit(); }
+    function addNewStepToActiveAct() {
+      const a = selectedAct(); if (!a) return;
+      const nextId = a.steps.reduce((m, s) => Math.max(m, s.id || 0), 0) + 1;
+      a.steps.push({ id: nextId, name: `Step ${a.steps.length + 1}`, weight: 1, stepPercent: 0, completed: false });
+      afterEdit();
+    }
+
+    function updateActiveField(field, val) {
+      const a = selectedAct(); if (!a) return;
+      a[field] = val;
+      afterEdit();
+    }
+    function updateActiveNumber(field, val) {
+      const a = selectedAct(); if (!a) return;
+      const n = Math.max(0, num(val));
+      if (field === 'duration') {
+        const wasUntouched = a.actualStart == null && a.remainingDuration === a.duration;
+        a.duration = Math.round(n);
+        if (wasUntouched) a.remainingDuration = a.duration;
+      } else if (field === 'cost') {
+        const old = a.cost || 0; a.cost = n;
+        if (old > 0) Object.keys(a.cbs).forEach(k => a.cbs[k] = Math.round(num(a.cbs[k]) * n / old));
+      } else a[field] = n;
+      afterEdit();
+    }
+    function updateActiveRemainingDuration(val) {
+      const a = selectedAct(); if (!a) return;
+      a.remainingDuration = Math.max(0, Math.round(num(val)));
+      afterEdit();
+    }
+    function updateManualPhysical(val) {
+      const a = selectedAct(); if (!a) return;
+      a.physicalManual = clamp(num(val), 0, 100);
+      afterEdit();
+    }
+    function updateActualDate(field, val) {
+      const a = selectedAct(); if (!a) return;
+      const v = val === '' ? null : Math.max(0, Math.round(num(val)));
+      if (v != null && v > S.dataDate) { showToast('Rejected', `Actual dates cannot be after the Data Date (D${S.dataDate}).`, true); renderActivityDetailsDock(); return; }
+      if (field === 'actualFinish') {
+        if (v != null && a.actualStart == null) { showToast('Rejected', 'Enter an Actual Start before an Actual Finish.', true); renderActivityDetailsDock(); return; }
+        if (v != null && v < a.actualStart) { showToast('Rejected', 'Actual Finish cannot precede Actual Start.', true); renderActivityDetailsDock(); return; }
+        a.actualFinish = v;
+        if (v != null) a.remainingDuration = 0;
+      } else {
+        if (v == null && a.actualFinish != null) { showToast('Rejected', 'Clear the Actual Finish first.', true); renderActivityDetailsDock(); return; }
+        if (v != null && a.actualFinish != null && v > a.actualFinish) { showToast('Rejected', 'Actual Start cannot follow Actual Finish.', true); renderActivityDetailsDock(); return; }
+        a.actualStart = v;
+        if (v == null) a.remainingDuration = a.duration;
+      }
+      afterEdit();
+    }
+
+    function addPredecessorFromForm() {
+      const a = selectedAct(); if (!a) return;
+      const predId = $('relPredSelect').value;
+      if (!predId) return;
+      if (wouldCreateCycle(predId, a.id)) { showToast('Relationship rejected', `${predId} → ${a.id} would create a logic loop.`, true); return; }
+      a.predecessors.push({ id: predId, type: $('relTypeSelect').value, lag: Math.round(num($('relLagInput').value)) });
+      afterEdit();
+    }
+    function removePredecessor(i) { const a = selectedAct(); if (!a) return; a.predecessors.splice(i, 1); afterEdit(); }
+
+    function addActivity() {
+      let n = 9000;
+      while (activities.some(a => a.id === 'ACT-' + n)) n += 10;
+      const dur = 20;
+      const act = { id: 'ACT-' + n, name: 'New Activity', wbs: '1.9 General', contractor: ui.contractor !== 'ALL' ? ui.contractor : 'Unassigned', calendar: 'CAL-6D',
+        duration: dur, remainingDuration: dur, actualStart: null, actualFinish: null, percentCompleteType: S.defaultPctType, physicalManual: 0,
+        cost: 0, actualCost: 0, budgetUnits: 0, actualUnits: 0, labor: 0, plant: 0, levelDelay: 0,
+        cbs: { labor: 0, plant: 0, materials: 0, indirect: 0 }, predecessors: ui.selectedId ? [{ id: ui.selectedId, type: 'FS', lag: 0 }] : [],
+        meshKey: null, steps: [], baselines: {} };
+      activities.push(act);
+      ui.selectedId = act.id;
+      afterEdit();
+      switchDetailsTab('general');
+      showToast('Activity added', `${act.id} added after the previously selected activity (FS 0).`);
+    }
+    function deleteSelectedActivity() {
+      const a = selectedAct(); if (!a) return;
+      if (!confirm(`Delete ${a.id} — ${a.name}? Its relationships will be removed.`)) return;
+      project.activities = activities = activities.filter(x => x.id !== a.id);
+      activities.forEach(x => x.predecessors = x.predecessors.filter(p => p.id !== a.id));
+      ui.selectedId = activities[0]?.id || null;
+      afterEdit();
+    }
+
+    /* ---------- Templates ---------- */
+    function renderTemplatesLibrary() {
+      $('templatesGrid').innerHTML = Object.entries(STEP_TEMPLATES).map(([key, t]) => `
+        <div class="bg-[#121c33] border border-slate-700/80 rounded-xl p-3.5 flex flex-col justify-between">
+          <div>
+            <div class="flex justify-between items-start mb-1.5"><h4 class="font-bold text-white text-xs">${esc(t.name)}</h4><span class="text-[9px] font-mono text-purple-300 bg-purple-950 px-1.5 rounded">${esc(t.wbsCategory)}</span></div>
+            ${t.steps.map(s => `<div class="flex justify-between py-0.5 border-b border-slate-800 text-[11px]"><span class="text-slate-300">${esc(s.name)}</span><span class="text-amber-300 font-mono">${s.weight}</span></div>`).join('')}
+          </div>
+          <button onclick="applyTemplateDirectly('${key}')" class="mt-3 w-full py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs">Apply to ${esc(ui.selectedId || '')}</button>
+        </div>`).join('');
+      $('selectedTemplateKey').innerHTML = Object.entries(STEP_TEMPLATES).map(([k, t]) =>
+        `<option value="${k}">${esc(t.name)} (${t.steps.map(s => s.weight).join(' / ')})</option>`).join('');
+    }
+    function applyTemplateDirectly(key) {
+      const t = STEP_TEMPLATES[key]; const a = selectedAct();
+      if (!t || !a) return;
+      if (a.steps.some(s => s.stepPercent > 0) && !confirm(`${a.id} has step progress recorded. Replace its steps anyway?`)) return;
+      a.steps = t.steps.map((s, i) => ({ id: i + 1, name: s.name, weight: s.weight, stepPercent: 0, completed: false }));
+      a.percentCompleteType = 'Physical';
+      closeModal('stepTemplatesModal'); closeModal('applyTemplateModal');
+      afterEdit();
+      showToast('Template applied', `${t.name} applied to ${a.id}.`);
+    }
+
+    function applyStepsColumnsCustomization() {
+      ['weight', 'weightPercent', 'stepPercent', 'completed'].forEach(k => ui.stepsCols[k] = $('colVisible_' + k).checked);
+      closeModal('customizeStepsColumnsModal');
+      renderActivityDetailsDock();
+    }
+
+    /* ---------- Calculations settings ---------- */
+    function openCalcSettings() {
+      $('chkStepWeighting').checked = !!S.stepsDrivePhysical;
+      $('inpDataDate').value = S.dataDate;
+      $('inpProjectStart').value = S.projectStart;
+      $('inpCritThreshold').value = S.critThreshold;
+      $('inpMustFinish').value = S.mustFinish ?? '';
+      $('selDefaultPctType').value = S.defaultPctType;
+      openModal('calcSettingsModal');
+    }
+    function saveProjectCalcSettings() {
+      const dd = Math.max(0, Math.round(num($('inpDataDate').value, S.dataDate)));
+      const latestActual = Math.max(0, ...activities.map(a => Math.max(num(a.actualFinish, 0), num(a.actualStart, 0))));
+      if (dd < latestActual) { showToast('Data date rejected', `Data date cannot be earlier than the latest actual date (D${latestActual}).`, true); return; }
+      const stepsOn = $('chkStepWeighting').checked;
+      // Switching roll-up off: keep each activity's current Physical % as its manual value.
+      if (S.stepsDrivePhysical && !stepsOn) activities.forEach(a => { a.physicalManual = a.physicalPercent; });
+      S.stepsDrivePhysical = stepsOn;
+      S.dataDate = dd;
+      S.projectStart = $('inpProjectStart').value || S.projectStart;
+      S.critThreshold = Math.round(num($('inpCritThreshold').value, 0));
+      const mf = $('inpMustFinish').value;
+      S.mustFinish = mf === '' ? null : Math.max(0, Math.round(num(mf)));
+      S.defaultPctType = $('selDefaultPctType').value;
+      $('legendCritical').innerText = `Critical (TF ≤ ${S.critThreshold})`;
+      closeModal('calcSettingsModal');
+      runCPM();
+    }
+
+    /* ---------- Tabs & views ---------- */
+    function switchDetailsTab(key) {
+      ui.tab = key;
+      ['steps', 'general', 'status', 'relationships', 'cbs'].forEach(t => {
+        $('tabBtn_' + t).classList.toggle('active', t === key);
+        $('tabContent' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('hidden', t !== key);
+      });
+    }
+
+    function switchMainView(view) {
+      ui.view = view;
+      const bimPane = $('bimPane'), p6Pane = $('p6Pane');
+      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+      const btn = { splitView: 'split', ganttFull: 'gantt', bimFull: 'bim', evmDashboard: 'evm', resourceHistogram: 'res' }[view];
+      $('viewBtn_' + btn).classList.add('active');
+      bimPane.classList.remove('hidden', 'w-full', 'w-1/2');
+      p6Pane.classList.remove('hidden', 'w-full', 'w-1/2');
+      $('evmDashboardPane').classList.toggle('hidden', view !== 'evmDashboard');
+      $('resourceDashboardPane').classList.toggle('hidden', view !== 'resourceHistogram');
+      if (view === 'ganttFull') { bimPane.classList.add('hidden'); p6Pane.classList.add('w-full'); }
+      else if (view === 'bimFull') { p6Pane.classList.add('hidden'); bimPane.classList.add('w-full'); }
+      else { bimPane.classList.add('w-1/2'); p6Pane.classList.add('w-1/2'); }
+      if (view === 'evmDashboard') calculateEVM();
+      if (view === 'resourceHistogram') { $('laborLimitInput').value = S.laborLimit; $('plantLimitInput').value = S.plantLimit; renderResourceHistograms(); }
+      onWindowResize();
+    }
+
+    function changeBaseline(key) { ui.baseline = key; renderScheduleTable(); renderGanttChart(); calculateEVM(); }
+
+    function baselineCurrentSchedule() {
+      toggleExportMenu();
+      if (!confirm(`Overwrite ${ui.baseline} with the current schedule dates?`)) return;
+      activities.forEach(a => a.baselines[ui.baseline] = { start: a.es, end: a.ef });
+      runCPM(true);
+      showToast('Baseline saved', `${ui.baseline} now holds the current schedule.`);
+    }
+
+    /* ---------- EVM ---------- */
+    function pvAt(day) {
+      return activities.reduce((sum, a) => {
+        const b = baselineOf(a);
+        if (!b) return sum;
+        const dur = b.end - b.start;
+        const f = day >= b.end ? 1 : day <= b.start ? 0 : (day - b.start) / Math.max(1, dur);
+        return sum + a.cost * f;
+      }, 0);
+    }
+
+    function evmTotals() {
+      const bac = activities.reduce((s, a) => s + a.cost, 0);
+      const pv = pvAt(S.dataDate);
+      const ev = activities.reduce((s, a) => s + a.cost * a.performancePercent / 100, 0);
+      const ac = activities.reduce((s, a) => s + num(a.actualCost), 0);
+      const spi = pv > 0 ? ev / pv : null;
+      const cpi = ac > 0 ? ev / ac : null;
+      const eac = cpi ? ac + (bac - ev) / cpi : bac;
+      const tcpi = bac - ac > 0 ? (bac - ev) / (bac - ac) : null;
+      return { bac, pv, ev, ac, spi, cpi, eac, etc: eac - ac, vac: bac - eac, sv: ev - pv, cv: ev - ac, tcpi };
+    }
+
+    function calculateEVM() {
+      const t = evmTotals();
+      const fmt = v => v == null ? '—' : v.toFixed(2);
+      const card = (label, value, sub, cls) => `<div class="bg-[#121c33] border border-slate-800 rounded-xl p-3"><span class="text-[10px] text-slate-400 uppercase font-mono block">${label}</span><span class="text-base font-extrabold font-mono ${cls}">${value}</span><span class="text-[9px] text-slate-500 block">${sub}</span></div>`;
+      $('evmCards').innerHTML =
+        card('BAC', money(t.bac), 'Budget at completion', 'text-slate-200') +
+        card('PV', money(t.pv), `${ui.baseline} at D${S.dataDate}`, 'text-slate-200') +
+        card('EV', money(t.ev), 'Σ BAC × Perf %', 'text-sky-400') +
+        card('AC', money(t.ac), 'Actual cost', 'text-amber-400') +
+        card('SPI', fmt(t.spi), `SV ${money(t.sv)}`, t.spi != null && t.spi < 1 ? 'text-amber-400' : 'text-emerald-400') +
+        card('CPI', fmt(t.cpi), `CV ${money(t.cv)}`, t.cpi != null && t.cpi < 1 ? 'text-amber-400' : 'text-emerald-400') +
+        card('EAC', money(t.eac), 'AC + (BAC−EV)/CPI', 'text-purple-400') +
+        card('TCPI', fmt(t.tcpi), `VAC ${money(t.vac)}`, t.tcpi != null && t.tcpi > 1.05 ? 'text-red-400' : 'text-slate-200');
+      renderSCurveSvg(t);
+    }
+
+    function storePeriodPerformance() {
+      const t = evmTotals();
+      project.periods = project.periods.filter(p => p.day !== S.dataDate);
+      project.periods.push({ day: S.dataDate, pv: Math.round(t.pv), ev: Math.round(t.ev), ac: Math.round(t.ac) });
+      project.periods.sort((a, b) => a.day - b.day);
+      persist(); calculateEVM();
+      showToast('Period stored', `EV/AC/PV snapshot saved for D${S.dataDate}. Advance the Data Date in Calculations for the next period.`);
+    }
+    function clearPeriodHistory() {
+      if (!confirm('Delete all stored period snapshots?')) return;
+      project.periods = []; persist(); calculateEVM();
+    }
+
+    function renderSCurveSvg(t) {
+      const svg = $('sCurveSvg');
+      const width = svg.clientWidth || 800, height = svg.clientHeight || 300;
+      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      const pad = { top: 20, right: 30, bottom: 30, left: 70 };
+      const cw = width - pad.left - pad.right, ch = height - pad.top - pad.bottom;
+      const blEnd = Math.max(0, ...activities.map(a => baselineOf(a)?.end || 0));
+      const forecastFinish = projectFinish;
+      const xMax = Math.max(blEnd, forecastFinish, S.dataDate) + 5;
+      const yMax = Math.max(t.bac, t.eac, t.ac) * 1.05 || 1;
+      const X = d => pad.left + d / xMax * cw;
+      const Y = v => pad.top + ch - v / yMax * ch;
+
+      const pv = [];
+      for (let d = 0; d <= xMax; d += 2) pv.push(`${X(d)},${Y(pvAt(d))}`);
+      const hist = [{ day: 0, ev: 0, ac: 0 }, ...project.periods.filter(p => p.day < S.dataDate), { day: S.dataDate, ev: t.ev, ac: t.ac }];
+      const evPts = hist.map(p => `${X(p.day)},${Y(p.ev)}`).join(' ');
+      const acPts = hist.map(p => `${X(p.day)},${Y(p.ac)}`).join(' ');
+      const dots = hist.slice(1).map(p => `<circle cx="${X(p.day)}" cy="${Y(p.ev)}" r="3" fill="#0ea5e9"/><circle cx="${X(p.day)}" cy="${Y(p.ac)}" r="3" fill="#f59e0b"/>`).join('');
+
+      let grid = '';
+      for (let i = 0; i <= 4; i++) {
+        const v = yMax * i / 4;
+        grid += `<line x1="${pad.left}" y1="${Y(v)}" x2="${pad.left + cw}" y2="${Y(v)}" stroke="#1e293b"/>
+          <text x="${pad.left - 8}" y="${Y(v) + 3}" fill="#94a3b8" font-family="monospace" font-size="9" text-anchor="end">$${(v / 1e6).toFixed(1)}M</text>`;
+      }
+      for (let d = 0; d <= xMax; d += 30) grid += `<text x="${X(d)}" y="${height - 10}" fill="#94a3b8" font-family="monospace" font-size="9" text-anchor="middle">D${d}</text>`;
+
+      svg.innerHTML = `${grid}
+        <line x1="${pad.left}" y1="${Y(t.bac)}" x2="${pad.left + cw}" y2="${Y(t.bac)}" stroke="#475569" stroke-dasharray="2,4"/>
+        <text x="${pad.left + cw}" y="${Y(t.bac) - 4}" fill="#64748b" font-family="monospace" font-size="9" text-anchor="end">BAC</text>
+        <line x1="${X(S.dataDate)}" y1="${pad.top}" x2="${X(S.dataDate)}" y2="${pad.top + ch}" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <text x="${X(S.dataDate) + 4}" y="${pad.top + 12}" fill="#f59e0b" font-family="monospace" font-size="10">Data date D${S.dataDate}</text>
+        <polyline fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="5,3" points="${pv.join(' ')}"/>
+        <polyline fill="none" stroke="#0ea5e9" stroke-width="2.5" points="${evPts}"/>
+        <polyline fill="none" stroke="#f59e0b" stroke-width="2.5" points="${acPts}"/>
+        <line x1="${X(S.dataDate)}" y1="${Y(t.ac)}" x2="${X(forecastFinish)}" y2="${Y(t.eac)}" stroke="#c084fc" stroke-width="2" stroke-dasharray="6,3"/>
+        <text x="${X(forecastFinish)}" y="${Y(t.eac) - 6}" fill="#c084fc" font-family="monospace" font-size="9" text-anchor="end">EAC ${money(t.eac)} @ D${forecastFinish}</text>
+        ${dots}
+        <text x="${pad.left + 4}" y="${pad.top + ch - 6}" fill="#475569" font-family="monospace" font-size="9">${project.periods.length} stored period(s)</text>`;
+    }
+
+    /* ---------- Resources & leveling ---------- */
+    function resourceProfile() {
+      const span = projectFinish + 1;
+      const labor = new Array(span).fill(0), plant = new Array(span).fill(0);
+      activities.forEach(a => {
+        if (a.status === 'complete') {
+          for (let d = a.es; d < a.ef && d < span; d++) { labor[d] += num(a.labor); plant[d] += num(a.plant); }
+          return;
+        }
+        // In-progress work: history up to data date, remaining from data date
+        for (let d = Math.max(0, a.es); d < a.ef && d < span; d++) { labor[d] += num(a.labor); plant[d] += num(a.plant); }
+      });
+      return { labor, plant };
+    }
+
+    function overloadedDays(profile) {
+      const out = [];
+      for (let d = S.dataDate; d < profile.labor.length; d++) {
+        if (profile.labor[d] > S.laborLimit || profile.plant[d] > S.plantLimit) out.push(d);
+      }
+      return out;
+    }
+
+    function runResourceLeveling() {
+      if (!calculateSchedule()) { showToast('Leveling aborted', 'Fix the logic loop first.', true); return; }
+      const before = overloadedDays(resourceProfile()).length;
+      const finishBefore = projectFinish;
+      let moves = 0;
+      for (let iter = 0; iter < 600; iter++) {
+        const days = overloadedDays(resourceProfile());
+        let moved = false;
+        for (const d of days) {
+          const prof = resourceProfile();
+          const laborOver = prof.labor[d] > S.laborLimit;
+          const cands = activities.filter(a => a.status === 'planned' && !a.isCritical && a.totalFloat > 0 && a.es <= d && d < a.ef &&
+            (laborOver ? num(a.labor) > 0 : num(a.plant) > 0));
+          if (!cands.length) continue;
+          cands.sort((x, y) => y.totalFloat - x.totalFloat || y.es - x.es);
+          cands[0].levelDelay = (cands[0].levelDelay || 0) + 1;
+          moves++; moved = true;
+          calculateSchedule();
+          break;
+        }
+        if (!moved) break;
+      }
+      const after = overloadedDays(resourceProfile()).length;
+      refreshAll();
+      persist();
+      const delayed = activities.filter(a => a.levelDelay > 0).map(a => `${a.id} +${a.levelDelay}d`);
+      $('levelingReport').innerHTML = `Overloaded days: <b>${before}</b> → <b class="${after ? 'text-red-400' : 'text-emerald-400'}">${after}</b> · project finish D${finishBefore} → D${projectFinish} · delays: ${delayed.length ? esc(delayed.join(', ')) : 'none'}` +
+        (after ? '<br><span class="text-amber-400">Remaining overloads sit on critical, in-progress or zero-float work. Resolve them by re-sequencing, adding a shift, or raising the limit — leveling will not extend the finish.</span>' : '');
+      showToast('Leveling complete', `${moves} one-day delay(s) applied within float; ${after} overloaded day(s) remain.`);
+    }
+
+    function clearLeveling() {
+      activities.forEach(a => a.levelDelay = 0);
+      $('levelingReport').innerHTML = '';
+      runCPM(true);
+      showToast('Leveling cleared', 'All leveling delays removed.');
+    }
+
+    function updateResourceLimits() {
+      S.laborLimit = Math.max(1, num($('laborLimitInput').value, 120));
+      S.plantLimit = Math.max(1, num($('plantLimitInput').value, 10));
+      persist(); renderResourceHistograms();
+    }
+
+    function renderResourceHistograms() {
+      const prof = resourceProfile();
+      drawHistogram($('laborHistogramSvg'), prof.labor, S.laborLimit, '#0284c7');
+      drawHistogram($('equipmentHistogramSvg'), prof.plant, S.plantLimit, '#d97706');
+    }
+
+    function drawHistogram(svg, daily, limit, color) {
+      const w = svg.clientWidth || 400, h = svg.clientHeight || 220;
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      const weeks = [];
+      for (let d = 0; d < daily.length; d += 7) weeks.push({ d, v: Math.max(...daily.slice(d, d + 7)) });
+      const maxV = Math.max(limit * 1.2, ...weeks.map(x => x.v), 1);
+      const left = 30, bottom = 20, chH = h - bottom - 10, step = (w - left) / Math.max(1, weeks.length);
+      const yOf = v => 10 + chH - v / maxV * chH;
+      const bars = weeks.map((wk, i) => {
+        const bh = wk.v / maxV * chH;
+        const label = i % Math.ceil(weeks.length / 12) === 0 ? `<text x="${left + i * step + step / 2}" y="${h - 6}" fill="#64748b" font-family="monospace" font-size="8" text-anchor="middle">D${wk.d}</text>` : '';
+        return `<rect x="${left + i * step + 1}" y="${yOf(wk.v)}" width="${Math.max(1, step - 2)}" height="${bh}" fill="${wk.v > limit ? '#ef4444' : color}" opacity="${wk.d + 7 <= S.dataDate ? 0.45 : 0.9}"><title>Week from D${wk.d}: peak ${wk.v}</title></rect>${label}`;
+      }).join('');
+      svg.innerHTML = `
+        <text x="${left - 4}" y="${yOf(maxV) + 8}" fill="#64748b" font-family="monospace" font-size="8" text-anchor="end">${Math.round(maxV)}</text>
+        <text x="${left - 4}" y="${yOf(0)}" fill="#64748b" font-family="monospace" font-size="8" text-anchor="end">0</text>
+        ${bars}
+        <line x1="${left}" y1="${yOf(limit)}" x2="${w}" y2="${yOf(limit)}" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,2"/>
+        <text x="${w - 2}" y="${yOf(limit) - 3}" fill="#ef4444" font-family="monospace" font-size="9" text-anchor="end">limit ${limit}</text>
+        <line x1="${left + S.dataDate / 7 * step}" y1="10" x2="${left + S.dataDate / 7 * step}" y2="${10 + chH}" stroke="#f59e0b" stroke-dasharray="3,3"/>`;
+    }
+
+    /* ---------- 4D BIM (Three.js r128) ---------- */
+    let scene, camera, renderer, bimMeshes = {}, craneJib = null;
+    const orbit = { radius: 95, theta: Math.PI / 4, phi: Math.PI / 3 };
+
+    function initThreeJS() {
+      if (typeof THREE === 'undefined') { $('bimUnavailable').classList.remove('hidden'); return; }
+      const container = $('threeCanvasContainer'), canvas = $('bimCanvas');
+      const width = container.clientWidth || 600, height = container.clientHeight || 400;
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050914);
+      scene.fog = new THREE.FogExp2(0x050914, 0.006);
+      camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(width, height, false);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+      const dir = new THREE.DirectionalLight(0xfffaed, 0.85); dir.position.set(40, 70, 30); scene.add(dir);
+      const rim = new THREE.DirectionalLight(0x0284c7, 0.4); rim.position.set(-30, 20, -30); scene.add(rim);
+      const grid = new THREE.GridHelper(90, 30, 0x0284c7, 0x1e293b); grid.position.y = -0.1; scene.add(grid);
+      createBIMGeometry();
+      setupCameraMouseControls(canvas);
+      resetBIMCamera('isometric');
+      animate3D();
+    }
+
+    function addMesh(geo, color, opts = {}) {
+      const mat = new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.5, transparent: true, opacity: 1 }, opts));
+      const m = new THREE.Mesh(geo, mat);
+      m.userData.baseColor = color;
+      m.userData.baseOpacity = opts.opacity ?? 1;
+      return m;
+    }
+    function groupOf(meshes) { const g = new THREE.Group(); meshes.forEach(m => g.add(m)); return g; }
+    function place(m, x, y, z) { m.position.set(x, y, z); m.userData.baseY = y; return m; }
+
+    function createBIMGeometry() {
+      const reg = (key, obj) => { scene.add(obj); bimMeshes[key] = obj; };
+      reg('excavation', place(addMesh(new THREE.BoxGeometry(34, 4, 34), 0x473c2e, { roughness: 0.9 }), 0, -2, 0));
+      reg('foundation', place(addMesh(new THREE.BoxGeometry(30, 2.5, 30), 0x64748b), 0, 1.25, 0));
+      reg('shearCore', place(addMesh(new THREE.BoxGeometry(8, 38, 8), 0x94a3b8), 0, 21.5, 0));
+      const cols = [];
+      [-11, 11].forEach(x => [-11, 11].forEach(z => cols.push(place(addMesh(new THREE.BoxGeometry(1.6, 10, 1.6), 0x38bdf8), x, 7.5, z))));
+      reg('columnsLower', groupOf(cols));
+      reg('slabsMid', groupOf([0, 1, 2, 3].map(i => place(addMesh(new THREE.BoxGeometry(26, 0.8, 26), 0x60a5fa), 0, 13 + i * 3.5, 0))));
+      reg('mepLower', groupOf([0, 1, 2].map(r => place(addMesh(new THREE.CylinderGeometry(0.4, 0.4, 18, 12), 0x34d399), 5.5, 11, -3 + r * 2.5))));
+      reg('mepUpper', groupOf([0, 1, 2].map(r => place(addMesh(new THREE.CylinderGeometry(0.4, 0.4, 16, 12), 0x10b981), 5.5, 28, -3 + r * 2.5))));
+      reg('facadeLower', place(addMesh(new THREE.BoxGeometry(27, 14, 27), 0x0284c7, { opacity: 0.45, roughness: 0.1, metalness: 0.8 }), 0, 13, 0));
+      reg('slabsUpper', groupOf([0, 1, 2, 3].map(i => place(addMesh(new THREE.BoxGeometry(24, 0.8, 24), 0xa855f7), 0, 27 + i * 3.2, 0))));
+      reg('roofPlant', groupOf([place(addMesh(new THREE.BoxGeometry(10, 3, 10), 0xf59e0b), 0, 41.5, 0)]));
+      // Tower crane: jib rotates about the mast axis via a pivot group
+      const mast = place(addMesh(new THREE.BoxGeometry(1.5, 52, 1.5), 0xfacc15, { wireframe: true }), -16, 26, -16);
+      const pivot = new THREE.Group(); pivot.position.set(-16, 52, -16);
+      const jib = addMesh(new THREE.BoxGeometry(36, 1.2, 1.2), 0xfacc15); jib.position.set(10, 0, 0);
+      pivot.add(jib); craneJib = pivot;
+      reg('towerCrane', groupOf([mast, pivot]));
+    }
+
+    function meshesOf(obj) { const out = []; obj.traverse(c => { if (c.isMesh) out.push(c); }); return out; }
+
+    function styleMesh(m, state, crit) {
+      const mat = m.material;
+      if (state === 'planned') {
+        mat.wireframe = true; mat.opacity = 0.15; mat.color.setHex(m.userData.baseColor);
+      } else if (state === 'active') {
+        mat.wireframe = false; mat.opacity = 0.95; mat.color.setHex(crit ? 0xef4444 : 0x38bdf8);
+      } else {
+        mat.wireframe = false; mat.opacity = m.userData.baseOpacity; mat.color.setHex(m.userData.baseColor);
+      }
+    }
+
+    function updateBIMProgress(day) {
+      const active = activities.filter(a => a.es <= day && day < a.ef);
+      $('hudActiveList').innerHTML = active.length ? active.map(a =>
+        `<div class="flex justify-between gap-3"><span class="${a.isCritical ? 'text-red-400' : 'text-sky-300'}">${esc(a.id)}</span><span class="text-slate-300 truncate max-w-[170px]">${esc(a.name)}</span></div>`).join('')
+        : '<span class="text-slate-500">No work scheduled at this day</span>';
+      if (!scene) return;
+      Object.values(bimMeshes).forEach(obj => meshesOf(obj).forEach(m => { styleMesh(m, 'planned'); m.visible = true; m.scale.y = 1; if (m.userData.baseY != null) m.position.y = m.userData.baseY; }));
+      activities.forEach(a => {
+        const obj = a.meshKey && bimMeshes[a.meshKey];
+        if (!obj) return;
+        const state = day >= a.ef ? 'complete' : day >= a.es ? 'active' : 'planned';
+        const meshes = meshesOf(obj);
+        if (state !== 'active') { meshes.forEach(m => styleMesh(m, state, a.isCritical)); return; }
+        const frac = clamp((day - a.es) / Math.max(1, a.ef - a.es), 0.05, 1);
+        if (meshes.length > 1) {
+          const built = Math.ceil(frac * meshes.length);
+          meshes.forEach((m, i) => styleMesh(m, i < built ? 'active' : 'planned', a.isCritical));
+        } else {
+          const m = meshes[0], hgt = m.geometry.parameters?.height;
+          styleMesh(m, 'active', a.isCritical);
+          if (hgt && m.userData.baseY != null) { m.scale.y = frac; m.position.y = m.userData.baseY - hgt * (1 - frac) / 2; }
+        }
+      });
+    }
+
+    function highlight3DElement(id) {
+      const a = activities.find(x => x.id === id);
+      if (!scene || !a || !bimMeshes[a.meshKey]) return;
+      meshesOf(bimMeshes[a.meshKey]).forEach(m => {
+        m.material.emissive.setHex(0x0ea5e9); m.material.emissiveIntensity = 0.5;
+        setTimeout(() => { m.material.emissive.setHex(0x000000); m.material.emissiveIntensity = 0; }, 900);
+      });
+    }
+
+    function setupCameraMouseControls(canvas) {
+      let dragging = false, prev = { x: 0, y: 0 };
+      canvas.addEventListener('mousedown', e => { dragging = true; prev = { x: e.clientX, y: e.clientY }; });
+      window.addEventListener('mouseup', () => { dragging = false; });
+      canvas.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        orbit.theta -= (e.clientX - prev.x) * 0.008;
+        orbit.phi = clamp(orbit.phi - (e.clientY - prev.y) * 0.008, 0.1, Math.PI / 2 - 0.05);
+        prev = { x: e.clientX, y: e.clientY };
+        applyOrbit();
+      });
+      canvas.addEventListener('wheel', e => { e.preventDefault(); orbit.radius = clamp(orbit.radius + e.deltaY * 0.05, 25, 180); applyOrbit(); }, { passive: false });
+    }
+    function applyOrbit() {
+      camera.position.set(orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta), orbit.radius * Math.cos(orbit.phi), orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta));
+      camera.lookAt(0, 18, 0);
+    }
+    function resetBIMCamera(angle) {
+      if (!camera) return;
+      if (angle === 'top') { orbit.phi = 0.1; orbit.theta = 0; orbit.radius = 95; }
+      else if (angle === 'front') { orbit.phi = Math.PI / 2 - 0.15; orbit.theta = 0; orbit.radius = 85; }
+      else { orbit.phi = Math.PI / 3; orbit.theta = Math.PI / 4; orbit.radius = 95; }
+      applyOrbit();
+    }
+    function toggleCraneAnimation() { ui.craneAnimating = !ui.craneAnimating; $('craneToggleBtn').innerText = `Crane: ${ui.craneAnimating ? 'ON' : 'OFF'}`; }
+    function onWindowResize() {
+      if (!renderer) return;
+      const c = $('threeCanvasContainer');
+      if (!c.clientWidth || !c.clientHeight) return;
+      camera.aspect = c.clientWidth / c.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(c.clientWidth, c.clientHeight, false);
+    }
+    function animate3D() {
+      requestAnimationFrame(animate3D);
+      if (ui.craneAnimating && craneJib) craneJib.rotation.y += 0.006;
+      renderer.render(scene, camera);
+    }
+
+    /* ---------- 4D timeline ---------- */
+    function dateFromDay(d) {
+      const [y, m, dd] = (S.projectStart || '2026-04-03').split('-').map(Number);
+      return new Date(y, m - 1, dd + d);
+    }
+    function shortDate(d) { return dateFromDay(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }); }
+
+    function updateScrubberRange() {
+      const max = Math.max(projectFinish, ...activities.map(a => baselineOf(a)?.end || 0));
+      $('timeScrubber').max = max;
+      $('scrubberMaxLabel').innerText = 'D' + max;
+      if (ui.simDay > max) ui.simDay = max;
+    }
+    function updateTimeLabels() {
+      $('timeScrubber').value = ui.simDay;
+      $('displaySimulationDate').innerText = `Day ${ui.simDay}`;
+      $('displayCalendarDate').innerText = dateFromDay(ui.simDay).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      $('displayDataDate').innerText = `Day ${S.dataDate} (${shortDate(S.dataDate)})`;
+    }
+    function setSimDay(d) {
+      ui.simDay = d;
+      updateTimeLabels();
+      renderGanttChart();
+      updateBIMProgress(d);
+    }
+    function handleScrubberInput(v) { setSimDay(parseInt(v, 10) || 0); }
+    function jumpToDataDate() { setSimDay(S.dataDate); }
+    function reset4DTimeline() { if (ui.playing) toggle4DPlay(); setSimDay(0); }
+    function toggle4DPlay() {
+      ui.playing = !ui.playing;
+      $('playIcon').classList.toggle('hidden', ui.playing);
+      $('pauseIcon').classList.toggle('hidden', !ui.playing);
+      if (ui.playing) startSimLoop(); else clearInterval(ui.timer);
+    }
+    function startSimLoop() {
+      clearInterval(ui.timer);
+      ui.timer = setInterval(() => setSimDay(ui.simDay >= num($('timeScrubber').max) ? 0 : ui.simDay + 1), 400 / ui.speed);
+    }
+    function setSimSpeed(mult) {
+      ui.speed = mult;
+      document.querySelectorAll('.speed-btn').forEach(b => b.classList.toggle('active', num(b.dataset.speed) === mult));
+      if (ui.playing) startSimLoop();
+    }
+
+    /* ---------- Import / export ---------- */
+    function toggleExportMenu() { $('exportDropdownMenu').classList.toggle('hidden'); }
+    function download(name, content, type) {
+      const url = URL.createObjectURL(new Blob([content], { type }));
+      const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    function csvCell(v) { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+    function exportCSV() {
+      toggleExportMenu();
+      const cols = ['id', 'name', 'wbs', 'contractor', 'duration', 'remDur', 'es', 'ef', 'ls', 'lf', 'totalFloat', 'isCritical', 'physicalPercent', 'performancePercent', 'percentCompleteType', 'cost', 'actualCost', 'predecessors', 'blStart', 'blFinish'];
+      const lines = [cols.join(',')].concat(activities.map(a => {
+        const b = baselineOf(a) || {};
+        const row = Object.assign({}, a, { predecessors: a.predecessors.map(p => `${p.id}:${p.type}${p.lag >= 0 ? '+' : ''}${p.lag}`).join(' '), blStart: b.start, blFinish: b.end });
+        return cols.map(c => csvCell(row[c])).join(',');
+      }));
+      download(`ASTCO_schedule_DD${S.dataDate}.csv`, lines.join('\n'), 'text/csv');
+    }
+    function exportJSON() {
+      toggleExportMenu();
+      const clean = JSON.parse(JSON.stringify(project, (k, v) => ['successors', 'es', 'ef', 'ls', 'lf', 'remStart', 'remDur', 'totalFloat', 'isCritical', 'status', 'stepsDrive', 'weightPercent'].includes(k) ? undefined : v));
+      download(`ASTCO_project_DD${S.dataDate}.json`, JSON.stringify(clean, null, 2), 'application/json');
+    }
+    function importJSON(input) {
+      const file = input.files?.[0]; if (!file) return;
+      file.text().then(txt => {
+        const p = JSON.parse(txt);
+        if (!p || !Array.isArray(p.activities)) throw new Error('missing "activities" array');
+        setProject(p);
+        runCPM();
+        showToast('Project imported', `${activities.length} activities loaded from ${file.name}.`);
+      }).catch(e => showToast('Import failed', String(e.message || e), true))
+        .finally(() => { input.value = ''; toggleExportMenu(); });
+    }
+    function resetToSample() {
+      toggleExportMenu();
+      if (!confirm('Discard all local changes and reload the sample project?')) return;
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+      setProject(sampleProject());
+      ui.simDay = S.dataDate;
+      runCPM();
+    }
+
+    /* ---------- Modals & toast ---------- */
+    function openModal(id) {
+      if (id === 'stepTemplatesModal' || id === 'applyTemplateModal') renderTemplatesLibrary();
+      if (id === 'customizeStepsColumnsModal') Object.keys(ui.stepsCols).forEach(k => $('colVisible_' + k).checked = ui.stepsCols[k]);
+      $(id).classList.remove('hidden');
+    }
+    function closeModal(id) { $(id).classList.add('hidden'); }
+    let toastTimer = null;
+    function showToast(title, msg, isError) {
+      const t = $('notificationToast');
+      $('toastTitle').innerText = title; $('toastMessage').innerText = msg;
+      t.style.borderColor = isError ? '#ef4444' : '#0ea5e9';
+      t.classList.remove('translate-y-20', 'opacity-0');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.add('translate-y-20', 'opacity-0'), isError ? 5000 : 3500);
+    }
+
+    /* ---------- Keyboard ---------- */
+    window.addEventListener('keydown', e => {
+      const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
+      if (e.key === 'F9') { e.preventDefault(); runCPM(); }
+      else if ((e.altKey && e.key.toLowerCase() === 'c') || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w')) { e.preventDefault(); openCalcSettings(); }
+      else if (e.key === 'Escape') document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+      else if (!typing && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        const rows = visibleActivities(); const i = rows.findIndex(a => a.id === ui.selectedId);
+        const n = rows[clamp(i + (e.key === 'ArrowDown' ? 1 : -1), 0, rows.length - 1)];
+        if (n) { e.preventDefault(); selectActivity(n.id); }
+      }
+    });
+    document.addEventListener('click', e => {
+      const menu = $('exportDropdownMenu');
+      if (!menu.classList.contains('hidden') && !e.target.closest('.relative.inline-block')) menu.classList.add('hidden');
+    });
+
+    /* ---------- Init ---------- */
+    window.addEventListener('load', () => {
+      loadProject();
+      ui.simDay = S.dataDate;
+      document.querySelectorAll('.speed-btn').forEach(b => b.onclick = () => setSimSpeed(num(b.dataset.speed)));
+      $('activityTableContainer').addEventListener('scroll', e => { $('ganttTimelineContainer').scrollTop = e.target.scrollTop; });
+      $('legendCritical').innerText = `Critical (TF ≤ ${S.critThreshold})`;
+      setSimSpeed(1);
+      switchDetailsTab('steps');
+      try { initThreeJS(); } catch (err) { console.error('3D init failed', err); $('bimUnavailable').classList.remove('hidden'); }
+      switchMainView('splitView');
+      runCPM(true);
+      window.addEventListener('resize', () => { onWindowResize(); if (ui.view === 'evmDashboard') calculateEVM(); if (ui.view === 'resourceHistogram') renderResourceHistograms(); });
+    });
+  </script>
+</body>
+</html>
