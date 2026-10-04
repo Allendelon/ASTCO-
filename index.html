@@ -543,6 +543,10 @@
           <div><label class="lbl">Must finish by (day, optional)</label><input type="number" min="0" id="inpMustFinish" class="fld font-mono" placeholder="calculated finish"></div>
           <div><label class="lbl">Cost escalation (% per year)</label><input type="number" step="0.1" min="0" id="inpEscRate" class="fld font-mono"></div>
           <div><label class="lbl">Unit-rate base date</label><input type="date" id="inpRateBase" class="fld font-mono"></div>
+          <div class="col-span-2 flex items-center gap-3 p-2 rounded border border-amber-700/60 bg-amber-950/20">
+            <label class="flex items-center gap-2 text-amber-300 font-semibold cursor-pointer"><input type="checkbox" id="chkContingency" class="w-4 h-4"> Add contingency reserve</label>
+            <input type="number" step="0.5" min="0" id="inpContingency" class="fld font-mono" style="width:80px"> <span class="text-slate-400">% of out-turn (held as reserve, not in EVM BAC)</span>
+          </div>
           <div class="col-span-2"><label class="lbl">Default % Complete Type for new activities</label>
             <select id="selDefaultPctType" class="fld"><option>Physical</option><option>Duration</option><option>Units</option></select>
           </div>
@@ -992,7 +996,7 @@
         drawings: CG_DRAWINGS.map(d => Object.assign({ status: d.rev.startsWith('WIP') ? 'Concept / WIP' : 'Design Development' }, d)),
         costBasis: CG_COST_BASIS, escalationSources: CG_ESCALATION_SOURCES,
         settings: { dataDate: 0, projectStart: '2027-03-01', critThreshold: 0, mustFinish: null, currency: 'SAR', drawingLead: 45,
-          escalationRate: 5, rateBaseDate: '2026-01-01',
+          escalationRate: 5, rateBaseDate: '2026-01-01', contingencyOn: true, contingencyPct: 5,
           stepsDrivePhysical: true, defaultPctType: 'Physical', laborLimit: 550, plantLimit: 16 },
         periods: [],
         activities: acts
@@ -1442,7 +1446,7 @@
         <div class="kpi-cell"><div class="k">Viewing date</div><div class="v text-orange-400">${dateFromDay(ui.simDay).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div><div class="d text-slate-500">Day ${ui.simDay} · data date D${S.dataDate}${ui.simDay > S.dataDate ? ' · forecast' : ''}</div></div>
         <div class="kpi-cell"><div class="k">Structure</div><div class="v">${structDone} / ${structRows.length} levels</div><div class="d text-slate-500">frame complete</div></div>
         <div class="kpi-cell"><div class="k">Levels handover-ready</div><div class="v">${ready} / ${fitRows.length} levels</div><div class="d text-slate-500">all trades complete</div></div>
-        <div class="kpi-cell"><div class="k">Cost-loaded value at date</div><div class="v">${moneyShort(spend)}</div><div class="d text-slate-500">${bac ? Math.round(spend / bac * 100) : 0}% of ${moneyShort(bac)} budget</div></div>
+        <div class="kpi-cell"><div class="k">Cost-loaded value at date</div><div class="v">${moneyShort(spend)}</div><div class="d text-slate-500">${bac ? Math.round(spend / bac * 100) : 0}% of ${moneyShort(bac)}${contingencyPct() ? ` · +${contingencyPct()}% cont. = ${moneyShort(bac * (1 + contingencyPct() / 100))}` : ''}</div></div>
         ${dateCell('Topping out', cur.topping, bl.topping)}
         ${dateCell('Permanent power', cur.power, bl.power)}
         ${dateCell('Handover', cur.handover, bl.handover)}`;
@@ -2086,6 +2090,8 @@
       $('selDefaultPctType').value = S.defaultPctType;
       $('inpEscRate').value = S.escalationRate ?? 0;
       $('inpRateBase').value = S.rateBaseDate || '';
+      $('chkContingency').checked = !!S.contingencyOn;
+      $('inpContingency').value = S.contingencyPct ?? 5;
       openModal('calcSettingsModal');
     }
     function saveProjectCalcSettings() {
@@ -2104,6 +2110,8 @@
       S.defaultPctType = $('selDefaultPctType').value;
       S.escalationRate = Math.max(0, num($('inpEscRate').value, 0));
       S.rateBaseDate = $('inpRateBase').value || null;
+      S.contingencyOn = $('chkContingency').checked;
+      S.contingencyPct = Math.max(0, num($('inpContingency').value, 0));
       closeModal('calcSettingsModal');
       runCPM();
     }
@@ -2334,6 +2342,9 @@
       $('cashflowNote').innerText = `· ${months.length} months · peak ${moneyShort(peak.fcst)} in ${peak.label || '—'} · ${ui.baseline} vs current`;
     }
 
+    // Contingency is a reserve on top of the out-turn estimate; it is not loaded onto activities, so EVM BAC excludes it.
+    function contingencyPct() { return S.contingencyOn ? Math.max(0, num(S.contingencyPct, 0)) : 0; }
+
     function renderCostBasis() {
       const el = $('costBasisPanel'); if (!el) return;
       if (!project.costBasis) { el.innerHTML = '<span class="text-slate-500">No cost basis recorded for this project.</span>'; el.classList.add('hidden'); return; }
@@ -2352,7 +2363,8 @@
             <div class="font-bold text-slate-200 mb-1">Cost basis &amp; escalation</div>
             <div class="grid grid-cols-4 gap-2 font-mono mb-2">
               <div class="kpi"><span class="lbl">Base (rates at ${esc(S.rateBaseDate || '—')})</span>${moneyShort(base)}</div>
-              <div class="kpi"><span class="lbl">Out-turn @ ${num(S.escalationRate)}%/yr</span><b class="text-emerald-300">${moneyShort(out)}</b> <span class="text-slate-500">+${base ? ((out / base - 1) * 100).toFixed(1) : 0}%</span></div>
+              <div class="kpi"><span class="lbl">Out-turn @ ${num(S.escalationRate)}%/yr</span><b class="text-emerald-300">${moneyShort(out)}</b> <span class="text-slate-500">+${base ? ((out / base - 1) * 100).toFixed(1) : 0}%</span>
+                <span class="block text-[10px] ${contingencyPct() ? 'text-amber-300' : 'text-slate-500'}">${contingencyPct() ? `+ ${contingencyPct()}% contingency ${moneyShort(out * contingencyPct() / 100)} = <b>${moneyShort(out * (1 + contingencyPct() / 100))}</b>` : 'contingency off'}</span></div>
               <div class="kpi"><span class="lbl">Basement check (base)</span>${gfaBelow ? money(below / gfaBelow) + '/m²' : '—'} <span class="text-slate-500 text-[10px] block">benchmark SAR 3,600–4,600</span></div>
               <div class="kpi"><span class="lbl">Above-grade shell &amp; core (base)</span>${gfaAbove ? money(above / gfaAbove) + '/m²' : '—'} <span class="text-slate-500 text-[10px] block">benchmark SAR 6,700–7,500</span></div>
             </div>
@@ -2362,7 +2374,7 @@
           <div class="w-[38%]">
             <div class="font-bold text-slate-200 mb-1">Escalation evidence</div>
             <ul class="space-y-0.5 text-slate-400">${(project.escalationSources || []).map(v => `<li>${esc(v.text)} <a class="text-sky-400 underline" target="_blank" rel="noopener" href="${esc(v.url)}">source</a></li>`).join('')}</ul>
-            <p class="text-[10px] text-amber-400/80 mt-2">Excludes VAT (15%), land, design fees, client contingency and tenant fit-out. Benchmarks are for comparison, not tender prices.</p>
+            <p class="text-[10px] text-amber-400/80 mt-2">Excludes VAT (15%), land, design fees and tenant fit-out. Contingency (${contingencyPct()}%) is held as a reserve, not loaded onto activities, so earned-value BAC excludes it. Benchmarks are for comparison, not tender prices.</p>
           </div>
         </div>`;
     }
@@ -2814,8 +2826,9 @@
     }
     function exportCashflowCSV() {
       const m = cashflow();
-      download(`${fileTag()}_cashflow.csv`, csvLines([['month', 'start_day', 'end_day', `baseline_${ui.baseline}`, 'forecast', `cum_baseline_${ui.baseline}`, 'cum_forecast', 'currency'],
-        ...m.map(x => [x.label, x.start, x.end, Math.round(x.base), Math.round(x.fcst), Math.round(x.cumBase), Math.round(x.cumFcst), S.currency || 'USD'])]), 'text/csv');
+      const c = contingencyPct() / 100;
+      download(`${fileTag()}_cashflow.csv`, csvLines([['month', 'start_day', 'end_day', `baseline_${ui.baseline}`, 'forecast', `cum_baseline_${ui.baseline}`, 'cum_forecast', `contingency_${contingencyPct()}pct_prorata`, 'forecast_incl_contingency', 'currency'],
+        ...m.map(x => [x.label, x.start, x.end, Math.round(x.base), Math.round(x.fcst), Math.round(x.cumBase), Math.round(x.cumFcst), Math.round(x.fcst * c), Math.round(x.fcst * (1 + c)), S.currency || 'USD'])]), 'text/csv');
     }
     function exportTradeCSV() {
       const t = tradeLoading();

@@ -32,7 +32,7 @@ as CSV, plus the full project as JSON for re-import.
 - cinema: ≈USD 9.3k/seat (Empire Cinemas KSA)
 
 Costs are escalated at 5 %/yr (AECOM 2026 TPI 3–7 %, T&T 2027 ME 5.1 %) from the rate base date to each activity's
-cost midpoint. Base SAR 298.5M → out-turn SAR 326.8M. Excludes VAT, land, fees, client contingency and tenant fit-out.
+cost midpoint. Base SAR 298.5M → out-turn SAR 326.8M; a separate 5 % contingency reserve (switchable in Calculations) gives SAR 343.1M. Excludes VAT, land, fees and tenant fit-out.
 Sources are linked in the app (EVM page → Cost basis) and in each activity's Quantities tab.
 
 **Still assumptions:** the split of each benchmark across trades, productivities, crew sizes, basement storey
