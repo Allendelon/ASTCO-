@@ -485,6 +485,7 @@
         </div>
         <div class="flex-1 relative min-h-0"><svg id="cashflowSvg" class="absolute inset-0 w-full h-full"></svg></div>
       </div>
+      <div class="shrink-0 bg-[#0d1629] border border-slate-800 rounded-xl p-4 mt-4 text-xs" id="costBasisPanel"></div>
     </section>
 
     <!-- Resource dashboard -->
@@ -540,6 +541,8 @@
           <div><label class="lbl">Project start (calendar date)</label><input type="date" id="inpProjectStart" class="fld font-mono"></div>
           <div><label class="lbl">Critical if Total Float ≤ (days)</label><input type="number" id="inpCritThreshold" class="fld font-mono text-red-400"></div>
           <div><label class="lbl">Must finish by (day, optional)</label><input type="number" min="0" id="inpMustFinish" class="fld font-mono" placeholder="calculated finish"></div>
+          <div><label class="lbl">Cost escalation (% per year)</label><input type="number" step="0.1" min="0" id="inpEscRate" class="fld font-mono"></div>
+          <div><label class="lbl">Unit-rate base date</label><input type="date" id="inpRateBase" class="fld font-mono"></div>
           <div class="col-span-2"><label class="lbl">Default % Complete Type for new activities</label>
             <select id="selDefaultPctType" class="fld"><option>Physical</option><option>Duration</option><option>Units</option></select>
           </div>
@@ -629,7 +632,7 @@
   <script>
     'use strict';
 
-    const STORAGE_PREFIX = 'astco4d.v4.';
+    const STORAGE_PREFIX = 'astco4d.v5.';
 
     /* ---------- Locations & trade phases (location-based view) ---------- */
     const PHASES = [
@@ -828,6 +831,24 @@
       { id: 'CG-A-303', title: 'Cross Section 2', page: '24', rev: 'Sub 2' },
       { id: 'CG-A-901', title: 'Perspectives / CGI', page: '26–30', rev: 'WIP (Sub 3)' }
     ];
+    // Market benchmarks the unit rates are calibrated to (searched Oct 2026; base date of rates ≈ Q1 2026).
+    const CG_COST_BASIS = {
+      mall: { text: 'Regional mall shell & core SAR 6,700–7,500/m² GFA (KSA Construction Cost Benchmarking Report 2025, Stonehaven)', url: 'https://www.stonehaven.ae/downloads' },
+      basement: { text: 'Basement car park SAR 3,600–4,600/m² GFA (KSA Construction Cost Benchmarking Report 2025, Stonehaven)', url: 'https://www.stonehaven.ae/downloads' },
+      excav: { text: 'Basement excavation SAR 48/m³ (Turner & Townsend KSA Market Intelligence 2025)', url: 'https://marketintelligence.turnerandtownsend.com/ksami-2025/construction-cost-performance' },
+      cw: { text: 'Curtain wall ≈SAR 1,880–8,070/m² installed (Samman Group, 2026 guide)', url: 'https://aluminum.sammangroup.com/curtain-wall-installation-cost/' },
+      fitout: { text: 'Retail fit-out premium SAR 1,500–2,500/m² (Exceptional PM, Riyadh 2026)', url: 'https://exceptional-pm.com/fit-out-cost-per-m2-in-riyadh/' },
+      cinema: { text: 'Cinema ≈USD 9–15k per seat (Empire Cinemas KSA: Jizan 10 screens / 728 seats for USD 11M)', url: 'https://meconstructionnews.com/38353/empire-cinemas-opens-first-multiplex-in-jizan-city-ksa' },
+      lifts: { text: 'Lifts/escalators installed ≈USD 20k–200k per unit (Saudi elevator & escalator market reports)', url: 'https://www.arizton.com/market-reports/saudi-arabia-elevator-and-escalator-market' },
+      assumed: { text: 'No public benchmark found — planning assumption', url: '' }
+    };
+    const CG_ESCALATION_SOURCES = [
+      { text: 'KSA tender price inflation 2026 forecast 3–7% (AECOM Tender Price Index)', url: 'https://insights.aecom.com/insights/article/the-tender-price-index-2026' },
+      { text: 'Middle East construction cost inflation 5.1% in 2027 (Turner & Townsend GCMI, via MEED)', url: 'https://www.meed.com/middle-east-construction-cost-inflation-to-hit-51-by-2027' },
+      { text: 'Saudi Construction Cost Index +2.3% y/y, Aug 2026 (GASTAT, via Argaam)', url: 'https://www.argaam.com/en/article/articledetail/id/1938260' },
+      { text: 'Ready-mix 350K SAR 214/m³ (Aug 2026, GASTAT via CEIC); rebar SAR 2,450–2,650/t (2026)', url: 'https://www.ceicdata.com/en/saudi-arabia/average-construction-materials-price' }
+    ];
+
     // Share of each activity's cost by CBS element, per trade (assumed split).
     const TRADE_SPLIT = {
       'Preliminaries': [0.35, 0.25, 0.20, 0.20], 'Shoring & Piling': [0.30, 0.35, 0.30, 0.05], 'Earthworks': [0.20, 0.65, 0.05, 0.10],
@@ -864,8 +885,8 @@
       const fs = (id, lag = 0) => ({ id, type: 'FS', lag });
       const ss = (id, lag = 0) => ({ id, type: 'SS', lag });
       const ff = (id, lag = 0) => ({ id, type: 'FF', lag });
-      const q = (qty, unit, rate, prod, crews, crewSize, plantPerCrew, src) => ({ qty, unit, rate, prod, crews, crewSize, plantPerCrew, src });
-      const ls = (rate, days, crewSize, plant, src) => ({ qty: 1, unit: 'LS', rate, fixedDur: days, crews: 1, crewSize, plantPerCrew: plant, src });
+      const q = (qty, unit, rate, prod, crews, crewSize, plantPerCrew, src, rb = 'assumed') => ({ qty, unit, rate, prod, crews, crewSize, plantPerCrew, src, rateBasis: rb });
+      const ls = (rate, days, crewSize, plant, src, rb = 'assumed') => ({ qty: 1, unit: 'LS', rate, fixedDur: days, crews: 1, crewSize, plantPerCrew: plant, src, rateBasis: rb });
       const SECT = ['CG-A-301', 'CG-A-302', 'CG-A-303'];
       const PLAN = ['CG-A-092', 'CG-A-091', 'CG-A-101', 'CG-A-102', 'CG-A-103', 'CG-A-104', 'CG-A-105'];
       const ELEV = ['CG-A-201', 'CG-A-202', 'CG-A-203', 'CG-A-204'];
@@ -873,19 +894,19 @@
       add('CG-0000', 'Notice to Proceed', { wbs: '0 Milestones', kpi: 'start' });
       // 1 Enabling & substructure
       add('CG-1010', 'Mobilisation, site set-up & enabling works', { wbs: '1 Substructure', trade: 'Preliminaries', phase: null,
-        preds: [fs('CG-0000')], dwgs: ['CG-A-100', 'CG-A-101'], qto: ls(3500000, 30, 25, 4, 'Lump sum (assumed)') });
+        preds: [fs('CG-0000')], dwgs: ['CG-A-100', 'CG-A-101'], qto: ls(4000000, 30, 25, 4, 'Lump sum (assumed)', 'mall') });
       add('CG-1020', 'Secant pile shoring & dewatering', { wbs: '1 Substructure', trade: 'Shoring & Piling', contractor: 'Geotechnical Sub',
         phase: 'Substructure', floors: [0, 1], preds: [ss('CG-1010', 14)], dwgs: ['CG-A-091', 'CG-A-092', ...SECT],
-        qto: q(5400, 'm²', 1150, 45, 3, 12, 2, 'Derived: basement perimeter ≈450 m (B1/B2 plans) × 12 m retained depth') });
+        qto: q(5400, 'm²', 1650, 45, 3, 12, 2, 'Derived: basement perimeter ≈450 m (B1/B2 plans) × 12 m retained depth', 'basement') });
       add('CG-1030', 'Bulk excavation & disposal (2 basements)', { wbs: '1 Substructure', trade: 'Earthworks', contractor: 'Geotechnical Sub',
         phase: 'Substructure', floors: [0, 1], preds: [ss('CG-1020', 20), ff('CG-1020', 5)], dwgs: ['CG-A-092', ...SECT],
-        qto: q(112500, 'm³', 28, 1400, 2, 8, 6, 'Derived: 12,500 m² basement (Sheet 17) × 9.0 m (2 × 3.6 m + raft/blinding)') });
+        qto: q(112500, 'm³', 48, 1400, 2, 8, 6, 'Derived: 12,500 m² basement (Sheet 17) × 9.0 m (2 × 3.6 m + raft/blinding)', 'excav') });
       add('CG-1040', 'Raft foundation & below-grade waterproofing', { wbs: '1 Substructure', trade: 'Concrete & Structure',
         phase: 'Substructure', floors: [0, 0], preds: [fs('CG-1030')], dwgs: ['CG-A-092', ...SECT],
-        qto: q(12500, 'm²', 720, 160, 3, 30, 1, 'Sheet 17: B2 gross area 12,500 m²') });
+        qto: q(12500, 'm²', 1200, 160, 3, 30, 1, 'Sheet 17: B2 gross area 12,500 m²', 'basement') });
 
       // 2 Structure per level (frame + slab above ≈ level GFA)
-      const sCrews = [4, 4, 4, 3, 3, 2, 1], sRate = [1050, 1050, 1150, 1050, 1600, 1050, 1050];
+      const sCrews = [4, 4, 4, 3, 3, 2, 1], sRate = [2000, 2000, 1750, 1650, 2300, 1650, 1650];
       L.forEach((l, i) => {
         const prev = i === 0 ? null : 'CG-2' + String(i - 1).padStart(2, '0') + '0';
         const isCinema = l.short === 'L2';
@@ -893,43 +914,43 @@
           wbs: '2 Superstructure', trade: 'Concrete & Structure', phase: 'Structure', floors: [i, i],
           preds: i === 0 ? [fs('CG-1040')] : [ss(prev, i <= 2 ? 25 : 20), ff(prev, 7)],
           dwgs: [PLAN[i], ...SECT, ...(isCinema ? ['CG-A-202'] : [])],
-          qto: q(l.gfa, 'm²', sRate[i], isCinema ? 25 : 35, sCrews[i], 35, 1, `Sheet 17: ${l.short} gross area ${l.gfa.toLocaleString('en-US')} m²${l.gfaNote ? ' (' + l.gfaNote + ')' : ''}; height ${l.height} m${l.heightNote ? ' (' + l.heightNote + ')' : ''}`) });
+          qto: q(l.gfa, 'm²', sRate[i], isCinema ? 25 : 35, sCrews[i], 35, 1, `Sheet 17: ${l.short} gross area ${l.gfa.toLocaleString('en-US')} m²${l.gfaNote ? ' (' + l.gfaNote + ')' : ''}; height ${l.height} m${l.heightNote ? ' (' + l.heightNote + ')' : ''}`, l.below ? 'basement' : 'mall') });
       });
       const S_ = i => 'CG-2' + String(i).padStart(2, '0') + '0';
 
       // 3 Envelope
       add('CG-3010', 'Curtain wall & shopfront glazing — GF–L1', { wbs: '3 Envelope', trade: 'Facade', contractor: 'Facade Sub',
         phase: 'Envelope', floors: [2, 3], preds: [fs(S_(3), 14)], dwgs: [...ELEV, 'CG-A-101', 'CG-A-102'],
-        qto: q(3100, 'm²', 1850, 35, 3, 8, 0.5, 'Derived: podium perimeter ≈400 m × 13 m (GF 7.0 + L1 6.0) × 60% glazed') });
+        qto: q(3100, 'm²', 2600, 35, 3, 8, 0.5, 'Derived: podium perimeter ≈400 m × 13 m (GF 7.0 + L1 6.0) × 60% glazed', 'cw') });
       add('CG-3020', 'Parametric perforated screen — L2–L3 blocks', { wbs: '3 Envelope', trade: 'Facade', contractor: 'Facade Sub',
         phase: 'Envelope', floors: [4, 5], preds: [fs(S_(5), 14), fs(S_(4), 30)], dwgs: [...ELEV, 'CG-A-901'],
-        qto: q(4500, 'm²', 2400, 25, 3, 10, 1, 'Derived: two screen blocks ≈410 m perimeter × 11 m (L2 5.5 + L3 5.5)') });
+        qto: q(4500, 'm²', 3000, 25, 3, 10, 1, 'Derived: two screen blocks ≈410 m perimeter × 11 m (L2 5.5 + L3 5.5)', 'mall') });
       add('CG-3030', 'Fluted metal cladding & cinema box enclosure', { wbs: '3 Envelope', trade: 'Facade', contractor: 'Facade Sub',
         phase: 'Envelope', floors: [3, 4], preds: [fs(S_(4), 14)], dwgs: ['CG-A-203', 'CG-A-204'],
-        qto: q(3600, 'm²', 520, 60, 2, 8, 0.5, 'Derived: service/cinema façades on Elevations C & D ≈160 m × 22 m') });
+        qto: q(3600, 'm²', 750, 60, 2, 8, 0.5, 'Derived: service/cinema façades on Elevations C & D ≈160 m × 22 m', 'mall') });
       add('CG-3040', 'Roofing, waterproofing & shading pergolas', { wbs: '3 Envelope', trade: 'Roofing',
         phase: 'Envelope', floors: [5, 6], preds: [fs(S_(6))], dwgs: ['CG-A-105', ...SECT],
-        qto: q(6500, 'm²', 380, 220, 2, 10, 0.3, 'Derived: L2/L3/L4 roof areas + pergolas from plans & sections') });
+        qto: q(6500, 'm²', 450, 220, 2, 10, 0.3, 'Derived: L2/L3/L4 roof areas + pergolas from plans & sections', 'mall') });
 
       // 4 MEP rough-in per level
-      const mCrews = [4, 4, 3, 3, 3, 2, 1], mRate = [520, 520, 1250, 1250, 1450, 1250, 1250];
+      const mCrews = [4, 4, 3, 3, 3, 2, 1], mRate = [750, 750, 1400, 1400, 1700, 1400, 1400];
       L.forEach((l, i) => {
         const sid = S_(i), sDur = Math.ceil(l.gfa / ((l.short === 'L2' ? 25 : 35) * sCrews[i]));
         add('CG-4' + String(i).padStart(2, '0') + '0', `MEP rough-in — ${l.short}${l.below ? ' (ventilation, fire, drainage)' : ''}`, {
           wbs: '4 MEP', trade: 'MEP', contractor: 'MEP Sub', phase: 'Rough-in', floors: [i, i],
           preds: [ss(sid, Math.ceil(sDur * 0.5)), ff(sid, 14)], dwgs: [PLAN[i], 'CG-A-001'],
-          qto: q(l.gfa, 'm²', mRate[i], 25, mCrews[i], 14, 0.2, `Sheet 17: ${l.short} gross area; MEP/service rooms ${l.use.mep || 0} m²`) });
+          qto: q(l.gfa, 'm²', mRate[i], 25, mCrews[i], 14, 0.2, `Sheet 17: ${l.short} gross area; MEP/service rooms ${l.use.mep || 0} m²`, l.below ? 'basement' : 'mall') });
       });
       const M_ = i => 'CG-4' + String(i).padStart(2, '0') + '0';
       add('CG-4500', 'Central plant: chillers, AHUs, pumps & tanks', { wbs: '4 MEP', trade: 'MEP', contractor: 'MEP Sub',
         phase: 'Rough-in', floors: [6, 6], preds: [ss('CG-3040'), fs(S_(6))], dwgs: ['CG-A-105', 'CG-A-092', 'CG-A-091'],
-        qto: ls(14000000, 75, 30, 2, 'Lump sum (assumed); plant rooms on B1/B2 plans and roof') });
+        qto: ls(14000000, 75, 30, 2, 'Lump sum (assumed); plant rooms on B1/B2 plans and roof', 'mall') });
       add('CG-4600', 'Utilities: SCECO substation, LPG tank, generator & fuel', { wbs: '4 MEP', trade: 'Utilities', contractor: 'MEP Sub',
         phase: 'Rough-in', floors: [2, 2], preds: [fs(S_(2), 30)], dwgs: ['CG-A-101', 'CG-A-091'],
-        qto: ls(6500000, 60, 18, 1, 'Lump sum (assumed); SCECO 54 m², LPG 68 m², generator 78 m² on GF plan') });
+        qto: ls(7500000, 60, 18, 1, 'Lump sum (assumed); SCECO 54 m², LPG 68 m², generator 78 m² on GF plan', 'mall') });
       add('CG-4700', 'Escalators, retail passenger & service lifts', { wbs: '4 MEP', trade: 'Vertical Transport', contractor: 'Lifts Sub',
         phase: 'Rough-in', floors: [0, 5], preds: [fs(S_(5))], dwgs: [...PLAN.slice(0, 6), ...SECT],
-        qto: q(18, 'no.', 650000, 0.04, 4, 5, 0.2, 'Derived: ≈10 escalators + 8 lifts counted from plans — verify') });
+        qto: q(18, 'no.', 600000, 0.04, 4, 5, 0.2, 'Derived: ≈10 escalators + 8 lifts counted from plans — verify', 'lifts') });
       add('CG-4800', 'Permanent power energised (SCECO)', { wbs: '0 Milestones', kpi: 'power', preds: [fs('CG-4600'), fs(M_(2))] });
 
       // 5 Finishes by use (Sheet 17)
@@ -939,16 +960,16 @@
         const envPred = i === 2 || i === 3 ? [ss('CG-3010', 20)] : i === 4 || i === 5 ? [ss('CG-3020', 20)] : [];
         const mk = (suffix, name, o) => { const a = add('CG-5' + String(i) + suffix, name, Object.assign({ wbs: '5 Finishes', phase: 'Finishes', floors: [i, i], dwgs: [P, 'CG-A-001'] }, o)); fin.push(a.id); return a; };
         if (u.parking) mk('10', `Car park finishes, coatings & line marking — ${l.short} (${l.cars} bays)`, { trade: 'Finishes',
-          preds: [ss(mid, 40), ff(mid, 7)], qto: q(u.parking, 'm²', 140, 450, 1, 10, 0.2, `Sheet 17: ${l.short} parking/driveway ${u.parking.toLocaleString('en-US')} m², ${l.cars} cars`) });
+          preds: [ss(mid, 40), ff(mid, 7)], qto: q(u.parking, 'm²', 180, 450, 1, 10, 0.2, `Sheet 17: ${l.short} parking/driveway ${u.parking.toLocaleString('en-US')} m², ${l.cars} cars`, 'basement') });
         if ((u.circ || 0) >= 50 && !l.below) mk('20', `Public circulation & WC finishes — ${l.short}`, { trade: 'Finishes',
-          preds: [ss(mid, 25), ...envPred], qto: q(u.circ, 'm²', 1900, 8, Math.max(1, Math.round(u.circ / 600)), 10, 0.1, `Sheet 17: ${l.short} public circulation & WC ${u.circ.toLocaleString('en-US')} m²`) });
+          preds: [ss(mid, 25), ...envPred], qto: q(u.circ, 'm²', 2000, 8, Math.max(1, Math.round(u.circ / 600)), 10, 0.1, `Sheet 17: ${l.short} public circulation & WC ${u.circ.toLocaleString('en-US')} m²`, 'fitout') });
         const shell = (u.fnb || 0) + (u.retail || 0);
         if (shell) mk('30', `Tenant shell & core handover — ${l.short} (F&B + retail)`, { trade: 'Finishes',
-          preds: [ss(mid, 20), ...envPred], qto: q(shell, 'm²', 420, 30, Math.max(1, Math.round(shell / 1500)), 8, 0.1, `Sheet 17: ${l.short} F&B ${(u.fnb || 0).toLocaleString('en-US')} m² + retail ${(u.retail || 0).toLocaleString('en-US')} m²`) });
+          preds: [ss(mid, 20), ...envPred], qto: q(shell, 'm²', 600, 30, Math.max(1, Math.round(shell / 1500)), 8, 0.1, `Sheet 17: ${l.short} F&B ${(u.fnb || 0).toLocaleString('en-US')} m² + retail ${(u.retail || 0).toLocaleString('en-US')} m²`, 'fitout') });
         if (u.terrace) mk('40', `Terraces & outdoor seating — ${l.short}`, { trade: 'Finishes',
-          preds: envPred.length ? [fs(envPred[0].id)] : [ss(mid, 20)], qto: q(u.terrace, 'm²', 900, 12, Math.max(1, Math.round(u.terrace / 700)), 8, 0.1, `Sheet 17: ${l.short} terrace ${u.terrace.toLocaleString('en-US')} m²`) });
+          preds: envPred.length ? [fs(envPred[0].id)] : [ss(mid, 20)], qto: q(u.terrace, 'm²', 1100, 12, Math.max(1, Math.round(u.terrace / 700)), 8, 0.1, `Sheet 17: ${l.short} terrace ${u.terrace.toLocaleString('en-US')} m²`, 'fitout') });
         if (u.cinema) mk('50', `Cinema fit-out — ${l.short} (${l.seats.toLocaleString('en-US')} seats)`, { trade: 'Cinema Fit-out', contractor: 'Cinema Operator (by others?)',
-          preds: [ss(mid, 20), fs('CG-3030')], dwgs: [P, 'CG-A-001', 'CG-A-202'], qto: q(u.cinema, 'm²', 5800, 6, 3, 15, 0.2, `Sheet 17: cinema ${u.cinema.toLocaleString('en-US')} m², ${l.seats.toLocaleString('en-US')} seats`) });
+          preds: [ss(mid, 20), fs('CG-3030')], dwgs: [P, 'CG-A-001', 'CG-A-202'], qto: q(u.cinema, 'm²', 12600, 6, 3, 15, 0.2, `Sheet 17: cinema ${u.cinema.toLocaleString('en-US')} m², ${l.seats.toLocaleString('en-US')} seats (≈USD 9.3k/seat)`, 'cinema') });
         if (u.event) mk('60', `Event plaza & fountain — ${l.short}`, { trade: 'Landscape & External', contractor: 'Landscape Sub',
           preds: [fs(S_(2), 30)], dwgs: ['CG-A-100', P], qto: q(u.event, 'm²', 4500, 6, 1, 12, 0.5, `Sheet 17: event plaza ${u.event} m² (fountain per GF Landscape Plan)`) });
       });
@@ -959,17 +980,19 @@
       // 6 Close-out
       add('CG-6010', 'Testing & commissioning — all MEP systems', { wbs: '6 Close-out', trade: 'Testing & Commissioning', contractor: 'MEP Sub',
         phase: 'Close-out', floors: [0, 6], preds: [...L.map((l, i) => fs(M_(i))), fs('CG-4500'), fs('CG-4700'), fs('CG-4800')], dwgs: ['CG-A-001'],
-        qto: ls(2200000, 90, 25, 0.5, 'Lump sum (assumed)') });
+        qto: ls(2500000, 90, 25, 0.5, 'Lump sum (assumed)', 'mall') });
       add('CG-6020', 'Civil Defense & authority inspections', { wbs: '6 Close-out', trade: 'Testing & Commissioning',
         phase: 'Close-out', floors: [0, 6], preds: [ss('CG-6010', 30), ...fin.map(id => fs(id))], dwgs: [...PLAN],
-        qto: ls(400000, 30, 6, 0, 'Lump sum (assumed)') });
+        qto: ls(500000, 30, 6, 0, 'Lump sum (assumed)', 'mall') });
       add('CG-6090', 'Handover & mall opening', { wbs: '0 Milestones', kpi: 'handover', preds: [fs('CG-6020'), fs('CG-5900'), fs('CG-6010')] });
 
       return {
         version: 4, id: 'CG-JED', name: 'Crystal Gallery, Jeddah', model: 'massing', locations: L, autoBaseline: true,
         source: 'concept i — Crystal Gallery Revised Design Submission 2 (27 Jan 2023)',
         drawings: CG_DRAWINGS.map(d => Object.assign({ status: d.rev.startsWith('WIP') ? 'Concept / WIP' : 'Design Development' }, d)),
-        settings: { dataDate: 0, projectStart: '2026-11-01', critThreshold: 0, mustFinish: null, currency: 'SAR', drawingLead: 45,
+        costBasis: CG_COST_BASIS, escalationSources: CG_ESCALATION_SOURCES,
+        settings: { dataDate: 0, projectStart: '2027-03-01', critThreshold: 0, mustFinish: null, currency: 'SAR', drawingLead: 45,
+          escalationRate: 5, rateBaseDate: '2026-01-01',
           stepsDrivePhysical: true, defaultPctType: 'Physical', laborLimit: 550, plantLimit: 16 },
         periods: [],
         activities: acts
@@ -1105,13 +1128,32 @@
       const crews = Math.max(1, Math.round(num(q.crews, 1)));
       a.duration = q.fixedDur != null ? Math.max(0, Math.round(num(q.fixedDur)))
         : Math.max(1, Math.ceil(num(q.qty) / Math.max(1e-9, num(q.prod) * crews)));
-      a.cost = Math.round(num(q.qty) * num(q.rate));
+      a.baseCost = Math.round(num(q.qty) * num(q.rate));
+      a.cost = a.baseCost;
       a.labor = crews * num(q.crewSize);
       a.plant = Math.round(crews * num(q.plantPerCrew) * 10) / 10;
       a.budgetUnits = a.duration * a.labor * 10;
       if (a.actualStart == null) a.remainingDuration = a.duration;
-      const sp = TRADE_SPLIT[a.trade] || [0.35, 0.15, 0.45, 0.05];
-      a.cbs = { labor: Math.round(a.cost * sp[0]), plant: Math.round(a.cost * sp[1]), materials: Math.round(a.cost * sp[2]), indirect: Math.round(a.cost * sp[3]) };
+    }
+
+    /* Out-turn escalation: base-date rates are compounded at S.escalationRate %/yr to each activity's
+       cost midpoint (start + duration/2), the usual way to escalate a cost plan to the construction programme. */
+    function escalationFactor(a) {
+      const r = num(S.escalationRate, 0) / 100;
+      if (!r || !S.rateBaseDate) return 1;
+      const [y, m, d] = S.rateBaseDate.split('-').map(Number);
+      const mid = dateFromDay((a.es + a.ef) / 2);
+      const years = (mid - new Date(y, m - 1, d)) / (365.25 * 86400000);
+      return Math.pow(1 + r, Math.max(0, years));
+    }
+    function applyEscalation() {
+      activities.forEach(a => {
+        if (!a.qto) return;
+        a.escFactor = escalationFactor(a);
+        a.cost = Math.round(a.baseCost * a.escFactor);
+        const sp = TRADE_SPLIT[a.trade] || [0.35, 0.15, 0.45, 0.05];
+        a.cbs = { labor: Math.round(a.cost * sp[0]), plant: Math.round(a.cost * sp[1]), materials: Math.round(a.cost * sp[2]), indirect: Math.round(a.cost * sp[3]) };
+      });
     }
 
     /* ---------- CPM engine (progress override, data-date aware) ---------- */
@@ -1201,6 +1243,7 @@
       });
 
       projectFinish = Math.max(0, ...activities.map(a => a.ef));
+      applyEscalation();
       const lfLimit = S.mustFinish != null && S.mustFinish !== '' ? num(S.mustFinish) : projectFinish;
 
       // Backward pass (remaining work only)
@@ -1248,7 +1291,7 @@
       renderActivityDetailsDock();
       calculateEVM();
       if (ui.view === 'resourceHistogram') { renderResourceHistograms(); renderTradeTable(); }
-      if (ui.view === 'evmDashboard') renderCashflow();
+      if (ui.view === 'evmDashboard') { renderCashflow(); renderCostBasis(); }
       updateBIMProgress(ui.simDay);
       updateTimeLabels();
       renderStopChips();
@@ -1910,7 +1953,7 @@
         </div>
         <div class="grid grid-cols-4 gap-3 max-w-5xl mt-3 font-mono">
           <div class="kpi"><span class="lbl">Duration</span><b class="text-amber-300">${a.duration} d</b> <span class="text-[10px] text-slate-500">${lsMode ? 'fixed' : `= ${num(q.qty).toLocaleString('en-US')} ÷ (${q.prod} × ${q.crews})`}</span></div>
-          <div class="kpi"><span class="lbl">Budget</span><b class="text-emerald-300">${money(a.cost)}</b> <span class="text-[10px] text-slate-500">= qty × rate</span></div>
+          <div class="kpi"><span class="lbl">Budget (out-turn)</span><b class="text-emerald-300">${money(a.cost)}</b><span class="block text-[10px] text-slate-500">base ${money(a.baseCost)} × escalation ${(a.escFactor || 1).toFixed(3)}</span></div>
           <div class="kpi"><span class="lbl">Manpower</span><b class="text-sky-300">${a.labor} men/day</b> · ${a.plant} plant</div>
           <div class="kpi"><span class="lbl">Trade</span><b>${esc(a.trade || '—')}</b></div>
         </div>
@@ -1918,7 +1961,8 @@
           <div class="flex flex-wrap gap-1">${a.dwgs.length ? a.dwgs.map(id => { const d = project.drawings.find(x => x.id === id);
             return `<span class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-[10px]" title="${esc(d ? d.title + ' · PDF p.' + d.page + ' · ' + d.status : '')}">${esc(id)}${d ? ' · ' + esc(d.title) : ''}</span>`; }).join('') : '<span class="text-slate-500">none linked</span>'}</div>
         </div>
-        <p class="text-[10px] text-amber-400/80 mt-2">Rates, productivities and crew sizes are indicative planning assumptions. Replace them with QS / contractor data; every dependent date, cost and resource curve updates on change.</p>`;
+        ${(() => { const rb = project.costBasis?.[q.rateBasis]; return rb ? `<div class="mt-3"><label class="lbl">Unit rate basis</label><span class="text-slate-300">${esc(rb.text)}</span>${rb.url ? ` <a href="${esc(rb.url)}" target="_blank" rel="noopener" class="text-sky-400 underline">source</a>` : ''}</div>` : ''; })()}
+        <p class="text-[10px] text-amber-400/80 mt-2">Unit rates are calibrated so block totals sit inside the cited 2025–26 KSA benchmarks; the split between trades, productivities and crew sizes are planning assumptions. Replace them with QS / contractor data; every dependent date, cost and resource curve updates on change.</p>`;
     }
     function updateQto(key, val) {
       const a = selectedAct(); if (!a || !a.qto) return;
@@ -2040,6 +2084,8 @@
       $('inpCritThreshold').value = S.critThreshold;
       $('inpMustFinish').value = S.mustFinish ?? '';
       $('selDefaultPctType').value = S.defaultPctType;
+      $('inpEscRate').value = S.escalationRate ?? 0;
+      $('inpRateBase').value = S.rateBaseDate || '';
       openModal('calcSettingsModal');
     }
     function saveProjectCalcSettings() {
@@ -2056,6 +2102,8 @@
       const mf = $('inpMustFinish').value;
       S.mustFinish = mf === '' ? null : Math.max(0, Math.round(num(mf)));
       S.defaultPctType = $('selDefaultPctType').value;
+      S.escalationRate = Math.max(0, num($('inpEscRate').value, 0));
+      S.rateBaseDate = $('inpRateBase').value || null;
       closeModal('calcSettingsModal');
       runCPM();
     }
@@ -2082,7 +2130,7 @@
       if (view === 'ganttFull') { bimPane.classList.add('hidden'); p6Pane.classList.add('w-full'); }
       else if (view === 'bimFull') { p6Pane.classList.add('hidden'); bimPane.classList.add('w-full'); }
       else { bimPane.classList.add('w-1/2'); p6Pane.classList.add('w-1/2'); }
-      if (view === 'evmDashboard') { calculateEVM(); renderCashflow(); }
+      if (view === 'evmDashboard') { calculateEVM(); renderCashflow(); renderCostBasis(); }
       if (view === 'resourceHistogram') { $('laborLimitInput').value = S.laborLimit; $('plantLimitInput').value = S.plantLimit; renderResourceHistograms(); renderTradeTable(); }
       onWindowResize();
     }
@@ -2284,6 +2332,39 @@
       svg.innerHTML = out;
       const peak = months.reduce((x, m) => m.fcst > x.fcst ? m : x, months[0] || { fcst: 0 });
       $('cashflowNote').innerText = `· ${months.length} months · peak ${moneyShort(peak.fcst)} in ${peak.label || '—'} · ${ui.baseline} vs current`;
+    }
+
+    function renderCostBasis() {
+      const el = $('costBasisPanel'); if (!el) return;
+      if (!project.costBasis) { el.innerHTML = '<span class="text-slate-500">No cost basis recorded for this project.</span>'; el.classList.add('hidden'); return; }
+      el.classList.remove('hidden');
+      const base = activities.reduce((x, a) => x + (a.baseCost ?? a.cost), 0), out = activities.reduce((x, a) => x + a.cost, 0);
+      const byBasis = {};
+      activities.forEach(a => { const k = a.qto?.rateBasis || 'assumed'; byBasis[k] = (byBasis[k] || 0) + (a.baseCost ?? a.cost); });
+      const locs = LOCS();
+      const gfaBelow = locs.filter(l => l.below).reduce((x, l) => x + num(l.gfa), 0), gfaAbove = locs.filter(l => !l.below).reduce((x, l) => x + num(l.gfa), 0);
+      const inLocs = (pred) => activities.filter(a => a.qto && a.floors && pred(a)).reduce((x, a) => x + a.baseCost, 0);
+      const below = activities.filter(a => a.qto && ['basement', 'excav'].includes(a.qto.rateBasis)).reduce((x, a) => x + a.baseCost, 0);
+      const above = activities.filter(a => a.qto && ['mall', 'cw', 'fitout', 'lifts'].includes(a.qto.rateBasis)).reduce((x, a) => x + a.baseCost, 0);
+      el.innerHTML = `
+        <div class="flex justify-between items-start gap-6">
+          <div class="flex-1">
+            <div class="font-bold text-slate-200 mb-1">Cost basis &amp; escalation</div>
+            <div class="grid grid-cols-4 gap-2 font-mono mb-2">
+              <div class="kpi"><span class="lbl">Base (rates at ${esc(S.rateBaseDate || '—')})</span>${moneyShort(base)}</div>
+              <div class="kpi"><span class="lbl">Out-turn @ ${num(S.escalationRate)}%/yr</span><b class="text-emerald-300">${moneyShort(out)}</b> <span class="text-slate-500">+${base ? ((out / base - 1) * 100).toFixed(1) : 0}%</span></div>
+              <div class="kpi"><span class="lbl">Basement check (base)</span>${gfaBelow ? money(below / gfaBelow) + '/m²' : '—'} <span class="text-slate-500 text-[10px] block">benchmark SAR 3,600–4,600</span></div>
+              <div class="kpi"><span class="lbl">Above-grade shell &amp; core (base)</span>${gfaAbove ? money(above / gfaAbove) + '/m²' : '—'} <span class="text-slate-500 text-[10px] block">benchmark SAR 6,700–7,500</span></div>
+            </div>
+            <ul class="space-y-0.5 text-slate-400">${Object.entries(project.costBasis).filter(([k]) => byBasis[k]).map(([k, v]) =>
+              `<li><span class="font-mono text-slate-300">${moneyShort(byBasis[k])}</span> · ${esc(v.text)}${v.url ? ` <a class="text-sky-400 underline" target="_blank" rel="noopener" href="${esc(v.url)}">source</a>` : ''}</li>`).join('')}</ul>
+          </div>
+          <div class="w-[38%]">
+            <div class="font-bold text-slate-200 mb-1">Escalation evidence</div>
+            <ul class="space-y-0.5 text-slate-400">${(project.escalationSources || []).map(v => `<li>${esc(v.text)} <a class="text-sky-400 underline" target="_blank" rel="noopener" href="${esc(v.url)}">source</a></li>`).join('')}</ul>
+            <p class="text-[10px] text-amber-400/80 mt-2">Excludes VAT (15%), land, design fees, client contingency and tenant fit-out. Benchmarks are for comparison, not tender prices.</p>
+          </div>
+        </div>`;
     }
 
     function renderTradeTable() {
@@ -2718,16 +2799,16 @@
     function exportCSV() {
       toggleExportMenu();
       const head = ['id', 'name', 'wbs', 'trade', 'contractor', 'phase', 'location_from', 'location_to', 'quantity', 'unit', 'unit_rate', 'productivity_per_crew_day', 'crews', 'men_per_day', 'plant_per_day',
-        'duration_d', 'remaining_d', 'start_day', 'finish_day', 'start_date', 'finish_date', 'total_float', 'critical', 'budget', 'actual_cost', 'perf_pct',
-        'cbs_labor', 'cbs_plant', 'cbs_materials', 'cbs_indirect', 'predecessors', 'bl_start_day', 'bl_finish_day', 'drawings', 'quantity_source'];
+        'duration_d', 'remaining_d', 'start_day', 'finish_day', 'start_date', 'finish_date', 'total_float', 'critical', 'base_cost', 'escalation_factor', 'budget_outturn', 'actual_cost', 'perf_pct',
+        'cbs_labor', 'cbs_plant', 'cbs_materials', 'cbs_indirect', 'predecessors', 'bl_start_day', 'bl_finish_day', 'drawings', 'quantity_source', 'rate_basis'];
       const iso = d => { const x = dateFromDay(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
       const rows = activities.map(a => {
         const q = a.qto || {}, b = baselineOf(a) || {};
         return [a.id, a.name, a.wbs, a.trade || '', a.contractor, a.phase || '', a.floors ? floorShort(a.floors[0]) : '', a.floors ? floorShort(a.floors[1]) : '',
           q.qty ?? '', q.unit ?? '', q.rate ?? '', q.prod ?? '', q.crews ?? '', a.labor, a.plant,
-          a.duration, a.remDur, a.es, a.ef, iso(a.es), iso(a.ef), a.totalFloat ?? '', a.isCritical ? 'Y' : 'N', a.cost, a.actualCost, a.performancePercent,
+          a.duration, a.remDur, a.es, a.ef, iso(a.es), iso(a.ef), a.totalFloat ?? '', a.isCritical ? 'Y' : 'N', a.baseCost ?? a.cost, (a.escFactor || 1).toFixed(4), a.cost, a.actualCost, a.performancePercent,
           a.cbs.labor, a.cbs.plant, a.cbs.materials, a.cbs.indirect, a.predecessors.map(p => `${p.id}:${p.type}${p.lag >= 0 ? '+' : ''}${p.lag}`).join(' '),
-          b.start ?? '', b.end ?? '', a.dwgs.join(' '), q.src ?? ''];
+          b.start ?? '', b.end ?? '', a.dwgs.join(' '), q.src ?? '', project.costBasis?.[q.rateBasis]?.text ?? ''];
       });
       download(`${fileTag()}_cost_loaded_schedule.csv`, csvLines([head, ...rows]), 'text/csv');
     }

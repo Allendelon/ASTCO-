@@ -23,9 +23,21 @@ Click a drawing to filter the Gantt to the work that depends on it.
 **Exports for integration** (Data menu): cost-loaded schedule, monthly cash flow, manpower by trade per month, and the drawing schedule
 as CSV, plus the full project as JSON for re-import.
 
-**What is assumed, not taken from the drawings:** unit rates (SAR), productivities, crew sizes, basement storey heights (3.6 m),
-lump sums, and quantities measured off plans/elevations (shoring, facade, roofing, lift counts, external works). Each one is labelled
-in its "Quantity source" field. Replace them with QS and contractor data before using the budget or durations.
+**Cost basis (Crystal Gallery):** NTP is 1 Mar 2027. Unit rates are at Q1-2026 prices, calibrated so block totals sit inside published KSA 2025–26 benchmarks:
+- basements: SAR 4,090/m² against a benchmark of SAR 3,600–4,600/m²
+- above-grade shell & core: SAR 7,260/m² against SAR 6,700–7,500/m² (Stonehaven KSA 2025)
+- excavation: SAR 48/m³ (Turner & Townsend KSAMI 2025)
+- curtain wall: within the Samman Group 2026 range
+- landlord fit-out: within Exceptional PM's 2026 range
+- cinema: ≈USD 9.3k/seat (Empire Cinemas KSA)
+
+Costs are escalated at 5 %/yr (AECOM 2026 TPI 3–7 %, T&T 2027 ME 5.1 %) from the rate base date to each activity's
+cost midpoint. Base SAR 298.5M → out-turn SAR 326.8M. Excludes VAT, land, fees, client contingency and tenant fit-out.
+Sources are linked in the app (EVM page → Cost basis) and in each activity's Quantities tab.
+
+**Still assumptions:** the split of each benchmark across trades, productivities, crew sizes, basement storey
+heights (3.6 m), lump sums, quantities measured off plans/elevations (shoring, facade, roofing, lift count, external works),
+and the event-plaza and external-works rates (no public benchmark found). Replace them with QS / tender data.
 
 ## What the engine actually does
 - **CPM with a data date (progress override):** completed work keeps its actual dates; in-progress work finishes at
