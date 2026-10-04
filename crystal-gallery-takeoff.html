@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crystal Gallery Take-off</title>
+<!-- Tailwind CSS v3 Play CDN + Font Awesome 6.5.1 (cdnjs) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  html, body { background:#020617; color:#e2e8f0; }
+  .grid-bg { background-image: linear-gradient(rgba(148,163,184,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.06) 1px, transparent 1px); background-size: 24px 24px; }
+  ::-webkit-scrollbar { width:8px; height:8px; } ::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; } ::-webkit-scrollbar-track { background:transparent; }
+  .tab-btn.active { color:#fff; border-bottom:2px solid #0ea5e9; }
+  .zone { cursor:pointer; } .zone:hover .zone-outline { stroke:#38bdf8; stroke-width:2.5; }
+  .zone.selected .zone-outline { stroke:#38bdf8; stroke-width:3; }
+  input.rate { width:84px; background:#0f172a; border:1px solid #334155; border-radius:4px; padding:1px 4px; text-align:right; font-family:ui-monospace,monospace; }
+  input.rate.ovr { border-color:#f59e0b; color:#fbbf24; }
+  .param-in { width:90px; background:#0f172a; border:1px solid #334155; border-radius:4px; padding:2px 6px; text-align:right; font-family:ui-monospace,monospace; }
+  .src-DRW { background:rgba(16,185,129,.15); color:#6ee7b7; } .src-DER { background:rgba(14,165,233,.15); color:#7dd3fc; } .src-ALW { background:rgba(245,158,11,.15); color:#fcd34d; }
+</style>
+</head>
+<body class="h-full flex flex-col text-slate-200 font-sans overflow-hidden">
+
+<!-- ================= HEADER ================= -->
+<header class="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 z-40">
+  <div class="flex items-center gap-3 min-w-0">
+    <div class="w-9 h-9 rounded-lg bg-sky-600/20 border border-sky-600/40 flex items-center justify-center text-sky-400"><i class="fa-solid fa-calculator"></i></div>
+    <div class="min-w-0">
+      <h1 class="text-sm font-bold text-white truncate">Crystal Gallery, Jeddah: Quantity Take-off &amp; 5D Cost Model</h1>
+      <p class="text-[11px] text-slate-400 truncate">Basis: Concept i Design, Revised Design Submission 2 (27 Jan 2023) • B2+B1+GF+L1–L4 • Class 4 parametric estimate (SAR)</p>
+    </div>
+  </div>
+
+  <!-- Active Controls: Scope Switcher, Lens Mode, Scenario Mode -->
+  <div class="flex items-center flex-wrap gap-2.5">
+    <!-- Scope Preset Selector (replaces project switcher: single project, two cost scopes) -->
+    <div class="flex items-center bg-slate-800/90 rounded-lg p-1 border border-slate-700">
+      <button id="btnScopeCore" onclick="switchProject('core')" class="px-2.5 py-1 text-xs font-medium rounded-md transition-all bg-sky-600 text-white shadow flex items-center gap-1.5" title="Landlord shell & core: tenancies handed over with screed + stubbed services">
+        <i class="fa-solid fa-building"></i> Shell &amp; Core
+      </button>
+      <button id="btnScopeFitted" onclick="switchProject('fitted')" class="px-2.5 py-1 text-xs font-medium rounded-md transition-all text-slate-400 hover:text-white flex items-center gap-1.5" title="Adds tenant fit-out allowances + cinema FF&E">
+        <i class="fa-solid fa-store"></i> Fully Fitted
+      </button>
+    </div>
+
+    <!-- Stakeholder Audience Lens -->
+    <div class="flex items-center bg-slate-800/90 rounded-lg p-1 border border-slate-700">
+      <span class="text-[11px] text-slate-400 px-2 font-medium flex items-center gap-1"><i class="fa-solid fa-eye text-slate-500"></i> Lens:</span>
+      <button id="lensExec" onclick="setLens('exec')" title="Element totals, SAR/m², cashflow" class="px-2 py-0.5 text-xs rounded text-white bg-slate-700">Client / Exec</button>
+      <button id="lensSite" onclick="setLens('site')" title="Quantities only, trades and crews" class="px-2 py-0.5 text-xs rounded text-slate-400 hover:text-white">Foreman</button>
+      <button id="lensControls" onclick="setLens('controls')" title="Full BoQ with editable rates, float, baseline variance" class="px-2 py-0.5 text-xs rounded text-slate-400 hover:text-white">Controls</button>
+    </div>
+
+    <!-- Scenario: Baseline vs EOT Delay -->
+    <div class="flex items-center bg-slate-800/90 rounded-lg p-1 border border-slate-700">
+      <span class="text-[11px] text-slate-400 px-2 font-medium">Scenario:</span>
+      <button id="scenBaseline" onclick="setScenario('baseline')" class="px-2 py-0.5 text-xs rounded font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Baseline</button>
+      <button id="scenDelay" onclick="setScenario('delay')" class="px-2 py-0.5 text-xs rounded font-medium text-slate-400 hover:text-rose-300 border border-transparent">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 mr-1"></span>EOT Delay Claim
+      </button>
+    </div>
+
+    <button onclick="toggleModal('helpModal', true)" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center border border-slate-700 transition" title="Basis of estimate, workflow & prompt template">
+      <i class="fa-solid fa-question text-xs"></i>
+    </button>
+    <button onclick="toggleScheduleDataDrawer()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center border border-slate-700 transition" title="Inspect raw schedule + BoQ data">
+      <i class="fa-solid fa-database text-xs"></i>
+    </button>
+  </div>
+</header>
+
+<!-- KPI strip -->
+<div id="kpiStrip" class="bg-slate-950 border-b border-slate-800 px-4 py-1.5 flex flex-wrap gap-x-6 gap-y-1 text-[11px]"></div>
+
+<div class="flex-1 flex overflow-hidden">
+<main class="flex-1 flex flex-col overflow-hidden min-w-0">
+
+<!-- TOP SECTION: 2D SECTION / ELEVATION PROGRESS MODEL -->
+<div class="h-[42vh] min-h-[260px] max-h-[500px] bg-slate-900/60 border-b border-slate-800 flex flex-col relative grid-bg overflow-hidden">
+  <div class="absolute top-3 left-3 right-3 z-20 flex items-start justify-between gap-2 pointer-events-none flex-wrap">
+    <div class="pointer-events-auto flex items-center gap-2 bg-slate-900/90 border border-slate-700/80 px-3 py-1.5 rounded-lg shadow-lg backdrop-blur text-xs">
+      <span class="flex h-2.5 w-2.5 relative">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+      </span>
+      <span class="font-semibold text-slate-200" id="currentSimDateLabel">Week 1</span>
+      <span class="text-slate-500">|</span>
+      <span id="simOverallProgress" class="font-mono text-sky-400 font-medium">0% Complete</span>
+      <span class="text-slate-500">|</span>
+      <span id="simCostToDate" class="font-mono text-slate-300">SAR 0</span>
+    </div>
+
+    <div id="spatialConflictBanner" class="pointer-events-auto hidden items-center gap-2 bg-rose-950/80 border border-rose-600/70 text-rose-200 px-3 py-1.5 rounded-lg shadow-lg backdrop-blur text-xs max-w-md">
+      <i class="fa-solid fa-triangle-exclamation text-rose-400 text-sm animate-bounce"></i>
+      <div><span class="font-bold">Site Spatial Conflict:</span><span id="spatialConflictText" class="text-rose-300 ml-1"></span></div>
+    </div>
+
+    <div class="pointer-events-auto hidden md:flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/80 px-2 py-1.5 rounded-lg shadow-lg backdrop-blur text-[11px]">
+      <div class="flex items-center gap-1 mr-2 text-slate-400 flex-wrap">
+        <span class="w-2.5 h-2.5 rounded bg-emerald-500 inline-block"></span> Complete
+        <span class="w-2.5 h-2.5 rounded bg-amber-500 inline-block ml-1"></span> In Progress
+        <span class="w-2.5 h-2.5 rounded bg-rose-500 inline-block ml-1"></span> Delayed (EOT)
+        <span class="w-2.5 h-2.5 rounded bg-slate-700 inline-block ml-1"></span> Upcoming
+      </div>
+      <button onclick="resetZoom()" class="p-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px]" title="Reset selection"><i class="fa-solid fa-arrows-rotate mr-0.5"></i> Reset View</button>
+    </div>
+  </div>
+
+  <div id="visualCanvasContainer" class="flex-1 w-full h-full relative flex items-center justify-center p-4 pt-12 overflow-hidden">
+    <svg id="projectSvg" class="w-full h-full max-w-5xl transition-all duration-300" viewBox="0 0 1000 520" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="componentTooltip" class="absolute hidden pointer-events-none z-30 bg-slate-900/95 border border-slate-700 px-3 py-2 rounded-lg text-xs shadow-2xl backdrop-blur max-w-xs">
+      <div id="tipTitle" class="font-bold text-white mb-0.5"></div>
+      <div id="tipDates" class="text-slate-400 text-[11px] mb-1"></div>
+      <div id="tipStatus" class="font-medium text-amber-400 text-[11px]"></div>
+      <div id="tipTrade" class="text-slate-400 text-[10px] mt-1 border-t border-slate-800 pt-1"></div>
+    </div>
+  </div>
+
+  <div class="absolute bottom-2 right-3 z-20 flex gap-2">
+    <button id="btnInspectDrawer" onclick="toggleInspector()" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 flex items-center gap-1.5 shadow">
+      <i class="fa-solid fa-layer-group text-sky-400"></i> Zone Inspector
+    </button>
+  </div>
+</div>
+
+<!-- SCRUBBER & PLAYBACK -->
+<div class="bg-slate-900 border-b border-slate-800 px-4 py-2 flex flex-col md:flex-row items-center justify-between gap-3 shadow-md z-30">
+  <div class="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
+    <div class="flex items-center gap-1">
+      <button onclick="stepSim(-1)" class="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center border border-slate-700 text-xs" title="Previous Week"><i class="fa-solid fa-backward-step"></i></button>
+      <button id="btnPlayPause" onclick="togglePlay()" class="w-10 h-8 rounded bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center shadow-md shadow-sky-950 text-sm"><i class="fa-solid fa-play"></i></button>
+      <button onclick="stepSim(1)" class="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center border border-slate-700 text-xs" title="Next Week"><i class="fa-solid fa-forward-step"></i></button>
+      <button onclick="resetSim()" class="w-8 h-8 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center border border-slate-700 text-xs ml-1" title="Rewind to Project Start"><i class="fa-solid fa-rotate-left"></i></button>
+    </div>
+    <div class="flex items-center bg-slate-800/80 rounded px-1.5 py-1 border border-slate-700 text-xs text-slate-300 gap-1">
+      <span class="text-[10px] text-slate-400">Speed:</span>
+      <button onclick="setSpeed(1)" data-speed="1" class="speed-btn px-1.5 py-0.5 rounded text-[10px] font-mono">1x</button>
+      <button onclick="setSpeed(2)" data-speed="2" class="speed-btn px-1.5 py-0.5 rounded text-[10px] font-mono">2x</button>
+      <button onclick="setSpeed(5)" data-speed="5" class="speed-btn px-1.5 py-0.5 rounded text-[10px] font-mono">5x</button>
+    </div>
+    <div class="text-xs font-mono font-bold bg-slate-950 px-2.5 py-1 rounded border border-slate-800 text-sky-400 flex items-center gap-1.5">
+      <i class="fa-regular fa-calendar-check text-slate-500"></i><span id="badgeWeekNumber">Week 1</span>
+    </div>
+  </div>
+
+  <div class="w-full md:flex-1 max-w-3xl flex items-center gap-3 pb-3 md:pb-0">
+    <span class="text-[11px] font-mono text-slate-400 hidden sm:inline">W01</span>
+    <div class="flex-1 relative flex items-center">
+      <input type="range" id="timelineScrubber" min="1" max="111" value="1" step="1" oninput="onScrub(this.value)" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500 focus:outline-none" />
+      <div id="scrubberMilestones" class="absolute top-3 left-0 right-0 pointer-events-none text-[9px] text-slate-500 font-mono"></div>
+    </div>
+    <span class="text-[11px] font-mono text-slate-400 hidden sm:inline" id="scrubberEndLabel">W111</span>
+  </div>
+
+  <div class="flex items-center gap-2 text-xs">
+    <div class="bg-slate-800/80 px-2.5 py-1 rounded border border-slate-700 text-slate-300 flex items-center gap-1.5">
+      <span class="text-slate-400">On-Site Trades:</span><span id="activeTradesCount" class="font-bold text-amber-400 font-mono">0</span>
+    </div>
+    <div id="eotImpactBadge" class="hidden bg-rose-950/80 px-2.5 py-1 rounded border border-rose-700 text-rose-300 flex items-center gap-1.5 animate-pulse">
+      <i class="fa-solid fa-clock-rotate-left"></i><span class="font-bold font-mono" id="eotBadgeText">+6 Wks EOT</span>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM SECTION: TABS (Gantt / BoQ / Cost Plan / Assumptions) -->
+<div class="flex-1 min-h-[220px] bg-slate-950 flex flex-col overflow-hidden relative">
+  <div class="bg-slate-900/60 border-b border-slate-800 px-4 flex items-center justify-between text-xs flex-wrap gap-2">
+    <div class="flex items-center gap-4">
+      <button class="tab-btn active py-2 text-slate-400 hover:text-white font-semibold" data-tab="gantt" onclick="setTab('gantt')"><i class="fa-solid fa-network-wired text-sky-400 mr-1"></i>Gantt</button>
+      <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="boq" onclick="setTab('boq')"><i class="fa-solid fa-ruler-combined text-amber-400 mr-1"></i>Take-off BoQ</button>
+      <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="cost" onclick="setTab('cost')"><i class="fa-solid fa-chart-line text-emerald-400 mr-1"></i>Cost Plan &amp; Cashflow</button>
+      <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="params" onclick="setTab('params')"><i class="fa-solid fa-sliders text-slate-400 mr-1"></i>Assumptions</button>
+    </div>
+    <div id="ganttTools" class="flex items-center gap-2 py-1.5">
+      <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none">
+        <input type="checkbox" id="chkCriticalOnly" onchange="renderGantt()" class="rounded bg-slate-800 border-slate-700"><span>Critical Path Only</span>
+      </label>
+      <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none ml-2">
+        <input type="checkbox" id="chkShowBaselineShadow" checked onchange="renderGantt()" class="rounded bg-slate-800 border-slate-700"><span>Show Baseline Ghost</span>
+      </label>
+      <div class="h-4 w-px bg-slate-700 mx-1"></div>
+      <button onclick="filterGanttSearch()" class="text-slate-400 hover:text-white px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1"><i class="fa-solid fa-filter text-slate-500"></i> Filter WBS</button>
+      <input id="ganttFilterInput" oninput="renderGantt()" placeholder="e.g. MEP, L2, raft" class="hidden bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-[11px] w-36">
+    </div>
+    <div id="boqTools" class="hidden items-center gap-2 py-1.5">
+      <input id="boqFilterInput" oninput="renderBoQ()" placeholder="Filter items…" class="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-[11px] w-40">
+      <button onclick="resetRates()" class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] text-slate-300 hover:text-white"><i class="fa-solid fa-eraser mr-1"></i>Reset rates</button>
+      <button onclick="exportCSV()" class="px-2 py-0.5 rounded bg-sky-700 hover:bg-sky-600 text-[11px] text-white"><i class="fa-solid fa-file-csv mr-1"></i>Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Gantt panel -->
+  <div id="panel-gantt" class="flex-1 flex overflow-hidden">
+    <div class="w-72 sm:w-96 border-r border-slate-800 bg-slate-900/30 flex flex-col flex-shrink-0">
+      <div class="h-8 border-b border-slate-800 bg-slate-900/80 px-3 flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+        <span>Activity / WBS</span><span id="ganttColHead">Dur • Cost</span>
+      </div>
+      <div id="ganttTableRows" class="flex-1 overflow-y-auto text-xs"></div>
+    </div>
+    <div id="ganttTimelineWrapper" class="flex-1 flex flex-col overflow-x-auto overflow-y-hidden relative bg-slate-950">
+      <div id="ganttTimeHeader" class="h-8 border-b border-slate-800 bg-slate-900/80 flex-shrink-0 sticky top-0 z-10 text-[10px] font-mono text-slate-400 relative"></div>
+      <div id="ganttBarsContainer" class="flex-1 relative overflow-y-auto">
+        <div id="ganttCursorLine" class="absolute top-0 w-0.5 bg-sky-400 z-20 pointer-events-none shadow-[0_0_8px_rgba(56,189,248,0.8)]"><div class="w-2.5 h-2.5 bg-sky-400 rounded-full -ml-1 -mt-1 shadow"></div></div>
+        <div id="ganttRowsWrapper"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BoQ panel -->
+  <div id="panel-boq" class="hidden flex-1 overflow-auto">
+    <table class="w-full text-[11px] border-collapse">
+      <thead class="sticky top-0 bg-slate-900 z-10 text-slate-400 uppercase tracking-wider text-[10px]">
+        <tr id="boqHead"></tr>
+      </thead>
+      <tbody id="boqBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Cost panel -->
+  <div id="panel-cost" class="hidden flex-1 overflow-auto p-4">
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+        <h5 class="font-semibold text-slate-200 text-xs mb-2">Elemental cost summary (excl. VAT)</h5>
+        <div id="elementBars" class="space-y-1.5 text-[11px]"></div>
+        <table class="w-full text-[11px] mt-3" id="markupTable"></table>
+      </div>
+      <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40 relative">
+        <h5 class="font-semibold text-slate-200 text-xs mb-1">Cumulative cashflow S-curve (SAR M, excl. VAT)</h5>
+        <div id="sCurveLegend" class="flex gap-3 text-[11px] text-slate-400 mb-1"></div>
+        <svg id="sCurve" viewBox="0 0 560 280" class="w-full h-auto"></svg>
+        <div id="sCurveTip" class="absolute hidden pointer-events-none bg-slate-900/95 border border-slate-700 rounded px-2 py-1 text-[11px]"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Params panel -->
+  <div id="panel-params" class="hidden flex-1 overflow-auto p-4 text-xs">
+    <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4" id="paramsGrid"></div>
+    <div class="mt-4 border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+      <h5 class="font-semibold text-slate-200 mb-2">Schedule of areas (drawing p.17), used as the measurement base</h5>
+      <div class="overflow-x-auto"><table class="w-full text-[11px]" id="areaTable"></table></div>
+      <p class="text-amber-300/90 text-[11px] mt-2"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Drawing inconsistency: L4 has 246 m² retail counted in Net Lease (16,298) but left out of Gross Area (45,852). This model costs L4 as built, so the GFA costed is 46,098 m². Raise an RFI with the architect.</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<!-- ================= ZONE INSPECTOR (right drawer) ================= -->
+<aside id="inspectorDrawer" class="w-80 border-l border-slate-800 bg-slate-900 flex-col hidden xl:flex flex-shrink-0">
+  <div class="px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+    <span class="font-semibold text-sm text-white"><i class="fa-solid fa-layer-group text-sky-400 mr-1.5"></i>Zone Inspector</span>
+    <button onclick="toggleInspector()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div class="p-4 overflow-y-auto flex-1 space-y-4 text-xs">
+    <div id="inspectSelectedBox" class="bg-slate-800/70 border border-slate-700 rounded-lg p-3">
+      <div class="text-[11px] uppercase tracking-wider text-sky-400 font-semibold mb-1" id="inspectZoneTag">Zone Analysis</div>
+      <h4 class="text-sm font-bold text-white mb-1" id="inspectTitle">Select a level or work block</h4>
+      <p class="text-slate-400 text-[11px] mb-2" id="inspectDescription">Click a level in the section model or a Gantt bar to inspect quantities, cost, trades and float.</p>
+      <div class="grid grid-cols-2 gap-2 mt-3 text-[11px]">
+        <div class="bg-slate-900/80 p-2 rounded border border-slate-700/60"><span class="text-slate-500 block">Baseline Start/End</span><span class="font-mono text-slate-200" id="inspectBaselineDates">-</span></div>
+        <div class="bg-slate-900/80 p-2 rounded border border-slate-700/60"><span class="text-slate-500 block">Current Status</span><span class="font-semibold text-emerald-400" id="inspectStatus">-</span></div>
+        <div class="bg-slate-900/80 p-2 rounded border border-slate-700/60"><span class="text-slate-500 block">Zone cost (direct)</span><span class="font-mono text-slate-200" id="inspectCost">-</span></div>
+        <div class="bg-slate-900/80 p-2 rounded border border-slate-700/60"><span class="text-slate-500 block">GFA / SAR per m²</span><span class="font-mono text-slate-200" id="inspectRate">-</span></div>
+      </div>
+    </div>
+
+    <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+      <h5 class="font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-ruler-combined text-amber-400"></i> Top take-off items in zone</h5>
+      <ul id="inspectQtyList" class="space-y-1 text-slate-400"></ul>
+    </div>
+
+    <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+      <h5 class="font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-helmet-safety text-amber-400"></i> Trade Crew Presence (This Week)</h5>
+      <ul id="inspectTradesList" class="space-y-1.5 text-slate-400"></ul>
+    </div>
+
+    <div id="eotAnalysisBox" class="border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+      <h5 class="font-semibold text-slate-300 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-scale-balanced text-rose-400"></i> Delay &amp; EOT Claim Assessment</h5>
+      <p class="text-slate-400 text-[11px] leading-relaxed mb-2" id="eotExplanationText"></p>
+      <div class="bg-rose-950/40 border border-rose-800/60 p-2.5 rounded text-rose-300 font-mono text-[11px] space-y-1">
+        <div class="flex justify-between"><span>Critical float depleted:</span><span class="font-bold" id="eotFloat">-</span></div>
+        <div class="flex justify-between"><span>Prolongation cost:</span><span class="font-bold" id="eotCost">-</span></div>
+      </div>
+    </div>
+
+    <div class="bg-sky-950/30 border border-sky-800/40 rounded-lg p-3 text-[11px] text-sky-200">
+      <div class="font-bold text-sky-400 mb-1 flex items-center gap-1"><i class="fa-solid fa-lightbulb"></i> Read this before quoting the number</div>
+      <p class="text-slate-300 leading-relaxed">This is a Class 4 estimate built from a concept presentation that has no dimensions, structure, MEP or specification. Expect an accuracy of about −20% / +30%. Rates are editable placeholders. Replace them with current Jeddah supplier or subcontract quotes before any commercial use.</p>
+    </div>
+  </div>
+</aside>
+</div>
+
+<!-- ================= RAW DATA MODAL ================= -->
+<div id="scheduleDataDrawer" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4" onclick="if(event.target===this)toggleScheduleDataDrawer()">
+  <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+    <div class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+      <span class="font-semibold text-white text-sm"><i class="fa-solid fa-database text-sky-400 mr-1.5"></i>Raw Schedule &amp; Take-off Data</span>
+      <button onclick="toggleScheduleDataDrawer()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="p-5 overflow-y-auto space-y-3 text-xs">
+      <p class="text-slate-400">The structured data driving the 4D/5D model: area schedule, parameters, activities (P6-style) and priced BoQ for the active scenario.</p>
+      <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-[11px] text-slate-300 overflow-x-auto max-h-80">
+        <pre id="rawSchedulePre">Loading schedule JSON...</pre>
+      </div>
+      <div class="flex items-center justify-between pt-2">
+        <span class="text-slate-500 text-[11px]">Synced with simulation engine</span>
+        <button onclick="copyRawSchedule()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded border border-slate-700 text-xs flex items-center gap-1.5"><i class="fa-regular fa-copy"></i> <span id="copyJsonLabel">Copy JSON</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= HELP MODAL ================= -->
+<div id="helpModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4" onclick="if(event.target===this)toggleModal('helpModal',false)">
+  <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-3xl max-h-[88vh] flex flex-col">
+    <div class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+      <span class="font-semibold text-white text-sm"><i class="fa-solid fa-circle-info text-sky-400 mr-1.5"></i>Basis of Estimate &amp; Workflow</span>
+      <button onclick="toggleModal('helpModal',false)" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="p-5 overflow-y-auto space-y-4 text-xs text-slate-300 leading-relaxed">
+      <div class="bg-amber-950/30 border border-amber-800/50 p-3 rounded-lg">
+        <h4 class="font-bold text-amber-300 text-sm mb-1">What the drawings support and what they don't</h4>
+        <ul class="list-disc list-inside space-y-1 text-[12px]">
+          <li><b>Measured from the drawings (green "DRW"):</b> GFA by level and use (p.17), floor-to-floor heights GF 7.0 / L1 6.0 / L2 5.5 / L3 5.5 / L4 3.5 m (pp.18–24), 451 car spaces, 1,075 cinema seats, 2 substations (B1), generator + fuel tank + LPG tank (GF).</li>
+          <li><b>Derived (blue "DER"):</b> drawing quantities combined with an engineering assumption, e.g. concrete = slab area × equivalent thickness. The assumption sits on the Assumptions tab.</li>
+          <li><b>Allowance (amber "ALW"):</b> no drawing basis yet, e.g. piling, escalator count, external works area, site utilities.</li>
+          <li>The set has no structural, geotechnical, MEP, facade or specification information. Basement storey height, raft thickness and piling are assumed.</li>
+        </ul>
+      </div>
+      <div class="bg-sky-950/40 border border-sky-800/60 p-3 rounded-lg">
+        <h4 class="font-bold text-sky-300 text-sm mb-1">The 3-Step Local HTML Workflow</h4>
+        <ol class="list-decimal list-inside space-y-1 text-[12px]">
+          <li><strong>Export Schedule:</strong> export your baseline from Primavera P6 as <code>.XER</code>/Excel and replace <code>ACTIVITIES</code> in this file.</li>
+          <li><strong>Add Drawings:</strong> update <code>AREA</code>, <code>HEIGHT</code> and the perimeters when SUB3 or DD drawings with dimensions arrive.</li>
+          <li><strong>Re-price:</strong> overwrite rates in the Controls lens. Overrides show in amber and are kept in this browser.</li>
+        </ol>
+      </div>
+      <div>
+        <h4 class="font-bold text-white mb-1.5">Ready-to-Use AI Prompt Template</h4>
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-[11px] text-sky-300">
+          <p id="promptTemplateText">I have placed my construction schedule export (XER/Excel), the architect's area schedule and the site drawings in this folder. Please generate a single self-contained HTML file that acts as an interactive 4D/5D take-off and cost model. At the top, show a 2D section of the building that highlights work areas as they are built (brown for earthworks, grey for concrete, blue for glazing, copper for screens). At the bottom, show a synchronized Gantt schedule, an editable bill of quantities with source flags (drawing / derived / allowance), and a cumulative cashflow S-curve. Include a play/pause simulation and a Baseline vs Extension of Time (EOT) scenario with prolongation cost.</p>
+          <button onclick="copyPrompt()" class="mt-2 px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 text-slate-200 text-[11px]"><i class="fa-regular fa-copy mr-1"></i><span id="copyPromptLabel">Copy Prompt</span></button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 pt-2">
+        <div class="bg-slate-800/60 p-2.5 rounded border border-slate-700">
+          <h5 class="font-semibold text-slate-200 mb-1"><i class="fa-solid fa-check text-emerald-400 mr-1"></i> Measurement method</h5>
+          <p class="text-[11px] text-slate-400">The BoQ is grouped by element, loosely following NRM1 elemental order. Quantities are net, with no waste included. Rates cover supply and installation.</p>
+        </div>
+        <div class="bg-slate-800/60 p-2.5 rounded border border-slate-700">
+          <h5 class="font-semibold text-slate-200 mb-1"><i class="fa-solid fa-handshake text-sky-400 mr-1"></i> Exclusions</h5>
+          <p class="text-[11px] text-slate-400">Land, authority fees, design fees, financing, tenant works in Shell &amp; Core scope, loose FF&amp;E, escalation beyond the base date, and VAT (shown separately).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   1. DRAWING DATA: Crystal Gallery, Revised Design Submission 2
+   ===================================================================== */
+// Schedule of Areas (p.17), m². L4 gross is blank on the drawing; 246 m² retail is used (see RFI note).
+const AREA = {
+  B2: { circ:110, mep:660, parking:11730, cars:237, gross:12500 },
+  B1: { circ:134, mep:802, parking:11564, cars:202, gross:12500 },
+  GF: { retail:670, event:435, fnb:2522, terrace:1150, circ:1803, mep:923, cars:12, gross:7503 },
+  L1: { fnb:3463, terrace:940, circ:946, mep:273, gross:5622 },
+  L2: { fnb:1446, terrace:770, cinema:2974, circ:489, mep:146, gross:5825, seats:1075 },
+  L3: { retail:487, fnb:623, terrace:572, circ:63, mep:157, gross:1902 },
+  L4: { retail:246, gross:246 }
+};
+const LEVELS_BELOW = ['B2','B1'], LEVELS_ABOVE = ['GF','L1','L2','L3','L4'], ALL_LEVELS = [...LEVELS_BELOW, ...LEVELS_ABOVE];
+// Floor-to-floor heights (m): elevations/sections pp.18–24. L4 = 3.5 from Cross Sections 1&2.
+const HEIGHT = { GF:7.0, L1:6.0, L2:5.5, L3:5.5, L4:3.5 };
+const SPACE = {
+  retail:{label:'Retail', color:'#f08ee6'}, event:{label:'Event plaza', color:'#f7c6a8'}, fnb:{label:'F&B', color:'#f2cd3a'},
+  terrace:{label:'Terrace', color:'#fde9a5'}, cinema:{label:'Cinema', color:'#d8c3e0'}, circ:{label:'Circulation & WC', color:'#e9dfc8'},
+  mep:{label:'MEP / service', color:'#8f8f8f'}, parking:{label:'Parking', color:'#cbd5e1'}
+};
+
+/* =====================================================================
+   2. ESTIMATING PARAMETERS (editable on the Assumptions tab)
+   ===================================================================== */
+const P_DEFAULT = {
+  startDate:'2026-01-04',
+  bsmtF2F:3.6, raftThk:1.0, wallThk:0.40, bsmtPerimeter:455, shoringToe:4.0,
+  pileCount:360, pileLength:18, dewaterMonths:8,
+  eqB1:0.32, eqGF:0.42, eqSuper:0.30, colB:0.035, colS:0.05, stairConc:600,
+  rebarRaft:110, rebarWall:120, rebarSlab:130, rebarCol:220,
+  perimGF:476, perimL1:412, perimL2:382, perimL3:218, perimL4:64,
+  fCW:0.45, fScreen:0.35, fSolid:0.20,
+  partAbove:0.60, partBelow:0.12,
+  escalators:8, passLifts:6, serviceLifts:2, cinemaScreens:7,
+  extHard:6000, extSoft:2000,
+  prelimsPct:10, ohpPct:8, designContPct:10, constContPct:5, vatPct:15,
+  eotWeeks:6, timeRelShare:0.6
+};
+const PARAM_META = [
+  ['Programme', [['startDate','Construction start (date)','date'],['eotWeeks','EOT: SEC approval slip (weeks)'],['timeRelShare','Time-related share of prelims (0–1)']]],
+  ['Substructure', [['bsmtF2F','Basement floor-to-floor (m)'],['raftThk','Raft thickness (m)'],['wallThk','Retaining wall thickness (m)'],['bsmtPerimeter','Basement perimeter (m), scaled from B1'],['shoringToe','Shoring toe-in below formation (m)'],['pileCount','Bored piles (no.), provisional'],['pileLength','Pile length (m)'],['dewaterMonths','Dewatering duration (months)']]],
+  ['Frame intensities', [['eqB1','B1 slab equivalent thickness (m)'],['eqGF','GF podium slab equiv. thk (m)'],['eqSuper','Upper slabs equiv. thk (m)'],['colB','Basement cols/cores (m³/m² GFA)'],['colS','Upper cols/cores (m³/m² GFA)'],['stairConc','Stairs & car ramps concrete (m³)'],['rebarRaft','Rebar: raft (kg/m³)'],['rebarWall','Rebar: walls (kg/m³)'],['rebarSlab','Rebar: slabs/beams (kg/m³)'],['rebarCol','Rebar: columns/cores (kg/m³)']]],
+  ['Envelope', [['perimGF','Facade perimeter GF (m)'],['perimL1','Facade perimeter L1 (m)'],['perimL2','Facade perimeter L2 (m)'],['perimL3','Facade perimeter L3 (m)'],['perimL4','Facade perimeter L4 (m)'],['fCW','Share: curtain wall'],['fScreen','Share: mashrabiya screen'],['fSolid','Share: solid cladding']]],
+  ['Internal / VT / External', [['partAbove','Partitions above GF (m²/m² GFA)'],['partBelow','Partitions basements (m²/m² GFA)'],['escalators','Escalators (no.)'],['passLifts','Passenger lifts (no.)'],['serviceLifts','Service lifts (no.)'],['cinemaScreens','Cinema auditoria (no.)'],['extHard','External hardscape/roads (m²)'],['extSoft','Soft landscape (m²)']]],
+  ['Markups (%)', [['prelimsPct','Preliminaries'],['ohpPct','Contractor OH&P'],['designContPct','Design contingency'],['constContPct','Construction contingency'],['vatPct','VAT (KSA)']]]
+];
+
+/* =====================================================================
+   3. PROGRAMME (P6-style baseline, weeks). crit = on critical path.
+   ===================================================================== */
+const ACTIVITIES = [
+  {id:'mob',  wbs:'1.1', grp:'Enabling & Substructure', name:'Mobilisation, hoarding & site setup', s:1,  d:4,  crit:true,  fl:0,  trade:'General contractor', crew:25},
+  {id:'shor', wbs:'1.2', grp:'Enabling & Substructure', name:'Secant pile shoring & anchors',       s:3,  d:14, crit:true,  fl:0,  trade:'Piling subcontractor (2 rigs)', crew:30},
+  {id:'dewat',wbs:'1.3', grp:'Enabling & Substructure', name:'Dewatering (deep wells)',             s:8,  d:35, crit:false, fl:4,  trade:'Dewatering specialist', crew:6},
+  {id:'exc',  wbs:'1.4', grp:'Enabling & Substructure', name:'Bulk excavation & disposal',          s:10, d:14, crit:true,  fl:0,  trade:'Earthworks (excavators + tippers)', crew:40},
+  {id:'pile', wbs:'1.5', grp:'Enabling & Substructure', name:'Bored piling & pile testing',         s:18, d:10, crit:true,  fl:0,  trade:'Piling subcontractor', crew:28},
+  {id:'raft', wbs:'1.6', grp:'Enabling & Substructure', name:'Blinding, waterproofing & raft',      s:26, d:10, crit:true,  fl:0,  trade:'Concrete crew A + waterproofing', crew:85},
+  {id:'b2',   wbs:'2.1', grp:'Frame', name:'B2 walls/columns + B1 slab',                            s:34, d:10, crit:true,  fl:0,  trade:'Formwork & concrete crew A', crew:90},
+  {id:'b1',   wbs:'2.2', grp:'Frame', name:'B1 walls/columns + GF podium slab',                     s:42, d:10, crit:true,  fl:0,  trade:'Formwork & concrete crew A', crew:95},
+  {id:'pod',  wbs:'2.3', grp:'Frame', name:'Podium waterproofing & backfill',                       s:50, d:6,  crit:false, fl:8,  trade:'Waterproofing subcontractor', crew:14},
+  {id:'gf',   wbs:'2.4', grp:'Frame', name:'GF frame + L1 slab',                                    s:50, d:9,  crit:true,  fl:0,  trade:'Formwork & concrete crew A/B', crew:80},
+  {id:'l1',   wbs:'2.5', grp:'Frame', name:'L1 frame + L2 slab',                                    s:58, d:9,  crit:true,  fl:0,  trade:'Formwork & concrete crew A/B', crew:75},
+  {id:'l2',   wbs:'2.6', grp:'Frame', name:'L2 frame (cinema long-span) + L3 slab',                 s:66, d:10, crit:true,  fl:0,  trade:'Formwork & concrete crew A/B', crew:75},
+  {id:'l3',   wbs:'2.7', grp:'Frame', name:'L3/L4 frame + roof slabs (topping out)',                s:75, d:7,  crit:true,  fl:0,  trade:'Formwork & concrete crew B', crew:50},
+  {id:'stl',  wbs:'2.8', grp:'Frame', name:'Structural steel trellis & canopies',                   s:80, d:8,  crit:false, fl:10, trade:'Steel erector', crew:16},
+  {id:'roof', wbs:'3.1', grp:'Envelope', name:'Roofing & terrace waterproofing',                    s:82, d:8,  crit:false, fl:6,  trade:'Roofing subcontractor', crew:18},
+  {id:'cw',   wbs:'3.2', grp:'Envelope', name:'Unitised curtain wall',                              s:72, d:22, crit:false, fl:5,  trade:'Facade subcontractor', crew:32},
+  {id:'scr',  wbs:'3.3', grp:'Envelope', name:'Mashrabiya screen & solid cladding',                 s:82, d:18, crit:false, fl:4,  trade:'Facade subcontractor (screens)', crew:24},
+  {id:'mepB', wbs:'4.1', grp:'MEP & VT', name:'MEP rough-in & plant: basements',                    s:46, d:30, crit:false, fl:12, trade:'MEP contractor', crew:60},
+  {id:'mepS', wbs:'4.2', grp:'MEP & VT', name:'MEP superstructure & central plant',                 s:64, d:40, crit:false, fl:3,  trade:'MEP contractor', crew:110},
+  {id:'vt',   wbs:'4.3', grp:'MEP & VT', name:'Escalators & lifts',                                 s:84, d:18, crit:false, fl:4,  trade:'VT specialist', crew:14},
+  {id:'intB', wbs:'5.1', grp:'Fit-out & Finishes', name:'Basement blockwork & finishes',            s:62, d:24, crit:false, fl:14, trade:'Finishing crew C', crew:45},
+  {id:'intS', wbs:'5.2', grp:'Fit-out & Finishes', name:'Upper partitions & public finishes',       s:82, d:22, crit:true,  fl:0,  trade:'Finishing crews D/E', crew:120},
+  {id:'cin',  wbs:'5.3', grp:'Fit-out & Finishes', name:'Cinema acoustic shell',                    s:84, d:18, crit:false, fl:2,  trade:'Acoustic specialist', crew:22},
+  {id:'fit',  wbs:'5.4', grp:'Fit-out & Finishes', name:'Tenant fit-out (Fully Fitted scope)',      s:94, d:14, crit:false, fl:2,  trade:'Fit-out contractors', crew:90, fittedOnly:true},
+  {id:'ext',  wbs:'6.1', grp:'Externals', name:'External works, drop-off & fountain plaza',         s:90, d:16, crit:false, fl:3,  trade:'Landscape & roads', crew:35},
+  {id:'sec',  wbs:'7.1', grp:'Completion', name:'SEC substation approval & energisation',           s:100,d:4,  crit:true,  fl:0,  trade:'SEC / MV contractor', crew:8},
+  {id:'tc',   wbs:'7.2', grp:'Completion', name:'Testing, commissioning & Civil Defence',           s:104,d:6,  crit:true,  fl:0,  trade:'Commissioning team', crew:20},
+  {id:'ho',   wbs:'7.3', grp:'Completion', name:'Practical completion & handover',                  s:110,d:2,  crit:true,  fl:0,  trade:'PM / client', crew:6, milestone:true}
+];
+
+/* =====================================================================
+   4. STATE
+   ===================================================================== */
+let P = loadJSON('cg_params', {...P_DEFAULT});
+P = {...P_DEFAULT, ...P};
+let RATE_OVR = loadJSON('cg_rates', {});
+let state = { week:1, scope:'core', lens:'exec', scen:'baseline', playing:false, speed:1, timer:null, tab:'gantt', zone:null, act:null };
+let BOQ = [], COST = null, D = null;
+
+function loadJSON(k, def){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch(e){ return def; } }
+function saveJSON(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+
+const nf0 = new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
+const nf1 = new Intl.NumberFormat('en-US',{maximumFractionDigits:1});
+const nf2 = new Intl.NumberFormat('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+const sarM = v => 'SAR ' + nf2.format(v/1e6) + 'M';
+const sar = v => 'SAR ' + nf0.format(v);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* =====================================================================
+   5. DERIVED QUANTITIES
+   ===================================================================== */
+function sumKey(key, levels = ALL_LEVELS){ return levels.reduce((s,l) => s + (AREA[l][key]||0), 0); }
+function byKey(key){ const o = {}; ALL_LEVELS.forEach(l => { if (AREA[l][key]) o[l] = AREA[l][key]; }); return o; }
+
+function derive(){
+  const d = {};
+  d.fp = AREA.B1.gross;
+  d.bsmtH = 2 * P.bsmtF2F;
+  d.depth = d.bsmtH + P.raftThk + 0.3;              // + blinding & sub-base
+  d.per = P.bsmtPerimeter;
+  d.gfaBelow = sumKey('gross', LEVELS_BELOW);
+  d.gfaAbove = sumKey('gross', LEVELS_ABOVE);
+  d.gfa = d.gfaBelow + d.gfaAbove;
+  d.gfaSchedule = 45852;
+  // exposed roof = Σ max(0, A_i − A_{i+1}) up the stack
+  d.roof = LEVELS_ABOVE.reduce((s,k,i) => s + Math.max(0, AREA[k].gross - (i < LEVELS_ABOVE.length-1 ? AREA[LEVELS_ABOVE[i+1]].gross : 0)), 0);
+  d.upperFloors = sumKey('gross', ['L1','L2','L3','L4']);
+  d.superSlab = d.upperFloors + d.roof;
+  d.perim = {GF:P.perimGF, L1:P.perimL1, L2:P.perimL2, L3:P.perimL3, L4:P.perimL4};
+  d.facadeBy = {}; LEVELS_ABOVE.forEach(k => d.facadeBy[k] = d.perim[k] * HEIGHT[k]);
+  d.facade = Object.values(d.facadeBy).reduce((a,b)=>a+b,0);
+  d.terraceUpper = sumKey('terrace', ['L1','L2','L3']);
+  d.podiumOpen = d.fp - AREA.GF.gross;
+  d.retail = sumKey('retail'); d.fnb = sumKey('fnb'); d.tenancy = d.retail + d.fnb;
+  d.circ = sumKey('circ'); d.circAbove = sumKey('circ', LEVELS_ABOVE);
+  d.mep = sumKey('mep'); d.parking = sumKey('parking'); d.cinema = sumKey('cinema');
+  d.terrace = sumKey('terrace'); d.event = sumKey('event'); d.cars = sumKey('cars'); d.seats = AREA.L2.seats;
+  d.tenancyShell = d.tenancy + d.event;
+  d.concRaft = d.fp * P.raftThk;
+  d.concWall = d.per * d.bsmtH * P.wallThk;
+  d.concB1 = d.fp * P.eqB1;
+  d.concGF = d.fp * P.eqGF;
+  d.concColB = d.gfaBelow * P.colB;
+  d.concSuper = d.superSlab * P.eqSuper;
+  d.concColS = d.gfaAbove * P.colS;
+  d.concStair = P.stairConc;
+  d.concTotal = d.concRaft + d.concWall + d.concB1 + d.concGF + d.concColB + d.concSuper + d.concColS + d.concStair;
+  d.partitions = d.gfaAbove * P.partAbove + d.gfaBelow * P.partBelow;
+  return d;
+}
+
+/* =====================================================================
+   6. TAKE-OFF / BILL OF QUANTITIES
+   Each line: code, grp, desc, qty, unit, rate (SAR, indicative), basis, src, act (activity weights), z (zone weights)
+   ===================================================================== */
+const UPPER_ACT = () => ({gf:AREA.GF.gross, l1:AREA.L1.gross, l2:AREA.L2.gross, l3:AREA.L3.gross + AREA.L4.gross});
+const UPPER_Z = () => ({GF:AREA.GF.gross, L1:AREA.L1.gross, L2:AREA.L2.gross, L3:AREA.L3.gross, L4:AREA.L4.gross});
+const BSMT_Z = {B2:1, B1:1};
+
+function buildBoQ(){
+  const d = D = derive(); const L = [];
+  const add = (code, grp, desc, qty, unit, rate, basis, src, act, z) =>
+    L.push({code, grp, desc, qty, unit, baseRate:rate, rate:(code in RATE_OVR ? RATE_OVR[code] : rate), basis, src, act, z: z || {SITE:1}});
+
+  const G1='01 Substructure', G2='02 Frame & Upper Floors', G3='03 Roof & Terraces', G4='04 External Envelope', G5='05 Internal Walls & Doors',
+        G6='06 Finishes', G7='07 MEP Services', G8='08 Vertical Transportation', G9='09 External Works', G10='10 Tenant Fit-out & FF&E';
+
+  // 01 SUBSTRUCTURE
+  add('1.01',G1,'Site clearance, setting out & hoarding', d.fp*1.25,'m²',12,'Basement footprint × 1.25 (site boundary not dimensioned)','ALW','mob',{EXT:1});
+  add('1.02',G1,'Secant pile shoring wall 750/900 dia', d.per*(d.depth+P.shoringToe),'m²',1300,`Perimeter ${nf0.format(d.per)} m × (dig ${nf1.format(d.depth)} + toe ${P.shoringToe}) m`,'DER','shor',{SUB:1});
+  add('1.03',G1,'Temporary ground anchors (2 rows @ 2.5 m c/c)', Math.ceil(d.per/2.5)*2,'no',4500,'Perimeter / 2.5 m × 2 rows','DER','shor',{SUB:1});
+  add('1.04',G1,'Dewatering: deep wells, pumping & monitoring', P.dewaterMonths,'month',120000,'Jeddah coastal water table assumed above formation','ALW','dewat',{SUB:1});
+  add('1.05',G1,'Bulk excavation to formation', d.fp*d.depth,'m³',24,`${nf0.format(d.fp)} m² × ${nf1.format(d.depth)} m (2 × ${P.bsmtF2F} + raft + 0.3)`,'DER','exc',{SUB:1});
+  add('1.06',G1,'Load, cart away & dispose (bulking 1.25)', d.fp*d.depth*1.25,'m³',20,'Excavated volume × 1.25','DER','exc',{SUB:1});
+  add('1.07',G1,'Bored piles 800 dia (PROVISIONAL, subject to geotech)', P.pileCount*P.pileLength,'lm',850,`${P.pileCount} piles × ${P.pileLength} m`,'ALW','pile',{SUB:1});
+  add('1.08',G1,'Pile cut-off, integrity & load testing', P.pileCount,'no',1300,'Per pile','ALW','pile',{SUB:1});
+  add('1.09',G1,'Blinding concrete 75 mm', d.fp*0.075,'m³',330,'Footprint × 0.075','DER','raft',{SUB:1});
+  add('1.10',G1,'Pre-applied HDPE waterproofing to raft', d.fp*1.05,'m²',95,'Footprint × 1.05 laps','DER','raft',{SUB:1});
+  add('1.11',G1,'Waterproofing to basement walls', d.per*d.bsmtH,'m²',85,`Perimeter × ${nf1.format(d.bsmtH)} m`,'DER',{b2:1,b1:1},BSMT_Z);
+  add('1.12',G1,'Raft concrete C40/20 (SRC)', d.concRaft,'m³',440,`Footprint × ${P.raftThk} m`,'DER','raft',{SUB:1});
+  add('1.13',G1,'Raft reinforcement B500B', d.concRaft*P.rebarRaft/1000,'t',3700,`${P.rebarRaft} kg/m³`,'DER','raft',{SUB:1});
+  add('1.14',G1,'Raft edge formwork', d.per*P.raftThk,'m²',95,'Perimeter × raft thickness','DER','raft',{SUB:1});
+  add('1.15',G1,'RC retaining walls C40', d.concWall,'m³',460,`Perimeter × ${nf1.format(d.bsmtH)} m × ${P.wallThk} m`,'DER',{b2:1,b1:1},BSMT_Z);
+  add('1.16',G1,'Retaining wall reinforcement', d.concWall*P.rebarWall/1000,'t',3700,`${P.rebarWall} kg/m³`,'DER',{b2:1,b1:1},BSMT_Z);
+  add('1.17',G1,'Single-sided wall formwork (against piles)', d.per*d.bsmtH,'m²',115,'Perimeter × basement height','DER',{b2:1,b1:1},BSMT_Z);
+
+  // 02 FRAME
+  add('2.01',G2,'B1 suspended slab & beams C40', d.concB1,'m³',450,`${nf0.format(d.fp)} m² × ${P.eqB1} m equiv.`,'DER','b2',{B2:1});
+  add('2.02',G2,'GF podium transfer slab C40 (landscape + fire truck loads)', d.concGF,'m³',450,`${nf0.format(d.fp)} m² × ${P.eqGF} m equiv.`,'DER','b1',{B1:1});
+  add('2.03',G2,'Basement columns & cores C50', d.concColB,'m³',480,`${nf0.format(d.gfaBelow)} m² × ${P.colB}`,'DER',{b2:1,b1:1},BSMT_Z);
+  add('2.04',G2,'Upper slabs & beams incl. roofs C40', d.concSuper,'m³',460,`${nf0.format(d.superSlab)} m² (floors + roofs) × ${P.eqSuper} m`,'DER',UPPER_ACT(),UPPER_Z());
+  add('2.05',G2,'Upper columns & cores C50 (7.0/6.0 m storeys)', d.concColS,'m³',490,`${nf0.format(d.gfaAbove)} m² × ${P.colS}`,'DER',UPPER_ACT(),UPPER_Z());
+  add('2.06',G2,'Staircases & car ramps C40', d.concStair,'m³',520,'Allowance: ramps B2↔B1↔GF + 8 stair cores','ALW',{b2:1,b1:1,gf:1,l1:1},{B2:1,B1:1,GF:1,L1:1});
+  add('2.07',G2,'Reinforcement: slabs & beams', (d.concB1+d.concGF+d.concSuper)*P.rebarSlab/1000,'t',3700,`${P.rebarSlab} kg/m³`,'DER',{b2:d.concB1,b1:d.concGF,...scale(UPPER_ACT(),d.concSuper)},{B2:d.concB1,B1:d.concGF,...scale(UPPER_Z(),d.concSuper)});
+  add('2.08',G2,'Reinforcement: columns & cores', (d.concColB+d.concColS)*P.rebarCol/1000,'t',3700,`${P.rebarCol} kg/m³`,'DER',{b2:d.concColB/2,b1:d.concColB/2,...scale(UPPER_ACT(),d.concColS)},{B2:d.concColB/2,B1:d.concColB/2,...scale(UPPER_Z(),d.concColS)});
+  add('2.09',G2,'Reinforcement: stairs & ramps', d.concStair*120/1000,'t',3700,'120 kg/m³','DER',{b2:1,b1:1,gf:1,l1:1},{B2:1,B1:1,GF:1,L1:1});
+  add('2.10',G2,'Formwork: slab soffits & beam sides', (2*d.fp + d.superSlab)*1.15,'m²',90,'(2 basement slabs + upper slabs) × 1.15 beam factor','DER',{b2:d.fp,b1:d.fp,...scale(UPPER_ACT(),d.superSlab)},{B2:d.fp,B1:d.fp,...scale(UPPER_Z(),d.superSlab)});
+  add('2.11',G2,'Formwork: columns & core walls', (d.concColB+d.concColS)*8,'m²',105,'8 m² per m³','DER',{b2:d.concColB/2,b1:d.concColB/2,...scale(UPPER_ACT(),d.concColS)},{B2:d.concColB/2,B1:d.concColB/2,...scale(UPPER_Z(),d.concColS)});
+  add('2.12',G2,'Formwork: stairs & ramps', d.concStair*6,'m²',140,'6 m² per m³','DER',{b2:1,b1:1,gf:1,l1:1},{B2:1,B1:1,GF:1,L1:1});
+  add('2.13',G2,'Structural steel: roof trellis & feature canopies', 120,'t',13000,'Allowance: roof trellis shown on elevations A/B','ALW','stl',{L3:1,L4:1});
+  add('2.14',G2,'Movement joints (structural)', 300,'lm',650,'Allowance: ~110 m building needs joints','ALW',UPPER_ACT(),UPPER_Z());
+
+  // 03 ROOF
+  add('3.01',G3,'Inverted roof: waterproofing, XPS, screed, tiles', d.roof,'m²',265,'Σ exposed roof per level (A_i − A_i+1)','DER','roof',{GF:Math.max(0,AREA.GF.gross-AREA.L1.gross),L2:AREA.L2.gross-AREA.L3.gross,L3:AREA.L3.gross-AREA.L4.gross,L4:AREA.L4.gross});
+  add('3.02',G3,'Terrace waterproofing + outdoor porcelain paving', d.terraceUpper,'m²',420,'Terraces L1+L2+L3 from area schedule','DRW','roof',byKeyLevels('terrace',['L1','L2','L3']));
+  add('3.03',G3,'Podium waterproofing & protection (outside GF footprint)', d.podiumOpen,'m²',140,'B1 footprint − GF gross','DER','pod',{GF:1});
+  add('3.04',G3,'Roof drainage outlets & siphonic system', Math.ceil(d.roof/150),'no',2200,'1 outlet per 150 m²','DER','roof',{L2:1,L3:1});
+
+  // 04 ENVELOPE
+  add('4.01',G4,'Unitised curtain wall, DGU low-E', d.facade*P.fCW,'m²',1650,`Facade ${nf0.format(d.facade)} m² × ${P.fCW}`,'DER','cw',scale(d.facadeBy,1));
+  add('4.02',G4,'Perforated aluminium mashrabiya screen, copper PVDF, incl. sub-frame', d.facade*P.fScreen,'m²',1250,`Facade × ${P.fScreen} (copper screen on elevations A/B)`,'DER','scr',{L1:1,L2:2,L3:2});
+  add('4.03',G4,'Backing wall behind screen (block + insulation)', d.facade*P.fScreen,'m²',210,'Same area as 4.02','DER','scr',{L1:1,L2:2,L3:2});
+  add('4.04',G4,'Solid cladding (ACP / GRC)', d.facade*P.fSolid,'m²',650,`Facade × ${P.fSolid}`,'DER','scr',scale(d.facadeBy,1));
+  add('4.05',G4,'Glass balustrades to terraces', Math.round((P.perimL1+P.perimL2+P.perimL3)*0.35),'lm',1100,'35% of L1–L3 perimeter','ALW','cw',{L1:1,L2:1,L3:1});
+  add('4.06',G4,'Automatic sliding entrance doors', 10,'no',45000,'Allowance: drop-off, plaza & parking entries','ALW','cw',{GF:1});
+  add('4.07',G4,'Drop-off canopies', 2,'no',350000,'Main drop-off + north drop-off (GF plan)','DRW','stl',{EXT:1});
+
+  // 05 INTERNAL
+  add('5.01',G5,'Blockwork partitions 200 mm', d.partitions,'m²',95,`GFA above × ${P.partAbove} + basements × ${P.partBelow}`,'DER',{intB:d.gfaBelow*P.partBelow, intS:d.gfaAbove*P.partAbove},{...scale(BSMT_Z,d.gfaBelow*P.partBelow),...scale(UPPER_Z(),d.gfaAbove*P.partAbove)});
+  add('5.02',G5,'Plaster & paint to partitions (2 faces)', d.partitions*2,'m²',48,'Partition area × 2','DER',{intB:d.gfaBelow*P.partBelow, intS:d.gfaAbove*P.partAbove},{...scale(BSMT_Z,d.gfaBelow*P.partBelow),...scale(UPPER_Z(),d.gfaAbove*P.partAbove)});
+  add('5.03',G5,'Fire-rated doorsets (FD60/FD90)', Math.round(d.gfa/250),'no',3800,'1 per 250 m² GFA','ALW',{intB:1,intS:1},byKeyLevels('gross',ALL_LEVELS));
+  add('5.04',G5,'Toilet blocks: cubicles, vanities, sanitaryware', 10,'set',85000,'WC blocks on GF/L1/L2 plans','DRW','intS',{GF:2,L1:1,L2:1});
+  add('5.05',G5,'Cinema acoustic box-in-box walls & isolated ceilings', d.cinema,'m²',950,'Cinema area from schedule','DRW','cin',{L2:1});
+
+  // 06 FINISHES
+  add('6.01',G6,'Public circulation floors: porcelain / stone', d.circAbove,'m²',450,'Circulation & WC above GF (schedule)','DRW','intS',byKeyLevels('circ',LEVELS_ABOVE));
+  add('6.02',G6,'Public ceilings: gypsum feature + access panels', d.circAbove,'m²',260,'As 6.01','DRW','intS',byKeyLevels('circ',LEVELS_ABOVE));
+  add('6.03',G6,'Public wall finishes (cladding / paint)', d.circAbove*1.2,'m²',180,'Circulation × 1.2 wall ratio','DER','intS',byKeyLevels('circ',LEVELS_ABOVE));
+  add('6.04',G6,'Tenancy shell: levelling screed to lease areas', d.tenancyShell,'m²',65,'Retail + F&B + event plaza (schedule)','DRW','intS',mergeZ(byKey('retail'),byKey('fnb'),byKey('event')));
+  add('6.05',G6,'Car park floor: power-float, hardener, markings', d.parking,'m²',55,'Parking & driveway (schedule)','DRW','intB',byKey('parking'));
+  add('6.06',G6,'Car park walls & soffits: paint', d.parking,'m²',30,'As 6.05','DRW','intB',byKey('parking'));
+  add('6.07',G6,'BOH / MEP rooms: epoxy & paint', d.mep,'m²',110,'MEP service area (schedule)','DRW',{intB:1,intS:1},byKey('mep'));
+  add('6.08',G6,'Event plaza feature hardscape', d.event,'m²',650,'Event plaza (schedule)','DRW','ext',{GF:1});
+
+  // 07 MEP
+  add('7.01',G7,'Car park MEP: jet fans, sprinklers, lighting, CO detection', d.parking,'m²',420,'Parking area (schedule)','DRW','mepB',byKey('parking'));
+  add('7.02',G7,'Landlord services to tenancies (stubbed)', d.tenancy,'m²',780,'Retail + F&B (schedule)','DRW','mepS',mergeZ(byKey('retail'),byKey('fnb')));
+  add('7.03',G7,'Public circulation & WC: full MEP', d.circ,'m²',1450,'Circulation & WC (schedule)','DRW',{mepB:sumKey('circ',LEVELS_BELOW), mepS:d.circAbove},byKey('circ'));
+  add('7.04',G7,'Cinema MEP: HVAC & smoke management', d.cinema,'m²',1650,'Cinema (schedule)','DRW','mepS',{L2:1});
+  add('7.05',G7,'Central plant & service areas (chillers, pumps, LV)', d.mep,'m²',1300,'MEP service area (schedule)','DRW',{mepB:sumKey('mep',LEVELS_BELOW), mepS:sumKey('mep',LEVELS_ABOVE)},byKey('mep'));
+  add('7.06',G7,'Terraces & event plaza: lighting, misting, drainage', d.terrace+d.event,'m²',260,'Terrace + event plaza (schedule)','DRW','mepS',mergeZ(byKey('terrace'),byKey('event')));
+  add('7.07',G7,'SEC substations & MV works', 2,'no',1800000,'2 substations on B1 plan','DRW','sec',{B1:1});
+  add('7.08',G7,'Standby generator + fuel tank', 1,'set',2200000,'Generator room & fuel tank on GF plan','DRW','mepS',{GF:1});
+  add('7.09',G7,'LPG tank farm & distribution to F&B', 1,'LS',450000,'LPG tank on GF plan','DRW','mepS',{EXT:1});
+  add('7.10',G7,'ELV: BMS, CCTV, access control, PA, data', d.gfa,'m²',85,'Total GFA','DER',{mepB:d.gfaBelow,mepS:d.gfaAbove},byKeyLevels('gross',ALL_LEVELS));
+
+  // 08 VT
+  add('8.01',G8,'Escalators (rise 6–7 m)', P.escalators,'no',620000,'Escalators visible on GF/L1 plans; count assumed','ALW','vt',{GF:1,L1:1,L2:1});
+  add('8.02',G8,'Retail passenger lifts B2–L3', P.passLifts,'no',420000,'Lift cores on plans; count assumed','ALW','vt',{B2:1,B1:1,GF:1,L1:1,L2:1,L3:1});
+  add('8.03',G8,'Service / goods lifts', P.serviceLifts,'no',480000,'2 service lift cars shown (red) on plans','DRW','vt',{B2:1,B1:1,GF:1,L1:1,L2:1});
+
+  // 09 EXTERNAL
+  add('9.01',G9,'Roads, drop-off, kerbs & external paving', P.extHard,'m²',280,'Not dimensioned: allowance','ALW','ext',{EXT:1});
+  add('9.02',G9,'Soft landscape, palms & irrigation', P.extSoft,'m²',220,'Not dimensioned: allowance','ALW','ext',{EXT:1});
+  add('9.03',G9,'Fountain plaza water feature', 1,'LS',1800000,'Fountain plaza (GF landscape plan)','DRW','ext',{EXT:1});
+  add('9.04',G9,'Utility connections: water, sewer, telecom', 1,'LS',2500000,'Allowance','ALW','ext',{EXT:1});
+  add('9.05',G9,'Signage, pylon & wayfinding', 1,'LS',900000,'Allowance','ALW','ext',{EXT:1});
+
+  // 10 FIT-OUT (Fully Fitted only)
+  if (state.scope === 'fitted'){
+    add('10.01',G10,'Retail tenant fit-out allowance', d.retail,'m²',2200,'Retail (schedule)','DRW','fit',byKey('retail'));
+    add('10.02',G10,'F&B fit-out incl. kitchens & extract', d.fnb,'m²',3200,'F&B (schedule)','DRW','fit',byKey('fnb'));
+    add('10.03',G10,'Cinema seating', d.seats,'seat',2400,'1,075 seats (schedule)','DRW','fit',{L2:1});
+    add('10.04',G10,'Cinema projection, sound & screens', P.cinemaScreens,'no',650000,'Auditoria counted on L2 plan (assumed 7)','DER','fit',{L2:1});
+  }
+  L.forEach(l => { l.qty = Math.round(l.qty * 100) / 100; l.amt = l.qty * l.rate; });
+  return L;
+}
+function scale(obj, total){ const s = Object.values(obj).reduce((a,b)=>a+b,0) || 1; const o = {}; for (const k in obj) o[k] = obj[k] / s * total; return o; }
+function mergeZ(...objs){ const o = {}; objs.forEach(x => { for (const k in x) o[k] = (o[k]||0) + x[k]; }); return o; }
+function byKeyLevels(key, levels){ const o = {}; levels.forEach(l => { if (AREA[l][key]) o[l] = AREA[l][key]; }); return o; }
+function norm(w){ if (typeof w === 'string') return {[w]:1}; const s = Object.values(w).reduce((a,b)=>a+b,0) || 1; const o = {}; for (const k in w) o[k] = w[k]/s; return o; }
+
+/* =====================================================================
+   7. SCHEDULE (scenario) + COST ROLL-UP + CASHFLOW
+   ===================================================================== */
+function activeActs(){ return ACTIVITIES.filter(a => !a.fittedOnly || state.scope === 'fitted'); }
+function sched(a, scen = state.scen){
+  let s = a.s, d = a.d;
+  if (scen === 'delay'){
+    if (a.id === 'sec') d = a.d + P.eotWeeks;
+    if (a.id === 'tc' || a.id === 'ho') s = a.s + P.eotWeeks;
+  }
+  return {s, d, e: s + d - 1};
+}
+function isDelayed(a){ return state.scen === 'delay' && ['sec','tc','ho'].includes(a.id); }
+function projWeeks(scen = state.scen){ return Math.max(...activeActs().map(a => sched(a, scen).e)); }
+
+function rollUp(){
+  BOQ = buildBoQ();
+  const direct = BOQ.reduce((s,l)=>s+l.amt,0);
+  const prelims = direct * P.prelimsPct/100;
+  const F = (1+P.ohpPct/100) * (1+P.designContPct/100) * (1+P.constContPct/100);
+  const ohp = (direct + prelims) * P.ohpPct/100;
+  const dc = (direct + prelims + ohp) * P.designContPct/100;
+  const cc = (direct + prelims + ohp + dc) * P.constContPct/100;
+  const baseT = projWeeks('baseline');
+  const weeklyTR = prelims * P.timeRelShare / baseT * F;
+  const prolong = state.scen === 'delay' ? weeklyTR * P.eotWeeks : 0;
+  const totalExVat = (direct + prelims) * F + prolong;
+  const vat = totalExVat * P.vatPct/100;
+  const groups = {}; BOQ.forEach(l => groups[l.grp] = (groups[l.grp]||0) + l.amt);
+  COST = {direct, prelims, ohp, dc, cc, F, prolong, weeklyTR, totalExVat, vat, total: totalExVat + vat, groups,
+          base: cashflow('baseline'), cur: cashflow(state.scen)};
+}
+function cashflow(scen){
+  const T = projWeeks(scen), baseT = projWeeks('baseline');
+  const wk = new Array(T+1).fill(0);
+  const actCost = {};
+  BOQ.forEach(l => { const w = norm(l.act); for (const id in w) actCost[id] = (actCost[id]||0) + l.amt*w[id]; });
+  activeActs().forEach(a => { const c = actCost[a.id]||0; const sc = sched(a, scen); for (let i = sc.s; i <= sc.e; i++) wk[i] += c / sc.d; });
+  const direct = BOQ.reduce((s,l)=>s+l.amt,0);
+  const prelims = direct * P.prelimsPct/100;
+  const F = (1+P.ohpPct/100) * (1+P.designContPct/100) * (1+P.constContPct/100);
+  for (let i = 1; i <= T; i++) wk[i] = (wk[i] + (i <= baseT ? prelims/baseT : 0)) * F;
+  if (scen === 'delay'){ const tr = prelims * P.timeRelShare / baseT * F; for (let i = baseT+1; i <= T; i++) wk[i] += tr; }
+  const cum = []; let c = 0; for (let i = 0; i <= T; i++){ c += wk[i]; cum.push(c); }
+  return {T, wk, cum, actCost};
+}
+function zoneCost(zone){
+  let total = 0; const items = [];
+  BOQ.forEach(l => { const w = norm(l.z); if (w[zone]){ total += l.amt*w[zone]; items.push({l, share:w[zone]}); } });
+  items.sort((a,b) => b.l.amt*b.share - a.l.amt*a.share);
+  return {total, items};
+}
+
+/* =====================================================================
+   8. HELPERS: dates, progress, status
+   ===================================================================== */
+function weekDate(w){ const d = new Date(P.startDate + 'T00:00:00'); d.setDate(d.getDate() + 7*(w-1)); return d; }
+function fmtDate(d){ return d.toLocaleDateString('en-US',{month:'short', day:'2-digit', year:'numeric'}); }
+function prog(id, w = state.week){ const a = ACTIVITIES.find(x => x.id === id); if (!a || (a.fittedOnly && state.scope !== 'fitted')) return 0; const s = sched(a); return Math.max(0, Math.min(1, (w - s.s + 1)/s.d)); }
+function actStatus(a, w = state.week){ const s = sched(a); if (w > s.e) return 'done'; if (w >= s.s) return isDelayed(a) ? 'delayed' : 'active'; return isDelayed(a) && w >= a.s ? 'delayed' : 'upcoming'; }
+const STATUS_COLOR = {done:'#10b981', active:'#f59e0b', delayed:'#f43f5e', upcoming:'#475569'};
+const STATUS_TXT = {done:'Complete', active:'In progress', delayed:'Delayed (EOT)', upcoming:'Upcoming'};
+
+const ZONE_ACTS = {
+  EXT:['mob','ext'], SUB:['shor','dewat','exc','pile','raft'],
+  B2:['b2','mepB','intB','vt'], B1:['b1','mepB','intB','vt','sec'],
+  GF:['gf','pod','cw','mepS','intS','vt','fit','tc'], L1:['l1','cw','scr','mepS','intS','vt','fit'],
+  L2:['l2','cw','scr','roof','mepS','intS','cin','vt','fit'], L3:['l3','scr','roof','mepS','intS','fit'], L4:['l3','stl','roof','fit']
+};
+const ZONE_NAME = {EXT:'External works & site', SUB:'Substructure: shoring, excavation, piles, raft', B2:'Basement 2: parking', B1:'Basement 1: parking + substations',
+  GF:'Ground floor: retail, F&B, event plaza', L1:'Level 1: F&B + terraces', L2:'Level 2: cinema + F&B', L3:'Level 3: retail + F&B', L4:'Level 4: retail pavilion'};
+function zoneStatus(z){
+  const acts = ZONE_ACTS[z].map(id => ACTIVITIES.find(a => a.id === id)).filter(a => !a.fittedOnly || state.scope === 'fitted');
+  const st = acts.map(a => actStatus(a));
+  if (st.includes('delayed') && st.filter(x => x === 'done').length >= st.length - 2) return 'delayed';
+  if (st.every(x => x === 'done')) return 'done';
+  if (st.some(x => x === 'active' || x === 'done')) return 'active';
+  return 'upcoming';
+}
+function zoneSpan(z){
+  const acts = ZONE_ACTS[z].map(id => ACTIVITIES.find(a => a.id === id)).filter(a => !a.fittedOnly || state.scope === 'fitted');
+  return {s: Math.min(...acts.map(a => a.s)), e: Math.max(...acts.map(a => a.s + a.d - 1)), es: Math.max(...acts.map(a => sched(a).e))};
+}
+
+/* =====================================================================
+   9. SVG SECTION MODEL
+   ===================================================================== */
+const SV = {x0:70, W:860, ground:300, s:9};
+function svgEl(tag, attrs, parent){ const e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function levelGeom(){
+  const g = {}; const {x0, W, ground, s} = SV;
+  // basements
+  g.B1 = {x:x0, w:W, y:ground, h:P.bsmtF2F*s};
+  g.B2 = {x:x0, w:W, y:ground + P.bsmtF2F*s, h:P.bsmtF2F*s};
+  g.RAFT = {x:x0, w:W, y:ground + 2*P.bsmtF2F*s, h:P.raftThk*s};
+  let y = ground;
+  const wOf = k => Math.max(40, AREA[k].gross / AREA.B1.gross * W);
+  const cx = x0 + W/2;
+  LEVELS_ABOVE.forEach(k => {
+    const h = HEIGHT[k]*s, w = wOf(k); y -= h;
+    let x = cx - w/2;
+    if (k === 'L3') x = g.L2.x + 20;
+    if (k === 'L4') x = g.L3.x + 30;
+    g[k] = {x, w, y, h};
+  });
+  return g;
+}
+function renderVisual(){
+  const svg = document.getElementById('projectSvg'); svg.innerHTML = '';
+  const w = state.week, g = levelGeom(), {x0, W, ground, s} = SV;
+  const defs = svgEl('defs', {}, svg);
+  const pat = svgEl('pattern', {id:'mashr', width:10, height:10, patternUnits:'userSpaceOnUse'}, defs);
+  svgEl('rect', {width:10, height:10, fill:'#b45309', opacity:.85}, pat);
+  svgEl('circle', {cx:5, cy:5, r:3, fill:'none', stroke:'#fcd34d', 'stroke-width':1.2}, pat);
+  const mull = svgEl('pattern', {id:'mull', width:14, height:20, patternUnits:'userSpaceOnUse'}, defs);
+  svgEl('rect', {width:14, height:20, fill:'#0ea5e9', opacity:.45}, mull);
+  svgEl('line', {x1:0, y1:0, x2:0, y2:20, stroke:'#bae6fd', 'stroke-width':1}, mull);
+
+  const depthPx = (2*P.bsmtF2F + P.raftThk + 0.3)*s;
+  // ground mass
+  svgEl('rect', {x:0, y:ground, width:1000, height:220, fill:'#3b2a1a'}, svg);
+  // ---- SUBSTRUCTURE zone
+  const zSub = svgEl('g', {class:'zone' + (state.zone==='SUB'?' selected':''), 'data-zone':'SUB'}, svg);
+  const pExc = prog('exc');
+  svgEl('rect', {x:x0, y:ground, width:W, height:depthPx, fill:'#7c5a3c'}, zSub);        // soil to dig (brown)
+  svgEl('rect', {x:x0, y:ground, width:W, height:depthPx*pExc, fill:'#1e1b18'}, zSub);   // excavated void
+  const pSh = prog('shor');
+  [x0-6, x0+W].forEach(x => svgEl('rect', {x, y:ground, width:6, height:(depthPx + P.shoringToe*s)*pSh, fill:'#78716c'}, zSub));
+  const pPile = prog('pile');
+  for (let i = 0; i < 18; i++){ if (i/18 < pPile) svgEl('rect', {x:x0+25+i*(W-50)/17, y:ground+depthPx, width:4, height:P.pileLength*s*0.35, fill:'#9ca3af'}, zSub); }
+  const pRaft = prog('raft');
+  svgEl('rect', {x:x0, y:g.RAFT.y, width:W*pRaft, height:g.RAFT.h, fill:'#9ca3af'}, zSub);
+  if (prog('dewat') > 0 && prog('dewat') < 1){
+    svgEl('line', {x1:x0, x2:x0+W, y1:ground+depthPx+6, y2:ground+depthPx+6, stroke:'#38bdf8', 'stroke-dasharray':'6 4', 'stroke-width':1.5}, zSub);
+    const t = svgEl('text', {x:x0+W-4, y:ground+depthPx+18, fill:'#7dd3fc', 'font-size':10, 'text-anchor':'end'}, zSub); t.textContent = 'Dewatering active: water table drawn below formation';
+  }
+  svgEl('rect', {class:'zone-outline', x:x0-6, y:ground, width:W+12, height:depthPx + P.shoringToe*s, fill:'none', stroke:STATUS_COLOR[zoneStatus('SUB')], 'stroke-width':1.5, 'stroke-dasharray':'4 3'}, zSub);
+
+  // ---- LEVELS
+  const levelActs = {B2:{st:'b2', fin:'intB', mep:'mepB'}, B1:{st:'b1', fin:'intB', mep:'mepB'}, GF:{st:'gf', fin:'intS', mep:'mepS'}, L1:{st:'l1', fin:'intS', mep:'mepS'}, L2:{st:'l2', fin:'intS', mep:'mepS'}, L3:{st:'l3', fin:'intS', mep:'mepS'}, L4:{st:'l3', fin:'intS', mep:'mepS'}};
+  ['B2','B1','GF','L1','L2','L3','L4'].forEach(k => {
+    const r = g[k], la = levelActs[k];
+    const zg = svgEl('g', {class:'zone' + (state.zone===k?' selected':''), 'data-zone':k}, svg);
+    const pSt = prog(la.st), pFin = Math.max(prog(la.fin), k==='L2' ? prog('cin') : 0);
+    // ghost
+    svgEl('rect', {x:r.x, y:r.y, width:r.w, height:r.h, fill:'#0f172a', opacity: k.startsWith('B') ? 0 : .35}, zg);
+    // concrete frame
+    if (pSt > 0){
+      svgEl('rect', {x:r.x, y:r.y + r.h - 5, width:r.w*pSt, height:5, fill:'#d1d5db'}, zg);   // slab
+      svgEl('rect', {x:r.x, y:r.y, width:r.w*pSt, height:r.h-5, fill:'#64748b', opacity:.55}, zg);
+      const nc = Math.max(2, Math.round(r.w/60));
+      for (let i = 0; i <= nc; i++){ const cx = r.x + i*(r.w-6)/nc; if (cx - r.x <= r.w*pSt) svgEl('rect', {x:cx, y:r.y, width:6, height:r.h-5, fill:'#9ca3af'}, zg); }
+      if (pSt >= 1) svgEl('rect', {x:r.x, y:r.y, width:r.w, height:4, fill:'#d1d5db'}, zg);   // slab over
+    }
+    // space-use fit-out bands (colours match drawing legend)
+    if (pFin > 0){
+      const A = AREA[k]; let cx = r.x;
+      Object.keys(SPACE).forEach(sk => { if (!A[sk]) return; const sw = A[sk]/A.gross * r.w; svgEl('rect', {x:cx+1, y:r.y + r.h*0.45, width:Math.max(0, sw-2), height:r.h*0.45, fill:SPACE[sk].color, opacity:pFin*0.9, rx:2}, zg); cx += sw; });
+    }
+    // facade layers (above ground)
+    if (!k.startsWith('B')){
+      const pCW = prog('cw'), pScr = prog('scr');
+      if (pCW > 0) svgEl('rect', {x:r.x, y:r.y+4, width:r.w*pCW, height:r.h*0.4, fill:'url(#mull)'}, zg);
+      if (pScr > 0 && ['L1','L2','L3'].includes(k)) svgEl('rect', {x:r.x, y:r.y+4, width:r.w*0.45*pScr, height:r.h-9, fill:'url(#mashr)', opacity:.9}, zg);
+    }
+    const st = zoneStatus(k);
+    svgEl('rect', {class:'zone-outline', x:r.x, y:r.y, width:r.w, height:r.h, fill:'transparent', stroke:STATUS_COLOR[st], 'stroke-width':1.5, 'stroke-dasharray': st==='upcoming' ? '4 3' : ''}, zg);
+    const lbl = svgEl('text', {x:r.x - 6, y:r.y + r.h/2 + 4, fill:'#94a3b8', 'font-size':11, 'text-anchor':'end', 'font-family':'ui-monospace,monospace'}, zg);
+    lbl.textContent = k;
+    if (r.w > 120){ const hl = svgEl('text', {x:r.x + r.w - 4, y:r.y + 12, fill:'#cbd5e1', 'font-size':9, 'text-anchor':'end'}, zg); hl.textContent = `${nf0.format(AREA[k].gross)} m²` + (HEIGHT[k] ? ` • ${HEIGHT[k]} m` : ` • ${P.bsmtF2F} m`); }
+  });
+  // roof trellis (steel)
+  const pStl = prog('stl');
+  if (pStl > 0){ for (let i = 0; i < 4; i++){ if (i/4 < pStl) svgEl('rect', {x:g.L3.x + 10 + i*55, y:g.L4.y - 10 - i*4, width:70, height:4, fill:'#e2e8f0', opacity:.8}, svg); } }
+  // tower crane during frame works
+  const fs = sched(ACTIVITIES.find(a=>a.id==='b2')).s - 4, fe = sched(ACTIVITIES.find(a=>a.id==='l3')).e + 6;
+  if (w >= fs && w <= fe){
+    const cx = x0 + W*0.82;
+    svgEl('rect', {x:cx, y:40, width:5, height:ground + 2*P.bsmtF2F*s - 40, fill:'#facc15', opacity:.85}, svg);
+    svgEl('rect', {x:cx - 200, y:40, width:260, height:4, fill:'#facc15', opacity:.85}, svg);
+    svgEl('line', {x1:cx-150, y1:44, x2:cx-150, y2:90, stroke:'#fde68a', 'stroke-width':1}, svg);
+    const t = svgEl('text', {x:cx+10, y:56, fill:'#fde68a', 'font-size':9}, svg); t.textContent = 'TC-1';
+  }
+  // ---- EXTERNAL zone
+  const zExt = svgEl('g', {class:'zone' + (state.zone==='EXT'?' selected':''), 'data-zone':'EXT'}, svg);
+  const pExt = prog('ext'), pMob = prog('mob');
+  svgEl('rect', {x:0, y:ground-3, width:x0-6, height:3, fill: pExt>0 ? '#16a34a' : '#57534e'}, zExt);
+  svgEl('rect', {x:x0+W+6, y:ground-3, width:1000-x0-W-6, height:3, fill: pExt>0 ? '#16a34a' : '#57534e'}, zExt);
+  if (pMob > 0){ svgEl('rect', {x:4, y:ground-24, width:52*pMob, height:20, fill:'#334155', rx:2}, zExt); const t = svgEl('text', {x:8, y:ground-10, fill:'#cbd5e1', 'font-size':8}, zExt); t.textContent = 'Site office'; }
+  if (pExt > 0){ // fountain plaza + palms
+    svgEl('rect', {x:g.GF.x - 120, y:ground-6, width:110*pExt, height:6, fill:'#38bdf8', opacity:.7}, zExt);
+    for (let i = 0; i < Math.round(5*pExt); i++){ const px = x0 + W + 14 + i*0; const bx = 940 + (i%2)*25; svgEl('line', {x1:bx, y1:ground, x2:bx, y2:ground-30-(i*3), stroke:'#a16207', 'stroke-width':2}, zExt); svgEl('circle', {cx:bx, cy:ground-32-(i*3), r:7, fill:'#16a34a'}, zExt); }
+  }
+  svgEl('rect', {class:'zone-outline', x:0, y:ground-40, width:x0-8, height:40, fill:'transparent', stroke:STATUS_COLOR[zoneStatus('EXT')], 'stroke-width':1, 'stroke-dasharray':'3 3'}, zExt);
+  // ground line + labels
+  svgEl('line', {x1:0, x2:1000, y1:ground, y2:ground, stroke:'#a8a29e', 'stroke-width':1}, svg);
+  const gl = svgEl('text', {x:8, y:ground+14, fill:'#a8a29e', 'font-size':10}, svg); gl.textContent = '±0.00 GF';
+  // material legend
+  const legend = [['#7c5a3c','Earthworks'],['#9ca3af','Concrete'],['#0ea5e9','Curtain wall'],['#b45309','Mashrabiya screen'],...Object.values(SPACE).map(v=>[v.color, v.label])];
+  legend.forEach((it, i) => { const lx = 20 + (i%6)*160, ly = 470 + Math.floor(i/6)*18; svgEl('rect', {x:lx, y:ly-9, width:10, height:10, fill:it[0], rx:2}, svg); const t = svgEl('text', {x:lx+15, y:ly, fill:'#94a3b8', 'font-size':10}, svg); t.textContent = it[1]; });
+
+  // interactions
+  svg.querySelectorAll('.zone').forEach(el => {
+    el.addEventListener('mousemove', ev => showTip(ev, el.dataset.zone));
+    el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('click', () => selectZone(el.dataset.zone));
+  });
+}
+function showTip(ev, z){
+  const tip = document.getElementById('componentTooltip'), box = document.getElementById('visualCanvasContainer').getBoundingClientRect();
+  const sp = zoneSpan(z), st = zoneStatus(z), zc = zoneCost(z);
+  document.getElementById('tipTitle').textContent = ZONE_NAME[z];
+  document.getElementById('tipDates').textContent = `${fmtDate(weekDate(sp.s))} – ${fmtDate(weekDate(sp.es))} (W${sp.s}–W${sp.es})`;
+  const ts = document.getElementById('tipStatus'); ts.textContent = `Status: ${STATUS_TXT[st]} • Direct cost ${sarM(zc.total)}`; ts.style.color = STATUS_COLOR[st];
+  const live = ZONE_ACTS[z].map(id => ACTIVITIES.find(a=>a.id===id)).filter(a => actStatus(a) === 'active' || actStatus(a) === 'delayed');
+  document.getElementById('tipTrade').textContent = live.length ? 'On site: ' + [...new Set(live.map(a=>a.trade))].join(', ') : 'No trades active this week';
+  tip.classList.remove('hidden');
+  let x = ev.clientX - box.left + 14, y = ev.clientY - box.top + 14;
+  if (x + 260 > box.width) x = ev.clientX - box.left - 270;
+  tip.style.left = x + 'px'; tip.style.top = Math.min(y, box.height - 110) + 'px';
+}
+function hideTip(){ document.getElementById('componentTooltip').classList.add('hidden'); }
+
+/* =====================================================================
+   10. INSPECTOR
+   ===================================================================== */
+function selectZone(z){ state.zone = z; state.act = null; openInspector(); renderVisual(); renderInspector(); }
+function renderInspector(){
+  const z = state.zone;
+  const tag = document.getElementById('inspectZoneTag'), title = document.getElementById('inspectTitle'), desc = document.getElementById('inspectDescription');
+  const ql = document.getElementById('inspectQtyList');
+  if (state.act){
+    const a = ACTIVITIES.find(x => x.id === state.act), sc = sched(a), st = actStatus(a), c = (COST.cur.actCost[a.id]||0);
+    tag.textContent = `Activity ${a.wbs} • ${a.grp}`; title.textContent = a.name;
+    desc.textContent = `${a.trade}, peak crew ~${a.crew}. ${a.crit ? 'On the critical path.' : `Total float ≈ ${a.fl} weeks (indicative).`}`;
+    document.getElementById('inspectBaselineDates').textContent = `W${a.s}–W${a.s+a.d-1}` + (sc.e !== a.s+a.d-1 || sc.s !== a.s ? ` → W${sc.s}–W${sc.e}` : '');
+    setStatus(st);
+    document.getElementById('inspectCost').textContent = sarM(c);
+    document.getElementById('inspectRate').textContent = `${sarM(c/sc.d)}/wk`;
+    const lines = BOQ.filter(l => norm(l.act)[a.id]).map(l => ({l, share:norm(l.act)[a.id]})).sort((x,y)=>y.l.amt*y.share - x.l.amt*x.share).slice(0,8);
+    ql.innerHTML = lines.map(({l,share}) => qtyLi(l, share)).join('') || '<li class="text-slate-500">No priced items</li>';
+  } else if (z){
+    const zc = zoneCost(z), sp = zoneSpan(z), st = zoneStatus(z), gfa = AREA[z] ? AREA[z].gross : null;
+    tag.textContent = 'Zone Analysis'; title.textContent = ZONE_NAME[z];
+    const A = AREA[z];
+    desc.textContent = A ? Object.keys(SPACE).filter(k => A[k]).map(k => `${SPACE[k].label} ${nf0.format(A[k])} m²`).join(' • ') + (A.cars ? ` • ${A.cars} cars` : '') + (A.seats ? ` • ${nf0.format(A.seats)} seats` : '')
+                     : (z === 'SUB' ? `Excavation ${nf0.format(D.fp*D.depth)} m³ to ${nf1.format(D.depth)} m; raft ${nf0.format(D.concRaft)} m³; shoring ${nf0.format(D.per*(D.depth+P.shoringToe))} m².` : 'Site-wide external works, mobilisation and utilities.');
+    document.getElementById('inspectBaselineDates').textContent = `W${sp.s}–W${sp.e}` + (sp.es !== sp.e ? ` → W${sp.es}` : '');
+    setStatus(st);
+    document.getElementById('inspectCost').textContent = sarM(zc.total);
+    document.getElementById('inspectRate').textContent = gfa ? `${nf0.format(gfa)} m² • ${nf0.format(zc.total/gfa)}/m²` : '-';
+    ql.innerHTML = zc.items.slice(0,8).map(({l,share}) => qtyLi(l, share)).join('') || '<li class="text-slate-500">No priced items</li>';
+  }
+  // trades this week
+  const acts = (state.act ? [ACTIVITIES.find(a=>a.id===state.act)] : z ? ZONE_ACTS[z].map(id=>ACTIVITIES.find(a=>a.id===id)) : activeActs()).filter(a => !a.fittedOnly || state.scope==='fitted');
+  const live = acts.filter(a => ['active','delayed'].includes(actStatus(a)));
+  document.getElementById('inspectTradesList').innerHTML = live.length ? live.map(a => `<li class="flex items-center justify-between py-1 border-b border-slate-800/60 gap-2"><span>${esc(a.name)}<span class="block text-[10px] text-slate-500">${esc(a.trade)}</span></span><span class="${actStatus(a)==='delayed'?'text-rose-400':'text-emerald-400'} font-mono whitespace-nowrap">${actStatus(a)==='delayed'?'Waiting':'Active ('+a.crew+' men)'}</span></li>`).join('')
+    : '<li class="text-slate-500">No crews active this week in this selection.</li>';
+}
+function qtyLi(l, share){ const showRate = state.lens !== 'site'; return `<li class="flex justify-between gap-2 py-0.5 border-b border-slate-800/50"><span class="truncate" title="${esc(l.desc)}">${esc(l.code)} ${esc(l.desc)}</span><span class="font-mono text-slate-200 whitespace-nowrap">${nf0.format(l.qty*share)} ${l.unit}${showRate ? ' • ' + nf2.format(l.amt*share/1e6) + 'M' : ''}</span></li>`; }
+function setStatus(st){ const e = document.getElementById('inspectStatus'); e.textContent = STATUS_TXT[st]; e.style.color = STATUS_COLOR[st]; }
+function renderEOTBox(){
+  const delay = state.scen === 'delay';
+  document.getElementById('eotExplanationText').textContent = delay
+    ? `Baseline allows 4 weeks for SEC substation approval and energisation (W100–W103). Under the claim scenario, approval takes ${4 + P.eotWeeks} weeks. Energisation sits on the critical path, ahead of commissioning and Civil Defence, so completion moves ${P.eotWeeks} weeks to W${projWeeks()}. Time-related preliminaries for the extra weeks form the prolongation cost.`
+    : `Baseline: SEC substation approval and energisation take 4 weeks (W100–W103), with no float before commissioning. Switch to "EOT Delay Claim" to model a ${P.eotWeeks}-week approval slip and its prolongation cost.`;
+  document.getElementById('eotFloat').textContent = delay ? `-${P.eotWeeks*7} days (direct EOT)` : '0 days';
+  document.getElementById('eotCost').textContent = delay ? sarM(COST.prolong) : '-';
+}
+
+/* =====================================================================
+   11. GANTT
+   ===================================================================== */
+const PXW = 13, ROWH = 28;
+function ganttRows(){
+  let acts = activeActs();
+  if (document.getElementById('chkCriticalOnly').checked) acts = acts.filter(a => a.crit);
+  const f = (document.getElementById('ganttFilterInput').value || '').toLowerCase();
+  if (f) acts = acts.filter(a => (a.name + ' ' + a.wbs + ' ' + a.grp + ' ' + a.trade).toLowerCase().includes(f));
+  if (state.lens === 'exec'){ // summary bars per WBS group
+    const groups = [...new Set(acts.map(a => a.grp))];
+    return groups.map(gname => { const ga = acts.filter(a => a.grp === gname);
+      return {id:'G:'+gname, summary:true, name:gname, wbs:'', s:Math.min(...ga.map(a=>a.s)), d:0, crit:ga.some(a=>a.crit), _sc:{s:Math.min(...ga.map(a=>sched(a).s)), e:Math.max(...ga.map(a=>sched(a).e))}, _be:Math.max(...ga.map(a=>a.s+a.d-1)), _ids:ga.map(a=>a.id), delayed:ga.some(isDelayed)}; });
+  }
+  return acts;
+}
+function renderGantt(){
+  const T = Math.max(projWeeks('baseline'), projWeeks()) + 2;
+  const rows = ganttRows();
+  const tbl = document.getElementById('ganttTableRows'), bars = document.getElementById('ganttRowsWrapper'), head = document.getElementById('ganttTimeHeader');
+  const widthPx = T * PXW;
+  bars.style.width = widthPx + 'px'; const bc = document.getElementById('ganttBarsContainer'); bc.style.width = widthPx + 'px'; bc.style.minWidth = widthPx + 'px'; head.style.width = widthPx + 'px'; head.style.minWidth = widthPx + 'px';
+  document.getElementById('ganttColHead').textContent = state.lens === 'site' ? 'Dur • Crew' : state.lens === 'controls' ? 'Dur • Float • Cost' : 'Dur • Cost';
+  // header: month labels
+  let hh = '';
+  for (let w = 1; w <= T; w++){
+    const d = weekDate(w), prev = weekDate(w-1);
+    if (w === 1 || d.getMonth() !== prev.getMonth()) hh += `<div class="absolute top-0 h-full border-l border-slate-700/70 pl-1 pt-0.5" style="left:${(w-1)*PXW}px">${d.toLocaleDateString('en-US',{month:'short'})}${d.getMonth()===0||w===1 ? ' ' + String(d.getFullYear()).slice(2) : ''}</div>`;
+    if (w % 4 === 1) hh += `<div class="absolute bottom-0 text-[9px] text-slate-600" style="left:${(w-1)*PXW+1}px">W${w}</div>`;
+  }
+  head.innerHTML = hh;
+  const actCost = COST.cur.actCost;
+  tbl.innerHTML = rows.map(a => {
+    const sc = a.summary ? a._sc : sched(a), dur = sc.e - sc.s + 1;
+    const cost = a.summary ? a._ids.reduce((s,id)=>s+(actCost[id]||0),0) : (actCost[a.id]||0);
+    const right = state.lens === 'site' ? `${dur}w • ${a.crew||'-'}` : state.lens === 'controls' ? `${dur}w • ${a.crit?'0':a.fl}w • ${nf1.format(cost/1e6)}M` : `${dur}w • ${nf1.format(cost/1e6)}M`;
+    const sel = state.act === a.id ? 'bg-sky-900/30' : '';
+    return `<div class="flex items-center justify-between px-3 border-b border-slate-800/40 hover:bg-slate-800/40 cursor-pointer ${sel}" style="height:${ROWH}px" onclick="selectAct('${a.id}')">
+      <span class="truncate ${a.crit ? 'text-slate-100' : 'text-slate-400'}">${a.wbs ? `<span class="font-mono text-slate-500 mr-1">${a.wbs}</span>` : ''}${a.crit && state.lens!=='exec' ? '<i class="fa-solid fa-bolt text-rose-400 text-[9px] mr-1"></i>' : ''}${esc(a.name)}</span>
+      <span class="font-mono text-slate-400 whitespace-nowrap ml-2 text-[10px]">${right}</span></div>`;
+  }).join('');
+  const ghost = document.getElementById('chkShowBaselineShadow').checked;
+  bars.innerHTML = rows.map(a => {
+    const sc = a.summary ? a._sc : sched(a);
+    const st = a.summary ? (state.week > sc.e ? 'done' : state.week >= sc.s ? (a.delayed && state.week >= projWeeks('baseline')-10 ? 'delayed':'active') : 'upcoming') : actStatus(a);
+    const be = a.summary ? a._be : a.s + a.d - 1, bs = a.s;
+    let h = `<div class="relative border-b border-slate-800/40" style="height:${ROWH}px">`;
+    if (ghost && state.scen === 'delay' && (sc.e !== be || sc.s !== bs)) h += `<div class="absolute rounded border border-dashed border-slate-500/70" style="left:${(bs-1)*PXW}px;width:${(be-bs+1)*PXW}px;top:6px;height:${ROWH-12}px"></div>`;
+    const color = STATUS_COLOR[st];
+    const p = Math.max(0, Math.min(1, (state.week - sc.s + 1)/(sc.e - sc.s + 1)));
+    if (a.milestone) h += `<div class="absolute w-3 h-3 rotate-45" style="left:${(sc.s-1)*PXW + PXW/2 - 6}px;top:${ROWH/2-6}px;background:${color}" title="${esc(a.name)}"></div>`;
+    else h += `<div onclick="selectAct('${a.id}')" class="absolute rounded cursor-pointer ${a.crit && state.lens==='controls' ? 'ring-1 ring-rose-400/60' : ''}" style="left:${(sc.s-1)*PXW}px;width:${(sc.e-sc.s+1)*PXW}px;top:7px;height:${ROWH-14}px;background:${color}33;border:1px solid ${color}" title="${esc(a.name)}: W${sc.s}–W${sc.e}">
+             <div class="h-full rounded-l" style="width:${p*100}%;background:${color}aa"></div></div>`;
+    if (state.lens === 'controls' && !a.summary && !a.crit && a.fl) h += `<div class="absolute h-px bg-slate-500" style="left:${sc.e*PXW}px;width:${a.fl*PXW}px;top:${ROWH/2}px"></div>`;
+    return h + '</div>';
+  }).join('');
+  positionCursor();
+}
+function positionCursor(){
+  const c = document.getElementById('ganttCursorLine');
+  c.style.left = ((state.week - 0.5) * PXW) + 'px';
+  c.style.height = Math.max(document.getElementById('ganttRowsWrapper').scrollHeight, document.getElementById('ganttBarsContainer').clientHeight) + 'px';
+  const wrap = document.getElementById('ganttTimelineWrapper'), x = (state.week - 0.5) * PXW;
+  if (x < wrap.scrollLeft + 40 || x > wrap.scrollLeft + wrap.clientWidth - 40) wrap.scrollLeft = Math.max(0, x - wrap.clientWidth / 3);
+}
+function selectAct(id){
+  if (id.startsWith('G:')) return;
+  state.act = id; state.zone = null; openInspector(); renderInspector(); renderGantt(); renderVisual();
+}
+function filterGanttSearch(){ const i = document.getElementById('ganttFilterInput'); i.classList.toggle('hidden'); if (!i.classList.contains('hidden')) i.focus(); else { i.value = ''; renderGantt(); } }
+
+/* =====================================================================
+   12. BoQ TABLE
+   ===================================================================== */
+function renderBoQ(){
+  const lens = state.lens, f = (document.getElementById('boqFilterInput').value || '').toLowerCase();
+  const showRate = lens === 'controls', showAmt = lens !== 'site', showBasis = lens !== 'exec';
+  document.getElementById('boqHead').innerHTML = `<th class="text-left px-3 py-2">Item</th><th class="text-left px-2">Description</th>${showBasis?'<th class="text-left px-2">Measurement basis</th>':''}<th class="px-2">Src</th><th class="text-right px-2">Qty</th><th class="text-left px-2">Unit</th>${showRate?'<th class="text-right px-2">Rate (SAR)</th>':''}${showAmt?'<th class="text-right px-3">Amount (SAR)</th><th class="text-right px-3">%</th>':''}`;
+  const groups = [...new Set(BOQ.map(l => l.grp))];
+  let h = '';
+  groups.forEach(gname => {
+    const lines = BOQ.filter(l => l.grp === gname && (!f || (l.code+' '+l.desc+' '+l.basis).toLowerCase().includes(f)));
+    if (!lines.length) return;
+    const gt = COST.groups[gname];
+    const cols = 4 + (showBasis?1:0) + (showRate?1:0);
+    h += `<tr class="bg-slate-800/60 font-semibold text-slate-200"><td class="px-3 py-1.5" colspan="${cols+1}">${esc(gname)}</td>${showAmt?`<td class="text-right px-3 font-mono">${nf0.format(gt)}</td><td class="text-right px-3 font-mono text-slate-400">${nf1.format(gt/COST.direct*100)}</td>`:''}</tr>`;
+    if (lens === 'exec') return;
+    lines.forEach(l => {
+      const ovr = l.code in RATE_OVR;
+      h += `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
+        <td class="px-3 py-1 font-mono text-slate-500">${l.code}</td>
+        <td class="px-2 text-slate-200">${esc(l.desc)}</td>
+        ${showBasis?`<td class="px-2 text-slate-500">${esc(l.basis)}</td>`:''}
+        <td class="px-2 text-center"><span class="src-${l.src} px-1.5 py-0.5 rounded text-[9px] font-semibold">${l.src}</span></td>
+        <td class="px-2 text-right font-mono">${nf1.format(l.qty)}</td><td class="px-2 text-slate-400">${l.unit}</td>
+        ${showRate?`<td class="px-2 text-right"><input class="rate ${ovr?'ovr':''}" type="number" step="any" value="${l.rate}" data-code="${l.code}" title="Default ${nf0.format(l.baseRate)}" onchange="setRate(this)"></td>`:''}
+        ${showAmt?`<td class="px-3 text-right font-mono">${nf0.format(l.amt)}</td><td class="px-3 text-right font-mono text-slate-500">${nf2.format(l.amt/COST.direct*100)}</td>`:''}</tr>`;
+    });
+  });
+  if (showAmt){
+    const span = 4 + (showBasis?1:0) + (showRate?1:0) + 1;
+    const row = (t, v, cls='') => `<tr class="${cls}"><td colspan="${span}" class="px-3 py-1 text-right">${t}</td><td class="px-3 text-right font-mono">${nf0.format(v)}</td><td></td></tr>`;
+    h += row('Total direct construction cost', COST.direct, 'font-semibold text-slate-200 border-t-2 border-slate-700');
+    h += row(`Preliminaries ${P.prelimsPct}%`, COST.prelims, 'text-slate-400');
+    h += row(`Contractor OH&P ${P.ohpPct}%`, COST.ohp, 'text-slate-400');
+    h += row(`Design contingency ${P.designContPct}%`, COST.dc, 'text-slate-400');
+    h += row(`Construction contingency ${P.constContPct}%`, COST.cc, 'text-slate-400');
+    if (COST.prolong) h += row(`EOT prolongation (${P.eotWeeks} wks time-related prelims)`, COST.prolong, 'text-rose-300');
+    h += row('Total excl. VAT', COST.totalExVat, 'font-bold text-white');
+    h += row(`VAT ${P.vatPct}%`, COST.vat, 'text-slate-400');
+    h += row('Total incl. VAT', COST.total, 'font-bold text-emerald-300');
+  }
+  document.getElementById('boqBody').innerHTML = h;
+}
+function setRate(inp){ const v = parseFloat(inp.value); const l = BOQ.find(x => x.code === inp.dataset.code); if (isNaN(v) || v === l.baseRate) delete RATE_OVR[inp.dataset.code]; else RATE_OVR[inp.dataset.code] = v; saveJSON('cg_rates', RATE_OVR); recalc(); }
+function resetRates(){ RATE_OVR = {}; saveJSON('cg_rates', RATE_OVR); recalc(); }
+function exportCSV(){
+  const q = s => '"' + String(s).replace(/"/g,'""') + '"';
+  const rows = [['Item','Element','Description','Measurement basis','Source','Qty','Unit','Rate SAR','Amount SAR']];
+  BOQ.forEach(l => rows.push([l.code, l.grp, l.desc, l.basis, l.src, l.qty, l.unit, l.rate, Math.round(l.amt)]));
+  rows.push([]); [['Direct',COST.direct],['Preliminaries',COST.prelims],['OH&P',COST.ohp],['Design contingency',COST.dc],['Construction contingency',COST.cc],['EOT prolongation',COST.prolong],['Total excl VAT',COST.totalExVat],['VAT',COST.vat],['Total incl VAT',COST.total]].forEach(r => rows.push(['','','',r[0],'','','','',Math.round(r[1])]));
+  const blob = new Blob([rows.map(r => r.map(q).join(',')).join('\n')], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `crystal-gallery-boq-${state.scope}-${state.scen}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* =====================================================================
+   13. COST PLAN & S-CURVE
+   ===================================================================== */
+function renderCost(){
+  const g = Object.entries(COST.groups).sort((a,b) => b[1]-a[1]), max = g[0][1];
+  document.getElementById('elementBars').innerHTML = g.map(([k,v]) => `
+    <div class="grid grid-cols-[150px_1fr_110px] items-center gap-2" title="${esc(k)}: ${sar(v)}">
+      <span class="text-slate-300 truncate">${esc(k)}</span>
+      <div class="h-3 bg-slate-800 rounded"><div class="h-3 rounded-r" style="width:${v/max*100}%;background:#0ea5e9"></div></div>
+      <span class="font-mono text-right text-slate-300">${nf2.format(v/1e6)}M • ${nf0.format(v/D.gfa)}/m²</span></div>`).join('');
+  const r = (t,v,c='') => `<tr class="${c}"><td class="py-0.5">${t}</td><td class="text-right font-mono">${sarM(v)}</td><td class="text-right font-mono text-slate-500">${nf0.format(v/D.gfa)}/m²</td></tr>`;
+  document.getElementById('markupTable').innerHTML =
+    r('Direct construction', COST.direct, 'border-t border-slate-700') + r(`Preliminaries ${P.prelimsPct}%`, COST.prelims, 'text-slate-400') + r(`OH&P ${P.ohpPct}%`, COST.ohp, 'text-slate-400') +
+    r(`Design contingency ${P.designContPct}%`, COST.dc, 'text-slate-400') + r(`Construction contingency ${P.constContPct}%`, COST.cc, 'text-slate-400') +
+    (COST.prolong ? r('EOT prolongation', COST.prolong, 'text-rose-300') : '') + r('Total excl. VAT', COST.totalExVat, 'font-bold text-white border-t border-slate-700') +
+    r(`VAT ${P.vatPct}%`, COST.vat, 'text-slate-400') + r('Total incl. VAT', COST.total, 'font-bold text-emerald-300') +
+    `<tr><td colspan="3" class="pt-2 text-[10px] text-slate-500">Per m² rates use the costed GFA of ${nf0.format(D.gfa)} m². Per car space (basement share): ${sar(zoneCost('B2').total/AREA.B2.cars)} (B2 direct cost ÷ 237 spaces).</td></tr>`;
+  renderSCurve();
+}
+function renderSCurve(){
+  const svg = document.getElementById('sCurve'); svg.innerHTML = '';
+  const m = {l:44, r:12, t:10, b:28}, Wd = 560 - m.l - m.r, Ht = 280 - m.t - m.b;
+  const series = [{name:'Baseline', cf:COST.base, color:'#38bdf8'}];
+  if (state.scen === 'delay') series.push({name:'EOT scenario', cf:COST.cur, color:'#f43f5e'});
+  const T = Math.max(...series.map(s => s.cf.T)), Y = Math.max(...series.map(s => s.cf.cum[s.cf.T])) * 1.05;
+  const x = w => m.l + w/T*Wd, y = v => m.t + Ht - v/Y*Ht;
+  for (let i = 0; i <= 4; i++){ const v = Y*i/4; svgEl('line', {x1:m.l, x2:m.l+Wd, y1:y(v), y2:y(v), stroke:'#1e293b'}, svg); const t = svgEl('text', {x:m.l-6, y:y(v)+3, fill:'#64748b', 'font-size':10, 'text-anchor':'end'}, svg); t.textContent = nf0.format(v/1e6); }
+  for (let w = 0; w <= T; w += 20){ const t = svgEl('text', {x:x(w), y:280-10, fill:'#64748b', 'font-size':10, 'text-anchor':'middle'}, svg); t.textContent = 'W' + w; }
+  series.forEach(s => { const pts = s.cf.cum.map((v,i) => `${x(i)},${y(v)}`).join(' '); svgEl('polyline', {points:pts, fill:'none', stroke:s.color, 'stroke-width':2}, svg); });
+  // current week marker
+  svgEl('line', {x1:x(state.week), x2:x(state.week), y1:m.t, y2:m.t+Ht, stroke:'#94a3b8', 'stroke-dasharray':'3 3'}, svg);
+  const cur = series[series.length-1].cf; const cw = Math.min(state.week, cur.T);
+  svgEl('circle', {cx:x(cw), cy:y(cur.cum[cw]), r:4, fill:series[series.length-1].color, stroke:'#0f172a', 'stroke-width':2}, svg);
+  document.getElementById('sCurveLegend').innerHTML = series.map(s => `<span class="flex items-center gap-1"><span class="inline-block w-3 h-0.5" style="background:${s.color}"></span>${s.name}: ${sarM(s.cf.cum[s.cf.T])} over ${s.cf.T} wks</span>`).join('');
+  // hover crosshair
+  const hit = svgEl('rect', {x:m.l, y:m.t, width:Wd, height:Ht, fill:'transparent'}, svg);
+  const vline = svgEl('line', {y1:m.t, y2:m.t+Ht, stroke:'#e2e8f0', 'stroke-width':1, visibility:'hidden'}, svg);
+  const tip = document.getElementById('sCurveTip');
+  hit.addEventListener('mousemove', ev => {
+    const bb = svg.getBoundingClientRect(); const px = (ev.clientX - bb.left) / bb.width * 560;
+    const w = Math.max(0, Math.min(T, Math.round((px - m.l)/Wd*T)));
+    vline.setAttribute('x1', x(w)); vline.setAttribute('x2', x(w)); vline.setAttribute('visibility','visible');
+    tip.innerHTML = `<div class="text-slate-400">Week ${w} • ${fmtDate(weekDate(Math.max(1,w)))}</div>` + series.map(s => `<div><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:${s.color}"></span>${s.name}: <span class="font-mono">${sarM(s.cf.cum[Math.min(w, s.cf.T)])}</span></div>`).join('');
+    tip.classList.remove('hidden');
+    const pb = svg.parentElement.getBoundingClientRect();
+    tip.style.left = Math.min(ev.clientX - pb.left + 12, pb.width - 190) + 'px'; tip.style.top = (ev.clientY - pb.top + 12) + 'px';
+  });
+  hit.addEventListener('mouseleave', () => { tip.classList.add('hidden'); vline.setAttribute('visibility','hidden'); });
+}
+
+/* =====================================================================
+   14. ASSUMPTIONS PANEL
+   ===================================================================== */
+function renderParams(){
+  document.getElementById('paramsGrid').innerHTML = PARAM_META.map(([title, items]) => `
+    <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40"><h5 class="font-semibold text-slate-200 mb-2">${esc(title)}</h5>
+    ${items.map(([k,label,type]) => `<label class="flex items-center justify-between gap-2 py-0.5 text-slate-400"><span>${esc(label)}</span>
+      <input class="param-in" ${type==='date'?'type="date" style="width:130px"':'type="number" step="any"'} value="${P[k]}" data-k="${k}" onchange="setParam(this)"></label>`).join('')}</div>`).join('') +
+    `<div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40 flex flex-col justify-between"><p class="text-slate-400 text-[11px]">Changes recalculate the take-off, programme and cashflow straight away. They are saved in this browser only.</p>
+     <button onclick="resetParams()" class="mt-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 text-slate-200"><i class="fa-solid fa-rotate-left mr-1"></i>Restore default assumptions</button></div>`;
+  const cols = ['retail','event','fnb','terrace','cinema','circ','mep','parking','cars','gross'];
+  const heads = ['Level','Retail','Event plaza','F&B','Terrace','Cinema','Public cir. & WC','MEP','Parking','Cars','Gross'];
+  const tot = c => ALL_LEVELS.reduce((s,l)=>s+(AREA[l][c]||0),0);
+  document.getElementById('areaTable').innerHTML = `<tr class="text-slate-500">${heads.map(h=>`<th class="text-right px-2 py-1 first:text-left">${h}</th>`).join('')}</tr>` +
+    [...ALL_LEVELS].reverse().map(l => `<tr class="border-t border-slate-800">${'<td class="px-2 py-0.5 font-mono">'+l+'</td>' + cols.map(c => `<td class="text-right px-2 font-mono">${AREA[l][c] ? nf0.format(AREA[l][c]) : ''}</td>`).join('')}</tr>`).join('') +
+    `<tr class="border-t-2 border-slate-700 font-semibold">${'<td class="px-2">Total costed</td>' + cols.map(c => `<td class="text-right px-2 font-mono">${nf0.format(tot(c))}</td>`).join('')}</tr>` +
+    `<tr class="text-slate-500"><td class="px-2" colspan="10">Drawing total (Gross Area, p.17)</td><td class="text-right px-2 font-mono">45,852</td></tr>`;
+}
+function setParam(inp){ const k = inp.dataset.k; P[k] = inp.type === 'date' ? inp.value : parseFloat(inp.value); if (inp.type !== 'date' && isNaN(P[k])) P[k] = P_DEFAULT[k]; saveJSON('cg_params', P); recalc(); }
+function resetParams(){ P = {...P_DEFAULT}; saveJSON('cg_params', P); recalc(); renderParams(); }
+
+/* =====================================================================
+   15. KPIs, conflicts, scrubber, playback
+   ===================================================================== */
+function renderKPIs(){
+  const k = (label, val, cls='text-slate-100') => `<span class="text-slate-500">${label}: <span class="font-mono font-semibold ${cls}">${val}</span></span>`;
+  document.getElementById('kpiStrip').innerHTML =
+    k('Total excl. VAT', sarM(COST.totalExVat), 'text-emerald-300') + k('Incl. VAT', sarM(COST.total)) + k('GFA costed', nf0.format(D.gfa) + ' m²') +
+    k('SAR/m² GFA', nf0.format(COST.totalExVat/D.gfa)) + k('SAR/m² above-ground', nf0.format(COST.totalExVat/D.gfaAbove)) +
+    k('Concrete', nf0.format(D.concTotal) + ' m³') + k('Rebar', nf0.format(BOQ.filter(l=>l.unit==='t' && l.desc.toLowerCase().includes('reinforcement')).reduce((s,l)=>s+l.qty,0)) + ' t') +
+    k('Facade', nf0.format(D.facade) + ' m²') + k('Programme', projWeeks() + ' wks', state.scen==='delay'?'text-rose-300':'text-slate-100') +
+    k('Accuracy', 'Class 4 (−20%/+30%)', 'text-amber-300');
+}
+function conflicts(){
+  const w = state.week, A = id => actStatus(ACTIVITIES.find(a=>a.id===id)) === 'active';
+  if (state.scen === 'delay'){ const sec = ACTIVITIES.find(a=>a.id==='sec'), sc = sched(sec); if (w >= sec.s + sec.d && w <= sc.e) return 'Building physically complete and parked, waiting purely on SEC energisation approval. Prelims are still running.'; }
+  if (A('exc') && A('pile')) return 'Piling rigs working inside the open excavation while bulk dig continues. Sequence the work zone by zone and keep a haul ramp clear.';
+  if (A('pod') && A('gf')) return 'Podium waterproofing is exposed to GF frame traffic and crane laydown. Protect the membrane or phase the podium.';
+  if (A('cw') && A('l2') ) return 'Curtain wall hoisting under the active L2 pour zone. Tower crane time is shared, so split the crane schedule.';
+  if (A('ext') && A('vt') && w > 95) return 'External works are blocking the escalator and lift delivery route at the main drop-off. Agree a delivery window.';
+  return null;
+}
+function renderScrubber(){
+  const T = projWeeks(), sc = document.getElementById('timelineScrubber');
+  sc.max = T; if (state.week > T) state.week = T; sc.value = state.week;
+  document.getElementById('scrubberEndLabel').textContent = 'W' + T;
+  const ms = [['Groundbreak','mob'],['Raft','raft'],['Topping out','l3'],['Handover','ho']];
+  document.getElementById('scrubberMilestones').innerHTML = ms.map(([n,id]) => { const a = ACTIVITIES.find(x=>x.id===id); const e = sched(a).e; return `<span class="absolute -translate-x-1/2 whitespace-nowrap ${id==='ho'&&state.scen==='delay'?'text-rose-400':''}" style="left:${(e-1)/(T-1)*100}%">${n}</span>`; }).join('');
+}
+function updateWeek(){
+  const w = state.week, T = projWeeks(), cf = COST.cur;
+  const cum = cf.cum[Math.min(w, cf.T)];
+  document.getElementById('currentSimDateLabel').textContent = `Week ${w} • ${fmtDate(weekDate(w))}`;
+  document.getElementById('simOverallProgress').textContent = `${nf0.format(cum / cf.cum[cf.T] * 100)}% Complete`;
+  document.getElementById('simCostToDate').textContent = `${sarM(cum)} certified`;
+  document.getElementById('badgeWeekNumber').textContent = `Week ${w} / ${T}`;
+  document.getElementById('timelineScrubber').value = w;
+  document.getElementById('activeTradesCount').textContent = activeActs().filter(a => actStatus(a) === 'active').length;
+  const c = conflicts(), ban = document.getElementById('spatialConflictBanner');
+  if (c){ ban.classList.remove('hidden'); ban.classList.add('flex'); document.getElementById('spatialConflictText').textContent = c; } else { ban.classList.add('hidden'); ban.classList.remove('flex'); }
+  renderVisual(); renderGantt(); if (state.zone || state.act) renderInspector(); if (state.tab === 'cost') renderSCurve();
+}
+function onScrub(v){ state.week = parseInt(v, 10); updateWeek(); }
+function stepSim(d){ state.week = Math.max(1, Math.min(projWeeks(), state.week + d)); updateWeek(); }
+function resetSim(){ if (state.playing) togglePlay(); state.week = 1; updateWeek(); }
+function togglePlay(){
+  state.playing = !state.playing;
+  document.getElementById('btnPlayPause').innerHTML = `<i class="fa-solid fa-${state.playing ? 'pause' : 'play'}"></i>`;
+  clearInterval(state.timer);
+  if (state.playing){ if (state.week >= projWeeks()) state.week = 1; state.timer = setInterval(() => { if (state.week >= projWeeks()){ togglePlay(); return; } state.week++; updateWeek(); }, 600 / state.speed); }
+}
+function setSpeed(s){ state.speed = s; document.querySelectorAll('.speed-btn').forEach(b => { const on = +b.dataset.speed === s; b.className = 'speed-btn px-1.5 py-0.5 rounded text-[10px] font-mono ' + (on ? 'text-sky-400 font-bold bg-slate-700' : 'text-slate-400 hover:text-white'); }); if (state.playing){ togglePlay(); togglePlay(); } }
+
+/* =====================================================================
+   16. TOP CONTROLS
+   ===================================================================== */
+function switchProject(scope){
+  state.scope = scope;
+  const on = 'px-2.5 py-1 text-xs font-medium rounded-md transition-all bg-sky-600 text-white shadow flex items-center gap-1.5', off = 'px-2.5 py-1 text-xs font-medium rounded-md transition-all text-slate-400 hover:text-white flex items-center gap-1.5';
+  document.getElementById('btnScopeCore').className = scope === 'core' ? on : off;
+  document.getElementById('btnScopeFitted').className = scope === 'fitted' ? on : off;
+  recalc();
+}
+function setLens(l){
+  state.lens = l;
+  [['exec','lensExec'],['site','lensSite'],['controls','lensControls']].forEach(([k,id]) => document.getElementById(id).className = 'px-2 py-0.5 text-xs rounded ' + (k === l ? 'text-white bg-slate-700' : 'text-slate-400 hover:text-white'));
+  renderGantt(); renderBoQ(); if (state.zone || state.act) renderInspector();
+}
+function setScenario(s){
+  state.scen = s;
+  document.getElementById('scenBaseline').className = 'px-2 py-0.5 text-xs rounded font-medium border ' + (s === 'baseline' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'text-slate-400 hover:text-emerald-300 border-transparent');
+  document.getElementById('scenDelay').className = 'px-2 py-0.5 text-xs rounded font-medium border ' + (s === 'delay' ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'text-slate-400 hover:text-rose-300 border-transparent');
+  document.getElementById('eotImpactBadge').classList.toggle('hidden', s !== 'delay');
+  recalc();
+}
+function setTab(t){
+  state.tab = t;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  ['gantt','boq','cost','params'].forEach(p => document.getElementById('panel-' + p).classList.toggle('hidden', p !== t));
+  document.getElementById('panel-gantt').classList.toggle('flex', t === 'gantt');
+  document.getElementById('ganttTools').classList.toggle('hidden', t !== 'gantt'); document.getElementById('ganttTools').classList.toggle('flex', t === 'gantt');
+  document.getElementById('boqTools').classList.toggle('hidden', t !== 'boq'); document.getElementById('boqTools').classList.toggle('flex', t === 'boq');
+  if (t === 'cost') renderCost(); if (t === 'params') renderParams(); if (t === 'boq') renderBoQ(); if (t === 'gantt') renderGantt();
+}
+function toggleModal(id, show){ const m = document.getElementById(id); m.classList.toggle('hidden', !show); m.classList.toggle('flex', show); }
+function toggleScheduleDataDrawer(){
+  const m = document.getElementById('scheduleDataDrawer'), show = m.classList.contains('hidden');
+  if (show) document.getElementById('rawSchedulePre').textContent = rawJSON();
+  toggleModal('scheduleDataDrawer', show);
+}
+function rawJSON(){
+  return JSON.stringify({
+    project:'Crystal Gallery, Jeddah', source:'Concept i Design: Revised Design Submission 2, 27 Jan 2023', scope:state.scope, scenario:state.scen, currency:'SAR',
+    areas:AREA, floorHeights_m:HEIGHT, parameters:P,
+    activities:activeActs().map(a => { const s = sched(a); return {id:a.id, wbs:a.wbs, name:a.name, baselineStart:a.s, baselineDur:a.d, start:s.s, finish:s.e, critical:a.crit, float:a.fl, trade:a.trade, cost:Math.round(COST.cur.actCost[a.id]||0)}; }),
+    boq:BOQ.map(l => ({item:l.code, element:l.grp, desc:l.desc, qty:l.qty, unit:l.unit, rate:l.rate, amount:Math.round(l.amt), source:l.src, basis:l.basis})),
+    summary:{direct:Math.round(COST.direct), prelims:Math.round(COST.prelims), ohp:Math.round(COST.ohp), designContingency:Math.round(COST.dc), constructionContingency:Math.round(COST.cc), prolongation:Math.round(COST.prolong), totalExVat:Math.round(COST.totalExVat), vat:Math.round(COST.vat), total:Math.round(COST.total)}
+  }, null, 2);
+}
+function copyText(txt, labelId, label){ const done = () => { const e = document.getElementById(labelId); e.textContent = 'Copied!'; setTimeout(() => e.textContent = label, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => fallbackCopy(txt, done)); else fallbackCopy(txt, done); }
+function fallbackCopy(txt, done){ const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch(e){} t.remove(); }
+function copyRawSchedule(){ copyText(rawJSON(), 'copyJsonLabel', 'Copy JSON'); }
+function copyPrompt(){ copyText(document.getElementById('promptTemplateText').textContent.trim(), 'copyPromptLabel', 'Copy Prompt'); }
+function resetZoom(){ state.zone = null; state.act = null; renderVisual(); renderGantt(); }
+function openInspector(){ const d = document.getElementById('inspectorDrawer'); d.classList.remove('hidden','xl:flex'); d.classList.add('flex'); d.dataset.open = '1'; }
+function toggleInspector(){
+  const d = document.getElementById('inspectorDrawer');
+  const visible = d.dataset.open === '1' || (d.dataset.open === undefined && window.innerWidth >= 1280);
+  if (visible){ d.classList.remove('flex','xl:flex'); d.classList.add('hidden'); d.dataset.open = '0'; } else openInspector();
+}
+
+/* =====================================================================
+   17. RECALC + INIT
+   ===================================================================== */
+function recalc(){ rollUp(); renderKPIs(); renderScrubber(); renderEOTBox(); updateWeek(); if (state.tab === 'boq') renderBoQ(); if (state.tab === 'cost') renderCost(); }
+// keep WBS table & bars scrolling together
+(function syncScroll(){ const a = document.getElementById('ganttTableRows'), b = document.getElementById('ganttBarsContainer'); let lock = false;
+  a.addEventListener('scroll', () => { if (lock) return; lock = true; b.scrollTop = a.scrollTop; lock = false; });
+  b.addEventListener('scroll', () => { if (lock) return; lock = true; a.scrollTop = b.scrollTop; lock = false; }); })();
+document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === 'ArrowRight') stepSim(1); if (e.key === 'ArrowLeft') stepSim(-1); if (e.key === ' '){ e.preventDefault(); togglePlay(); } if (e.key === 'Escape'){ toggleModal('helpModal', false); toggleModal('scheduleDataDrawer', false); } });
+state.week = 18; state.zone = 'SUB'; setSpeed(1); recalc(); renderInspector();
+</script>
+</body>
+</html>
