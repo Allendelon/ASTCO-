@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Crystal Gallery Take-off</title>
+<title>Crystal Gallery 4D/5D</title>
 <!-- Tailwind CSS v3 Play CDN + Font Awesome 6.5.1 (cdnjs) -->
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -27,7 +27,7 @@
   <div class="flex items-center gap-3 min-w-0">
     <div class="w-9 h-9 rounded-lg bg-sky-600/20 border border-sky-600/40 flex items-center justify-center text-sky-400"><i class="fa-solid fa-calculator"></i></div>
     <div class="min-w-0">
-      <h1 class="text-sm font-bold text-white truncate">Crystal Gallery, Jeddah: Quantity Take-off &amp; 5D Cost Model</h1>
+      <h1 class="text-sm font-bold text-white truncate">Crystal Gallery, Jeddah: 4D BIM Planning, Take-off &amp; 5D Cost Model</h1>
       <p class="text-[11px] text-slate-400 truncate">Basis: Concept i Design, Revised Design Submission 2 (27 Jan 2023) • B2+B1+GF+L1–L4 • Class 4 parametric estimate (SAR)</p>
     </div>
   </div>
@@ -117,6 +117,13 @@
     </div>
   </div>
 
+  <div class="absolute bottom-2 left-3 z-20 flex items-center gap-1.5 bg-slate-900/90 border border-slate-700 rounded p-1">
+    <button id="viewSection" onclick="setView('section')" class="px-2 py-0.5 rounded text-[11px] bg-sky-600 text-white">Section</button>
+    <button id="viewPlan" onclick="setView('plan')" class="px-2 py-0.5 rounded text-[11px] text-slate-400 hover:text-white">Plan + logistics</button>
+    <select id="planLevelSel" onchange="setPlanLevel(this.value)" class="hidden bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-[11px]">
+      <option value="auto">Auto level</option><option value="RAFT">Raft</option><option>B2</option><option>B1</option><option>GF</option><option>L1</option><option>L2</option><option>L3</option><option>L4</option>
+    </select>
+  </div>
   <div class="absolute bottom-2 right-3 z-20 flex gap-2">
     <button id="btnInspectDrawer" onclick="toggleInspector()" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 flex items-center gap-1.5 shadow">
       <i class="fa-solid fa-layer-group text-sky-400"></i> Zone Inspector
@@ -168,6 +175,7 @@
   <div class="bg-slate-900/60 border-b border-slate-800 px-4 flex items-center justify-between text-xs flex-wrap gap-2">
     <div class="flex items-center gap-4">
       <button class="tab-btn active py-2 text-slate-400 hover:text-white font-semibold" data-tab="gantt" onclick="setTab('gantt')"><i class="fa-solid fa-network-wired text-sky-400 mr-1"></i>Gantt</button>
+      <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="bim" onclick="setTab('bim')"><i class="fa-solid fa-cubes text-violet-400 mr-1"></i>4D BIM</button>
       <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="boq" onclick="setTab('boq')"><i class="fa-solid fa-ruler-combined text-amber-400 mr-1"></i>Take-off BoQ</button>
       <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="cost" onclick="setTab('cost')"><i class="fa-solid fa-chart-line text-emerald-400 mr-1"></i>Cost Plan &amp; Cashflow</button>
       <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="params" onclick="setTab('params')"><i class="fa-solid fa-sliders text-slate-400 mr-1"></i>Assumptions</button>
@@ -175,6 +183,9 @@
     <div id="ganttTools" class="flex items-center gap-2 py-1.5">
       <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none">
         <input type="checkbox" id="chkCriticalOnly" onchange="renderGantt()" class="rounded bg-slate-800 border-slate-700"><span>Critical Path Only</span>
+      </label>
+      <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none ml-2" title="Show location-based (pour zone) child tasks in Foreman / Controls lens">
+        <input type="checkbox" id="chkZoneTasks" checked onchange="renderGantt()" class="rounded bg-slate-800 border-slate-700"><span>Zone tasks (LBS)</span>
       </label>
       <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer select-none ml-2">
         <input type="checkbox" id="chkShowBaselineShadow" checked onchange="renderGantt()" class="rounded bg-slate-800 border-slate-700"><span>Show Baseline Ghost</span>
@@ -203,6 +214,46 @@
       <div id="ganttBarsContainer" class="flex-1 relative overflow-y-auto">
         <div id="ganttCursorLine" class="absolute top-0 w-0.5 bg-sky-400 z-20 pointer-events-none shadow-[0_0_8px_rgba(56,189,248,0.8)]"><div class="w-2.5 h-2.5 bg-sky-400 rounded-full -ml-1 -mt-1 shadow"></div></div>
         <div id="ganttRowsWrapper"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4D BIM panel -->
+  <div id="panel-bim" class="hidden flex-1 overflow-auto p-4 text-xs">
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+        <h5 class="font-semibold text-slate-200 mb-2"><i class="fa-solid fa-calendar-week text-sky-400 mr-1"></i>3-week look-ahead</h5>
+        <ul id="lookahead" class="text-slate-400 text-[11px] max-h-48 overflow-y-auto"></ul>
+      </div>
+      <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+        <h5 class="font-semibold text-slate-200 mb-2"><i class="fa-solid fa-burst text-rose-400 mr-1"></i>Time-space clashes (this week)</h5>
+        <ul id="clashList" class="text-slate-300 text-[11px] max-h-48 overflow-y-auto"></ul>
+      </div>
+      <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40 relative">
+        <h5 class="font-semibold text-slate-200 mb-1"><i class="fa-solid fa-people-group text-amber-400 mr-1"></i>Manpower loading (workers / week)</h5>
+        <div id="histoPeak" class="text-[11px] text-slate-400 mb-1"></div>
+        <svg id="histo" viewBox="0 0 420 170" class="w-full h-auto"></svg>
+        <div id="histoTip" class="absolute hidden pointer-events-none bg-slate-900/95 border border-slate-700 rounded px-2 py-1 text-[11px]"></div>
+      </div>
+    </div>
+    <div class="mt-4 border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <h5 class="font-semibold text-slate-200"><i class="fa-solid fa-link text-violet-400 mr-1"></i>Model element ↔ schedule task links (TimeLiner-style)</h5>
+        <div class="flex items-center gap-2">
+          <select id="linkLevelSel" onchange="renderBIM()" class="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-[11px]">
+            <option value="all">All locations</option><option>EXT</option><option>SUB</option><option>RAFT</option><option>B2</option><option>B1</option><option>GF</option><option>L1</option><option>L2</option><option>L3</option><option>L4</option>
+          </select>
+          <input id="linkFilter" oninput="renderBIM()" placeholder="IfcSlab, raft, 2.04…" class="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-[11px] w-40">
+          <button onclick="exportLinksCSV()" class="px-2 py-0.5 rounded bg-violet-700 hover:bg-violet-600 text-[11px] text-white"><i class="fa-solid fa-file-csv mr-1"></i>Export links CSV</button>
+        </div>
+      </div>
+      <p id="linkRecon" class="text-[11px] text-slate-400 mb-2"></p>
+      <p class="text-[11px] text-amber-300/90 mb-2"><i class="fa-solid fa-triangle-exclamation mr-1"></i>There is no BIM model yet: the drawings are concept presentation boards (LOD 100). Element IDs here are location-based placeholders (CG-zone-item). Replace them with Revit/IFC GlobalIds once a model exists, and keep the task IDs.</p>
+      <div class="overflow-x-auto max-h-72 overflow-y-auto">
+        <table class="w-full text-[11px]">
+          <thead class="sticky top-0 bg-slate-900 text-slate-500 uppercase text-[10px]"><tr><th class="text-left px-2 py-1">Element ID</th><th class="text-left px-2">IFC class</th><th class="text-left px-2">Location</th><th class="text-left px-2">Description</th><th class="text-left px-2">Task</th><th class="text-left px-2">Type</th><th class="text-left px-2">Planned</th><th class="text-right px-2">Qty</th><th class="text-right px-2">Cost SAR</th></tr></thead>
+          <tbody id="linkBody"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -447,7 +498,7 @@ const ACTIVITIES = [
 let P = loadJSON('cg_params', {...P_DEFAULT});
 P = {...P_DEFAULT, ...P};
 let RATE_OVR = loadJSON('cg_rates', {});
-let state = { week:1, scope:'core', lens:'exec', scen:'baseline', playing:false, speed:1, timer:null, tab:'gantt', zone:null, act:null };
+let state = { week:1, scope:'core', lens:'exec', scen:'baseline', playing:false, speed:1, timer:null, tab:'gantt', zone:null, act:null, view:'section', planLevel:'auto' };
 let BOQ = [], COST = null, D = null;
 
 function loadJSON(k, def){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch(e){ return def; } }
@@ -656,6 +707,7 @@ function rollUp(){
   const groups = {}; BOQ.forEach(l => groups[l.grp] = (groups[l.grp]||0) + l.amt);
   COST = {direct, prelims, ohp, dc, cc, F, prolong, weeklyTR, totalExVat, vat, total: totalExVat + vat, groups,
           base: cashflow('baseline'), cur: cashflow(state.scen)};
+  LINKS = buildLinks();
 }
 function cashflow(scen){
   const T = projWeeks(scen), baseT = projWeeks('baseline');
@@ -683,7 +735,7 @@ function zoneCost(zone){
    ===================================================================== */
 function weekDate(w){ const d = new Date(P.startDate + 'T00:00:00'); d.setDate(d.getDate() + 7*(w-1)); return d; }
 function fmtDate(d){ return d.toLocaleDateString('en-US',{month:'short', day:'2-digit', year:'numeric'}); }
-function prog(id, w = state.week){ const a = ACTIVITIES.find(x => x.id === id); if (!a || (a.fittedOnly && state.scope !== 'fitted')) return 0; const s = sched(a); return Math.max(0, Math.min(1, (w - s.s + 1)/s.d)); }
+function prog(id, w = state.week){ const a = findAct(id); if (!a || (a.fittedOnly && state.scope !== 'fitted')) return 0; const s = sched(a); return Math.max(0, Math.min(1, (w - s.s + 1)/s.d)); }
 function actStatus(a, w = state.week){ const s = sched(a); if (w > s.e) return 'done'; if (w >= s.s) return isDelayed(a) ? 'delayed' : 'active'; return isDelayed(a) && w >= a.s ? 'delayed' : 'upcoming'; }
 const STATUS_COLOR = {done:'#10b981', active:'#f59e0b', delayed:'#f43f5e', upcoming:'#475569'};
 const STATUS_TXT = {done:'Complete', active:'In progress', delayed:'Delayed (EOT)', upcoming:'Upcoming'};
@@ -709,6 +761,99 @@ function zoneSpan(z){
   return {s: Math.min(...acts.map(a => a.s)), e: Math.max(...acts.map(a => a.s + a.d - 1)), es: Math.max(...acts.map(a => sched(a).e))};
 }
 
+
+/* =====================================================================
+   8b. 4D BIM PLANNING: Location Breakdown Structure (LBS), zoned tasks,
+       line-of-balance sweeps, time-space conflicts, element <-> task links
+   ===================================================================== */
+// Work / pour zones per level, with area share. Quadrants for the 12,500 m² basement (~3,125 m² pours);
+// L2 keeps the cinema block as its own zone (long-span transfer).
+function lbs(level){
+  const q = [['Z1',.25],['Z2',.25],['Z3',.25],['Z4',.25]], t = [['Z1',1/3],['Z2',1/3],['Z3',1/3]];
+  if (['RAFT','B2','B1'].includes(level)) return q;
+  if (level === 'GF' || level === 'L1') return t;
+  if (level === 'L2'){ const f = (AREA.L2.gross - AREA.L2.cinema)/2/AREA.L2.gross; return [['Z1',f],['Z2',f],['CIN',AREA.L2.cinema/AREA.L2.gross]]; }
+  return [['Z1',1]];
+}
+const ZONED = { raft:{levels:['RAFT'], c:4, verb:'blinding, membrane & raft pour'}, b2:{levels:['B2'], c:4, verb:'walls, columns & B1 slab'}, b1:{levels:['B1'], c:4, verb:'walls, columns & GF podium slab'},
+  gf:{levels:['GF'], c:5, verb:'columns & L1 slab'}, l1:{levels:['L1'], c:5, verb:'columns & L2 slab'}, l2:{levels:['L2'], c:6, verb:'columns & L3 slab'}, l3:{levels:['L3','L4'], c:5, verb:'frame & roof slab'} };
+const CHILDREN = (() => {
+  const out = [];
+  for (const pid in ZONED){
+    const p = ACTIVITIES.find(a => a.id === pid), cfg = ZONED[pid];
+    const zones = cfg.levels.flatMap(l => lbs(l).map(([z, sh]) => ({lvl:l, z, sh})));
+    const n = zones.length, c = Math.min(cfg.c, p.d), lag = n > 1 ? (p.d - c)/(n - 1) : 0;
+    zones.forEach((zz, i) => out.push({id:`${pid}:${zz.lvl}-${zz.z}`, parent:pid, child:true, lvl:zz.lvl, zone:`${zz.lvl}-${zz.z}`, share:zz.sh,
+      wbs:`${p.wbs}.${i+1}`, grp:p.grp, name:`${zz.lvl}-${zz.z}: ${cfg.verb}`, s:p.s + Math.round(i*lag), d:c, crit:p.crit, fl:p.fl, trade:p.trade, crew:Math.round(p.crew/2)}));
+  }
+  return out;
+})();
+function findAct(id){ return ACTIVITIES.find(a => a.id === id) || CHILDREN.find(a => a.id === id); }
+
+// Line-of-balance: multi-level trades sweep the building in this order (bottom-up)
+const SWEEP = { mepB:['B2','B1'], intB:['B2','B1'], mepS:['GF','L1','L2','L3','L4'], intS:['GF','L1','L2','L3','L4'], fit:['GF','L1','L2','L3','L4'],
+  cw:['GF','L1','L2','L3'], scr:['L1','L2','L3'], roof:['L2','L3','L4'], vt:['B2','B1','GF','L1','L2','L3'] };
+const LEVEL_OF = { b2:'B2', b1:'B1', gf:'GF', l1:'L1', l2:'L2', l3:'L3', cin:'L2', stl:'L4', pod:'GF', sec:'B1' };
+function workLevel(a, w = state.week){ const L = SWEEP[a.id]; if (!L) return LEVEL_OF[a.id] || null; const sc = sched(a); if (w < sc.s || w > sc.e) return null; return L[Math.min(L.length-1, Math.floor((w - sc.s)/sc.d * L.length))]; }
+function levelProg(id, lvl, w = state.week){
+  const a = findAct(id); if (!a || (a.fittedOnly && state.scope !== 'fitted')) return 0;
+  const L = SWEEP[id]; if (!L) return prog(id, w);
+  const i = L.indexOf(lvl); if (i < 0) return 0;
+  const sc = sched(a); return Math.max(0, Math.min(1, (w - sc.s + 1)/sc.d * L.length - i));
+}
+
+// Time-space conflict detection on the LBS (level granularity, per week)
+const FRAME_IDS = ['b2','b1','gf','l1','l2','l3','stl'], ENV_IDS = ['cw','scr','roof'], INT_IDS = ['mepB','mepS','intB','intS','cin','fit','vt'];
+const CRANE_IDS = ['b2','b1','gf','l1','l2','l3','stl','cw','scr','roof','vt'];
+function weekConflicts(w = state.week){
+  const at = {}, out = [];
+  activeActs().forEach(a => { if (actStatus(a, w) !== 'active') return; const lvl = workLevel(a, w); if (lvl) (at[lvl] = at[lvl] || []).push(a); });
+  for (const lvl in at){
+    const acts = at[lvl], fr = acts.filter(a => FRAME_IDS.includes(a.id)), en = acts.filter(a => ENV_IDS.includes(a.id)), inn = acts.filter(a => INT_IDS.includes(a.id));
+    fr.forEach(f => {
+      inn.forEach(i => out.push({lvl, sev:'high', ids:[f.id, i.id], msg:`${lvl}: "${i.name}" is working under the active frame and propping of "${f.name}".`}));
+      en.forEach(e => out.push({lvl, sev:'high', ids:[f.id, e.id], msg:`${lvl}: "${e.name}" is inside the slab-edge exclusion zone of "${f.name}".`}));
+    });
+    if (inn.length >= 3) out.push({lvl, sev:'med', ids:inn.map(a => a.id), msg:`${lvl}: ${inn.length} interior trades share one workface (${inn.map(a => a.name.split(/[ :&]/)[0]).join(', ')}).`});
+  }
+  const cr = activeActs().filter(a => CRANE_IDS.includes(a.id) && actStatus(a, w) === 'active');
+  if (cr.length >= 4) out.push({lvl:'Site', sev:'med', ids:cr.map(a => a.id), msg:`Crane hook time is over-subscribed: ${cr.length} crane-dependent activities are running at once.`});
+  return out;
+}
+function manpower(w){ return activeActs().filter(a => actStatus(a, w) === 'active' || actStatus(a, w) === 'delayed' && sched(a).s <= w).reduce((s, a) => s + (a.crew || 0), 0); }
+
+// IFC class per BoQ item (classes common to IFC2x3 and IFC4)
+const IFC_MAP = [['1.01','IfcSite'],['1.02','IfcBuildingElementProxy'],['1.03','IfcBuildingElementProxy'],['1.04','IfcBuildingElementProxy'],['1.05','IfcBuildingElementProxy'],['1.06','IfcBuildingElementProxy'],
+  ['1.07','IfcPile'],['1.08','IfcPile'],['1.09','IfcSlab'],['1.10','IfcCovering'],['1.11','IfcCovering'],['1.12','IfcFooting'],['1.13','IfcReinforcingBar'],['1.14','IfcFooting'],['1.15','IfcWall'],['1.16','IfcReinforcingBar'],['1.17','IfcWall'],
+  ['2.01','IfcSlab'],['2.02','IfcSlab'],['2.03','IfcColumn'],['2.04','IfcSlab'],['2.05','IfcColumn'],['2.06','IfcStair'],['2.07','IfcReinforcingBar'],['2.08','IfcReinforcingBar'],['2.09','IfcReinforcingBar'],['2.10','IfcSlab'],['2.11','IfcColumn'],['2.12','IfcStair'],['2.13','IfcMember'],['2.14','IfcBuildingElementProxy'],
+  ['3.01','IfcRoof'],['3.02','IfcCovering'],['3.03','IfcCovering'],['3.04','IfcFlowTerminal'],['4.01','IfcCurtainWall'],['4.02','IfcPlate'],['4.03','IfcWall'],['4.04','IfcCovering'],['4.05','IfcRailing'],['4.06','IfcDoor'],['4.07','IfcBuildingElementProxy'],
+  ['5.01','IfcWall'],['5.02','IfcCovering'],['5.03','IfcDoor'],['5.04','IfcFlowTerminal'],['5.05','IfcWall'],['6.','IfcCovering'],['7.','IfcDistributionElement'],['8.','IfcTransportElement'],['9.','IfcBuildingElementProxy'],['10.','IfcFurnishingElement']];
+function ifcOf(code){ const m = IFC_MAP.find(([k]) => k.length > 4 ? code === k : code.startsWith(k)); return m ? m[1] : 'IfcBuildingElementProxy'; }
+const TEMP_ITEMS = ['1.02','1.03','1.04'];
+const ACT_LV = { mob:['EXT'], ext:['EXT','GF'], shor:['SUB'], dewat:['SUB'], exc:['SUB'], pile:['SUB'], raft:['SUB'], b2:['B2'], b1:['B1'], pod:['GF'], gf:['GF'], l1:['L1'], l2:['L2'], l3:['L3','L4'],
+  stl:['L3','L4','EXT'], roof:['GF','L1','L2','L3','L4'], cw:LEVELS_ABOVE, scr:LEVELS_ABOVE, mepB:['B2','B1'], mepS:[...LEVELS_ABOVE,'EXT'], vt:ALL_LEVELS, intB:['B2','B1'], intS:LEVELS_ABOVE, cin:['L2'], fit:LEVELS_ABOVE, sec:['B1'] };
+let LINKS = [], CHILD_COST = {};
+function buildLinks(){
+  const links = [], seen = {};
+  const push = (l, actId, loc, sh) => {
+    const a = findAct(actId), sc = sched(a); let eid = `CG-${loc}-${l.code}`; if (seen[eid]) eid += '-' + actId; seen[eid] = 1;
+    links.push({eid, ifc:ifcOf(l.code), loc, lvl:loc.split('-')[0], code:l.code, desc:l.desc, act:actId, actName:a.name, task:TEMP_ITEMS.includes(l.code) ? 'Temporary' : 'Construct', s:sc.s, e:sc.e, qty:l.qty*sh, unit:l.unit, cost:l.amt*sh});
+  };
+  BOQ.forEach(l => {
+    const as = norm(l.act), zs = norm(l.z); let pairs = [];
+    for (const a in as) for (const z in zs) if ((ACT_LV[a] || []).includes(z)) pairs.push([a, z, as[a]*zs[z]]);
+    if (!pairs.length) for (const a in as) for (const z in zs) pairs.push([a, z, as[a]*zs[z]]);
+    const tot = pairs.reduce((t, p) => t + p[2], 0);
+    pairs.forEach(([a, z, wt]) => {
+      const kids = CHILDREN.filter(c => c.parent === a && (c.lvl === z || (z === 'SUB' && c.lvl === 'RAFT')));
+      if (kids.length) kids.forEach(k => push(l, k.id, k.zone, wt/tot*k.share)); else push(l, a, z, wt/tot);
+    });
+  });
+  CHILD_COST = {}; links.forEach(k => { if (k.act.includes(':')) CHILD_COST[k.act] = (CHILD_COST[k.act] || 0) + k.cost; });
+  return links;
+}
+function costOf(a){ return a.child ? (CHILD_COST[a.id] || 0) : (COST.cur.actCost[a.id] || 0); }
+
 /* =====================================================================
    9. SVG SECTION MODEL
    ===================================================================== */
@@ -733,6 +878,7 @@ function levelGeom(){
   return g;
 }
 function renderVisual(){
+  if (state.view === 'plan') return renderPlan();
   const svg = document.getElementById('projectSvg'); svg.innerHTML = '';
   const w = state.week, g = levelGeom(), {x0, W, ground, s} = SV;
   const defs = svgEl('defs', {}, svg);
@@ -755,8 +901,10 @@ function renderVisual(){
   [x0-6, x0+W].forEach(x => svgEl('rect', {x, y:ground, width:6, height:(depthPx + P.shoringToe*s)*pSh, fill:'#78716c'}, zSub));
   const pPile = prog('pile');
   for (let i = 0; i < 18; i++){ if (i/18 < pPile) svgEl('rect', {x:x0+25+i*(W-50)/17, y:ground+depthPx, width:4, height:P.pileLength*s*0.35, fill:'#9ca3af'}, zSub); }
-  const pRaft = prog('raft');
-  svgEl('rect', {x:x0, y:g.RAFT.y, width:W*pRaft, height:g.RAFT.h, fill:'#9ca3af'}, zSub);
+  let rx = x0; CHILDREN.filter(c => c.lvl === 'RAFT').forEach(c => { const zw = W*c.share, p = prog(c.id);
+    if (p > 0) svgEl('rect', {x:rx, y:g.RAFT.y, width:zw*p, height:g.RAFT.h, fill:'#9ca3af'}, zSub);
+    if (p > 0 && p < 1) svgEl('rect', {x:rx, y:g.RAFT.y, width:zw, height:g.RAFT.h, fill:'none', stroke:'#f59e0b', 'stroke-width':1.5}, zSub);
+    rx += zw; if (rx < x0 + W - 1) svgEl('line', {x1:rx, x2:rx, y1:g.RAFT.y - 2, y2:g.RAFT.y + g.RAFT.h + 2, stroke:'#cbd5e1', 'stroke-dasharray':'2 2', opacity:.6}, zSub); });
   if (prog('dewat') > 0 && prog('dewat') < 1){
     svgEl('line', {x1:x0, x2:x0+W, y1:ground+depthPx+6, y2:ground+depthPx+6, stroke:'#38bdf8', 'stroke-dasharray':'6 4', 'stroke-width':1.5}, zSub);
     const t = svgEl('text', {x:x0+W-4, y:ground+depthPx+18, fill:'#7dd3fc', 'font-size':10, 'text-anchor':'end'}, zSub); t.textContent = 'Dewatering active: water table drawn below formation';
@@ -768,17 +916,24 @@ function renderVisual(){
   ['B2','B1','GF','L1','L2','L3','L4'].forEach(k => {
     const r = g[k], la = levelActs[k];
     const zg = svgEl('g', {class:'zone' + (state.zone===k?' selected':''), 'data-zone':k}, svg);
-    const pSt = prog(la.st), pFin = Math.max(prog(la.fin), k==='L2' ? prog('cin') : 0);
+    const pSt = prog(la.st), pFin = Math.max(levelProg(la.fin, k), k==='L2' ? prog('cin') : 0, levelProg('fit', k));
     // ghost
     svgEl('rect', {x:r.x, y:r.y, width:r.w, height:r.h, fill:'#0f172a', opacity: k.startsWith('B') ? 0 : .35}, zg);
     // concrete frame
-    if (pSt > 0){
-      svgEl('rect', {x:r.x, y:r.y + r.h - 5, width:r.w*pSt, height:5, fill:'#d1d5db'}, zg);   // slab
-      svgEl('rect', {x:r.x, y:r.y, width:r.w*pSt, height:r.h-5, fill:'#64748b', opacity:.55}, zg);
-      const nc = Math.max(2, Math.round(r.w/60));
-      for (let i = 0; i <= nc; i++){ const cx = r.x + i*(r.w-6)/nc; if (cx - r.x <= r.w*pSt) svgEl('rect', {x:cx, y:r.y, width:6, height:r.h-5, fill:'#9ca3af'}, zg); }
-      if (pSt >= 1) svgEl('rect', {x:r.x, y:r.y, width:r.w, height:4, fill:'#d1d5db'}, zg);   // slab over
-    }
+    // concrete frame, pour zone by pour zone (LBS): columns rise, then the slab over closes
+    let zx = r.x;
+    CHILDREN.filter(c => c.lvl === k).forEach(c => {
+      const zw = r.w * c.share, p = prog(c.id);
+      if (p > 0){
+        svgEl('rect', {x:zx, y:r.y + r.h*(1-p), width:zw, height:r.h*p, fill:'#64748b', opacity:.55}, zg);
+        const nc = Math.max(1, Math.round(zw/55));
+        for (let i = 0; i <= nc; i++){ const cx = zx + 2 + i*(zw-10)/nc; svgEl('rect', {x:cx, y:r.y + r.h*(1-Math.min(1, p*1.3)), width:6, height:r.h*Math.min(1, p*1.3), fill:'#9ca3af'}, zg); }
+        if (p >= 1) svgEl('rect', {x:zx, y:r.y, width:zw, height:4, fill:'#d1d5db'}, zg);
+        if (p < 1) svgEl('rect', {x:zx+1, y:r.y+1, width:zw-2, height:r.h-2, fill:'none', stroke:'#f59e0b', 'stroke-width':1.5}, zg);
+      }
+      if (zw > 34){ const t = svgEl('text', {x:zx + 4, y:r.y + r.h - 4, fill:'#94a3b8', 'font-size':8, 'font-family':'ui-monospace,monospace'}, zg); t.textContent = c.zone.split('-')[1]; }
+      zx += zw; if (zx < r.x + r.w - 1) svgEl('line', {x1:zx, x2:zx, y1:r.y, y2:r.y + r.h, stroke:'#475569', 'stroke-dasharray':'2 3'}, zg);
+    });
     // space-use fit-out bands (colours match drawing legend)
     if (pFin > 0){
       const A = AREA[k]; let cx = r.x;
@@ -786,7 +941,7 @@ function renderVisual(){
     }
     // facade layers (above ground)
     if (!k.startsWith('B')){
-      const pCW = prog('cw'), pScr = prog('scr');
+      const pCW = levelProg('cw', k), pScr = levelProg('scr', k);
       if (pCW > 0) svgEl('rect', {x:r.x, y:r.y+4, width:r.w*pCW, height:r.h*0.4, fill:'url(#mull)'}, zg);
       if (pScr > 0 && ['L1','L2','L3'].includes(k)) svgEl('rect', {x:r.x, y:r.y+4, width:r.w*0.45*pScr, height:r.h-9, fill:'url(#mashr)', opacity:.9}, zg);
     }
@@ -848,6 +1003,161 @@ function showTip(ev, z){
 }
 function hideTip(){ document.getElementById('componentTooltip').classList.add('hidden'); }
 
+
+/* =====================================================================
+   9b. PLAN VIEW: LBS pour zones + indicative site logistics
+   ===================================================================== */
+// Schematic zone footprints in metres on a 95.5 × 131 m basement (north = drop-off road, per GF plan).
+const PLAN_FP = {W:95.5, H:131};
+function planZones(level){
+  const {W, H} = PLAN_FP;
+  if (['RAFT','B2','B1'].includes(level)) return {Z1:[0,0,W/2,H/2], Z2:[W/2,0,W/2,H/2], Z3:[0,H/2,W/2,H/2], Z4:[W/2,H/2,W/2,H/2]};
+  const strips = (w, x0, y0) => { const h = AREA[level].gross/3/w; return {Z1:[x0,y0,w,h], Z2:[x0,y0+h,w,h], Z3:[x0,y0+2*h,w,h]}; };
+  if (level === 'GF') return strips(W*0.8, 4, 8);
+  if (level === 'L1') return strips(W*0.7, 6, 14);
+  if (level === 'L2'){ const w = W*0.8, f = (AREA.L2.gross - AREA.L2.cinema)/2/w, c = AREA.L2.cinema/w; return {Z1:[4,6,w,f], Z2:[4,6+f,w,f], CIN:[4,6+2*f,w,c]}; }
+  if (level === 'L3') return {Z1:[4,6,45,AREA.L3.gross/45]};
+  return {Z1:[4,6,16,AREA.L4.gross/16]};
+}
+function planLevelAuto(){ let lv = 'RAFT'; ['raft','b2','b1','gf','l1','l2','l3'].forEach(pid => { if (state.week >= sched(findAct(pid)).s) lv = ZONED[pid].levels[0]; }); return lv; }
+function renderPlan(){
+  const svg = document.getElementById('projectSvg'); svg.innerHTML = '';
+  const w = state.week, k = 3.25, fx = 330, fy = 40, {W, H} = PLAN_FP, X = m => fx + m*k, Y = m => fy + m*k;
+  const lvl = state.planLevel === 'auto' ? planLevelAuto() : state.planLevel;
+  const sel = document.getElementById('planLevelSel'); if (sel) sel.value = state.planLevel;
+  // site, roads, hoarding
+  svgEl('rect', {x:0, y:0, width:1000, height:520, fill:'#0b1220'}, svg);
+  svgEl('rect', {x:X(-14), y:Y(-14), width:(W+28)*k, height:(H+28)*k, fill:'#1c1917', stroke:'#a8a29e', 'stroke-dasharray':'6 4'}, svg);
+  const lab = (x, y, t, c = '#94a3b8', sz = 12, anchor = 'start') => { const e = svgEl('text', {x, y, fill:c, 'font-size':sz, 'text-anchor':anchor}, svg); e.textContent = t; return e; };
+  svgEl('rect', {x:X(-14), y:Y(-30), width:(W+28)*k, height:14*k, fill:'#334155'}, svg); lab(X(W/2), Y(-21), 'DROP-OFF ROAD (north)', '#cbd5e1', 10, 'middle');
+  svgEl('rect', {x:X(W+16), y:Y(-14), width:12*k, height:(H+28)*k, fill:'#334155'}, svg); const tE = lab(X(W+22), Y(H/2), 'MAIN DROP-OFF (east)', '#cbd5e1', 10, 'middle'); tE.setAttribute('transform', `rotate(90 ${X(W+22)} ${Y(H/2)})`);
+  lab(X(W/2), Y(H+24), 'LOADING / SERVICE (south)', '#cbd5e1', 10, 'middle');
+  // basement footprint
+  svgEl('rect', {x:X(0), y:Y(0), width:W*k, height:H*k, fill: prog('exc') > 0 && prog('raft') < 1 && lvl === 'RAFT' ? '#3f2e1f' : '#111827', stroke:'#64748b'}, svg);
+  if (!['RAFT','B2','B1'].includes(lvl)) svgEl('rect', {x:X(0), y:Y(0), width:W*k, height:H*k, fill:'#1e293b', opacity:.8}, svg);
+  // excavation ramp & dig front
+  const pExc = prog('exc');
+  if (pExc > 0 && pExc < 1){
+    svgEl('rect', {x:X(0), y:Y(0), width:W*k, height:H*k*pExc, fill:'#7c5a3c', opacity:.6}, svg);
+    svgEl('polygon', {points:`${X(W-18)},${Y(H)} ${X(W-4)},${Y(H)} ${X(W-4)},${Y(H-34)} ${X(W-18)},${Y(H-34)}`, fill:'#a16207', opacity:.8}, svg);
+    lab(X(W-11), Y(H-37), 'Ramp', '#fde68a', 9, 'middle');
+    lab(X(W/2), Y(H*pExc) - 4, `Dig front: ${nf0.format(pExc*100)}% of ${nf0.format(D.fp*D.depth)} m³`, '#fde68a', 10, 'middle');
+  }
+  // LBS zones of the selected level
+  const kids = CHILDREN.filter(c => c.lvl === lvl), zr = planZones(lvl);
+  let activeZone = null;
+  kids.forEach(c => {
+    const zid = c.zone.split('-')[1], r = zr[zid]; if (!r) return;
+    const st = actStatus(c), p = prog(c.id);
+    const g = svgEl('g', {class:'zone' + (state.act === c.id ? ' selected' : ''), 'data-act':c.id}, svg);
+    svgEl('rect', {x:X(r[0])+1, y:Y(r[1])+1, width:r[2]*k-2, height:r[3]*k-2, fill: st === 'done' ? '#9ca3af' : '#0f172a', opacity: st === 'done' ? .55 : .9}, g);
+    if (st === 'active'){ svgEl('rect', {x:X(r[0])+1, y:Y(r[1])+1, width:(r[2]*k-2)*p, height:r[3]*k-2, fill:'#f59e0b', opacity:.35}, g); activeZone = activeZone || r; }
+    svgEl('rect', {class:'zone-outline', x:X(r[0])+1, y:Y(r[1])+1, width:r[2]*k-2, height:r[3]*k-2, fill:'transparent', stroke:STATUS_COLOR[st], 'stroke-width':2, 'stroke-dasharray': st === 'upcoming' ? '4 3' : ''}, g);
+    const cxm = X(r[0] + r[2]/2), cym = Y(r[1] + r[3]/2);
+    const t1 = svgEl('text', {x:cxm, y:cym - 2, fill:'#e2e8f0', 'font-size':15, 'font-weight':700, 'text-anchor':'middle'}, g); t1.textContent = c.zone;
+    const t2 = svgEl('text', {x:cxm, y:cym + 14, fill:'#cbd5e1', 'font-size':11, 'text-anchor':'middle'}, g); t2.textContent = `W${sched(c).s}–W${sched(c).e} • ${nf0.format(p*100)}%`;
+    g.addEventListener('mousemove', ev => showTipAct(ev, c)); g.addEventListener('mouseleave', hideTip); g.addEventListener('click', () => selectAct(c.id));
+  });
+  // logistics (indicative): cranes, pump, gates, laydown, site office
+  const fs = sched(findAct('b2')).s - 4, fe = sched(findAct('l3')).e + 6, cranesUp = w >= fs && w <= fe, R = 55;
+  [['TC-1', 30, 42], ['TC-2', 66, 92]].forEach(([n, mx, my]) => {
+    svgEl('circle', {cx:X(mx), cy:Y(my), r:R*k, fill: cranesUp ? 'rgba(250,204,21,.05)' : 'none', stroke: cranesUp ? '#facc15' : '#475569', 'stroke-dasharray':'5 5', opacity: cranesUp ? .8 : .4}, svg);
+    svgEl('rect', {x:X(mx)-5, y:Y(my)-5, width:10, height:10, fill: cranesUp ? '#facc15' : '#475569'}, svg);
+    lab(X(mx)+8, Y(my)-6, `${n}${cranesUp ? '' : ' (not erected)'} • R${R} m`, cranesUp ? '#fde68a' : '#64748b', 9);
+  });
+  if (activeZone && ['RAFT','B2','B1','GF','L1','L2','L3','L4'].includes(lvl) && kids.some(c => actStatus(c) === 'active')){
+    const px = X(activeZone[0] + 5), py = Y(activeZone[1] + activeZone[3] - 5);
+    svgEl('circle', {cx:px, cy:py, r:9, fill:'#38bdf8'}, svg);
+    lab(px, py + 4, 'CP', '#0f172a', 10, 'middle');
+  }
+  svgEl('rect', {x:X(30), y:Y(-14), width:16*k, height:5, fill:'#22c55e'}, svg); lab(X(38), Y(-15) - 2, 'Gate 1: concrete trucks', '#86efac', 9, 'middle');
+  svgEl('rect', {x:X(50), y:Y(H+9), width:16*k, height:5, fill:'#22c55e'}, svg); lab(X(58), Y(H+9) + 16, 'Gate 2: deliveries', '#86efac', 9, 'middle');
+  svgEl('rect', {x:X(-13), y:Y(20), width:10*k, height:60*k, fill:'#334155', opacity:.8}, svg); const tl = lab(X(-8), Y(50), 'Rebar / formwork laydown', '#cbd5e1', 9, 'middle'); tl.setAttribute('transform', `rotate(-90 ${X(-8)} ${Y(50)})`);
+  if (prog('cw') > 0 && prog('scr') < 1){ svgEl('rect', {x:X(W+3), y:Y(30), width:10*k, height:50*k, fill:'#0ea5e9', opacity:.35}, svg); const tf = lab(X(W+8), Y(55), 'Facade unit laydown', '#bae6fd', 9, 'middle'); tf.setAttribute('transform', `rotate(90 ${X(W+8)} ${Y(55)})`); }
+  svgEl('rect', {x:X(-13), y:Y(H-6), width:12*k, height:16*k, fill:'#475569'}, svg); lab(X(-7), Y(H+14), 'Site office', '#cbd5e1', 9, 'middle');
+  // side legend & notes
+  const tx = 20; let ty = 30;
+  lab(tx, ty, `PLAN: ${lvl === 'RAFT' ? 'Raft / formation' : lvl}${state.planLevel === 'auto' ? ' (auto)' : ''}`, '#e2e8f0', 16); ty += 24;
+  kids.forEach(c => { const st = actStatus(c); svgEl('rect', {x:tx, y:ty-11, width:12, height:12, fill:STATUS_COLOR[st], rx:2}, svg); lab(tx + 18, ty, `${c.zone}: ${STATUS_TXT[st]} • ${nf1.format(costOf(c)/1e6)}M`, '#cbd5e1', 13); ty += 20; });
+  ty += 10;
+  const lc = weekConflicts(w).filter(x => x.lvl === lvl || x.lvl === 'Site');
+  lab(tx, ty, `Clashes on this level: ${lc.length}`, lc.length ? '#fda4af' : '#86efac', 13); ty += 20;
+  lab(tx, ty, `Crew on site: ${manpower(w)}`, '#cbd5e1', 13); ty += 32;
+  ['Tiles = LBS pour zones linked to','4D tasks (click to inspect).','CP = concrete pump at active pour.','Cranes, gates, laydown, pump:','indicative, not from drawings.'].forEach(t => { lab(tx, ty, t, '#64748b', 12); ty += 16; });
+}
+function showTipAct(ev, a){
+  const tip = document.getElementById('componentTooltip'), box = document.getElementById('visualCanvasContainer').getBoundingClientRect(), sc = sched(a), st = actStatus(a);
+  document.getElementById('tipTitle').textContent = a.name;
+  document.getElementById('tipDates').textContent = `${fmtDate(weekDate(sc.s))} – ${fmtDate(weekDate(sc.e))} (W${sc.s}–W${sc.e})`;
+  const ts = document.getElementById('tipStatus'); ts.textContent = `Status: ${STATUS_TXT[st]} • ${sarM(costOf(a))} • ${LINKS.filter(k => k.act === a.id).length} linked elements`; ts.style.color = STATUS_COLOR[st];
+  document.getElementById('tipTrade').textContent = `Trade: ${a.trade} (crew ~${a.crew})`;
+  tip.classList.remove('hidden');
+  let x = ev.clientX - box.left + 14; if (x + 260 > box.width) x = ev.clientX - box.left - 270;
+  tip.style.left = x + 'px'; tip.style.top = Math.min(ev.clientY - box.top + 14, box.height - 110) + 'px';
+}
+function setView(v){
+  state.view = v;
+  ['section','plan'].forEach(k => document.getElementById('view' + k[0].toUpperCase() + k.slice(1)).className = 'px-2 py-0.5 rounded text-[11px] ' + (k === v ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'));
+  document.getElementById('planLevelSel').classList.toggle('hidden', v !== 'plan');
+  renderVisual();
+}
+function setPlanLevel(v){ state.planLevel = v; renderVisual(); }
+
+/* =====================================================================
+   9c. 4D BIM TAB: look-ahead, clashes, manpower histogram, link table
+   ===================================================================== */
+function renderBIM(){
+  const w = state.week;
+  // 3-week look-ahead (Last Planner style)
+  const la = [...activeActs(), ...CHILDREN].filter(a => { const sc = sched(a); return sc.e >= w && sc.s <= w + 3; })
+    .sort((a, b) => sched(a).s - sched(b).s).slice(0, 18);
+  document.getElementById('lookahead').innerHTML = la.map(a => { const sc = sched(a), st = actStatus(a);
+    return `<li class="flex justify-between gap-2 py-0.5 border-b border-slate-800/50 cursor-pointer hover:text-white" onclick="selectAct('${a.id}')"><span class="truncate ${a.child ? 'pl-3 text-slate-500' : ''}">${esc(a.name)}</span><span class="font-mono whitespace-nowrap" style="color:${STATUS_COLOR[st]}">W${sc.s}–W${sc.e}</span></li>`; }).join('') || '<li class="text-slate-500">Nothing scheduled.</li>';
+  // clashes this week + next 3 weeks
+  const now = weekConflicts(w), ahead = [1,2,3].map(d => weekConflicts(w + d).length);
+  document.getElementById('clashList').innerHTML = (now.length ? now.map(c => `<li class="py-1 border-b border-slate-800/50"><span class="inline-block px-1.5 rounded text-[9px] font-bold mr-1 ${c.sev === 'high' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'}">${c.sev === 'high' ? 'HIGH' : 'MED'}</span>${esc(c.msg)}</li>`).join('')
+    : '<li class="text-emerald-400 py-1"><i class="fa-solid fa-check mr-1"></i>No time-space clashes this week.</li>') +
+    `<li class="text-slate-500 pt-2">Look-ahead clash count W${w+1}/W${w+2}/W${w+3}: <span class="font-mono text-slate-300">${ahead.join(' / ')}</span></li>`;
+  renderHistogram();
+  // element links
+  const lf = document.getElementById('linkLevelSel').value, q = (document.getElementById('linkFilter').value || '').toLowerCase();
+  const rows = LINKS.filter(k => (lf === 'all' || k.lvl === lf) && (!q || (k.eid + ' ' + k.ifc + ' ' + k.desc + ' ' + k.actName).toLowerCase().includes(q)));
+  const linked = LINKS.reduce((t, k) => t + k.cost, 0);
+  document.getElementById('linkRecon').innerHTML = `${nf0.format(LINKS.length)} element links • ${nf0.format(new Set(LINKS.map(k => k.act)).size)} tasks • linked cost ${sarM(linked)} vs BoQ direct ${sarM(COST.direct)} → <span class="${Math.abs(linked - COST.direct) < 1 ? 'text-emerald-400' : 'text-rose-400'} font-semibold">${nf2.format(linked/COST.direct*100)}% reconciled</span>`;
+  const show = rows.slice(0, 400), showRate = state.lens !== 'site';
+  document.getElementById('linkBody').innerHTML = show.map(k => { const st = actStatus(findAct(k.act));
+    return `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30 cursor-pointer ${state.act === k.act ? 'bg-sky-900/30' : ''}" onclick="selectAct('${k.act}')">
+      <td class="px-2 py-0.5 font-mono text-sky-300/90">${esc(k.eid)}</td><td class="px-2 text-slate-300">${k.ifc}</td><td class="px-2 font-mono">${k.loc}</td>
+      <td class="px-2 text-slate-400 truncate max-w-[260px]" title="${esc(k.desc)}">${esc(k.desc)}</td><td class="px-2 text-slate-300 truncate max-w-[220px]" title="${esc(k.actName)}">${esc(k.act)}</td>
+      <td class="px-2">${k.task}</td><td class="px-2 font-mono" style="color:${STATUS_COLOR[st]}">W${k.s}–W${k.e}</td><td class="px-2 text-right font-mono">${nf1.format(k.qty)} ${k.unit}</td>
+      ${showRate ? `<td class="px-2 text-right font-mono">${nf0.format(k.cost)}</td>` : '<td></td>'}</tr>`; }).join('') +
+    (rows.length > show.length ? `<tr><td colspan="9" class="px-2 py-1 text-slate-500">Showing 400 of ${nf0.format(rows.length)}. Filter by level or export the CSV for all rows.</td></tr>` : '');
+}
+function renderHistogram(){
+  const svg = document.getElementById('histo'); svg.innerHTML = '';
+  const T = projWeeks(), vals = Array.from({length:T}, (_, i) => manpower(i + 1)), max = Math.max(...vals) * 1.1;
+  const m = {l:36, r:8, t:8, b:22}, Wd = 420 - m.l - m.r, Ht = 170 - m.t - m.b, bw = Wd / T;
+  for (let i = 0; i <= 3; i++){ const v = max*i/3, y = m.t + Ht - v/max*Ht; svgEl('line', {x1:m.l, x2:m.l+Wd, y1:y, y2:y, stroke:'#1e293b'}, svg); const t = svgEl('text', {x:m.l-4, y:y+3, fill:'#64748b', 'font-size':9, 'text-anchor':'end'}, svg); t.textContent = nf0.format(v); }
+  for (let wk = 0; wk <= T; wk += 20){ const t = svgEl('text', {x:m.l + wk*bw, y:170-6, fill:'#64748b', 'font-size':9, 'text-anchor':'middle'}, svg); t.textContent = 'W' + wk; }
+  const tip = document.getElementById('histoTip');
+  vals.forEach((v, i) => {
+    const h = v/max*Ht, cur = i + 1 === state.week;
+    const r = svgEl('rect', {x:m.l + i*bw + 0.5, y:m.t + Ht - h, width:Math.max(1, bw - 1), height:h, fill: cur ? '#f59e0b' : '#0ea5e9', opacity: cur ? 1 : .75, rx:1}, svg);
+    const hit = svgEl('rect', {x:m.l + i*bw, y:m.t, width:bw, height:Ht, fill:'transparent'}, svg);
+    hit.addEventListener('mousemove', ev => { const pb = svg.parentElement.getBoundingClientRect(); tip.innerHTML = `Week ${i+1}: <span class="font-mono">${v}</span> workers`; tip.classList.remove('hidden'); tip.style.left = Math.min(ev.clientX - pb.left + 10, pb.width - 140) + 'px'; tip.style.top = (ev.clientY - pb.top + 10) + 'px'; });
+    hit.addEventListener('mouseleave', () => tip.classList.add('hidden'));
+    hit.addEventListener('click', () => onScrub(i + 1));
+  });
+  document.getElementById('histoPeak').textContent = `Peak ${nf0.format(Math.max(...vals))} workers in W${vals.indexOf(Math.max(...vals)) + 1} • this week ${manpower(state.week)}`;
+}
+function exportLinksCSV(){
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"', iso = w => weekDate(w).toISOString().slice(0, 10);
+  const rows = [['ElementID','IfcClass','Location','Level','BoQItem','Description','TaskID','TaskName','TaskType','PlannedStart','PlannedFinish','Qty','Unit','CostSAR']];
+  LINKS.forEach(k => rows.push([k.eid, k.ifc, k.loc, k.lvl, k.code, k.desc, k.act, k.actName, k.task, iso(k.s), iso(k.e + 1), k.qty.toFixed(2), k.unit, Math.round(k.cost)]));
+  const blob = new Blob([rows.map(r => r.map(q).join(',')).join('\n')], {type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `crystal-gallery-4d-links-${state.scen}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 /* =====================================================================
    10. INSPECTOR
    ===================================================================== */
@@ -857,15 +1167,16 @@ function renderInspector(){
   const tag = document.getElementById('inspectZoneTag'), title = document.getElementById('inspectTitle'), desc = document.getElementById('inspectDescription');
   const ql = document.getElementById('inspectQtyList');
   if (state.act){
-    const a = ACTIVITIES.find(x => x.id === state.act), sc = sched(a), st = actStatus(a), c = (COST.cur.actCost[a.id]||0);
+    const a = findAct(state.act), sc = sched(a), st = actStatus(a), c = costOf(a);
     tag.textContent = `Activity ${a.wbs} • ${a.grp}`; title.textContent = a.name;
-    desc.textContent = `${a.trade}, peak crew ~${a.crew}. ${a.crit ? 'On the critical path.' : `Total float ≈ ${a.fl} weeks (indicative).`}`;
+    const el = LINKS.filter(k => k.act === a.id || k.act.startsWith(a.id + ':'));
+    desc.textContent = `${a.trade}, crew ~${a.crew}. ${a.crit ? 'On the critical path.' : `Total float ≈ ${a.fl} weeks (indicative).`} Linked to ${el.length} model elements` + (a.child ? ` in pour zone ${a.zone}.` : '.');
     document.getElementById('inspectBaselineDates').textContent = `W${a.s}–W${a.s+a.d-1}` + (sc.e !== a.s+a.d-1 || sc.s !== a.s ? ` → W${sc.s}–W${sc.e}` : '');
     setStatus(st);
     document.getElementById('inspectCost').textContent = sarM(c);
     document.getElementById('inspectRate').textContent = `${sarM(c/sc.d)}/wk`;
-    const lines = BOQ.filter(l => norm(l.act)[a.id]).map(l => ({l, share:norm(l.act)[a.id]})).sort((x,y)=>y.l.amt*y.share - x.l.amt*x.share).slice(0,8);
-    ql.innerHTML = lines.map(({l,share}) => qtyLi(l, share)).join('') || '<li class="text-slate-500">No priced items</li>';
+    const showRate = state.lens !== 'site';
+    ql.innerHTML = el.sort((x,y) => y.cost - x.cost).slice(0,8).map(k => `<li class="flex justify-between gap-2 py-0.5 border-b border-slate-800/50"><span class="truncate" title="${esc(k.desc)}"><span class="font-mono text-sky-300/80">${esc(k.eid)}</span> ${esc(k.ifc)}</span><span class="font-mono text-slate-200 whitespace-nowrap">${nf0.format(k.qty)} ${k.unit}${showRate ? ' • ' + nf2.format(k.cost/1e6) + 'M' : ''}</span></li>`).join('') || '<li class="text-slate-500">No linked elements</li>';
   } else if (z){
     const zc = zoneCost(z), sp = zoneSpan(z), st = zoneStatus(z), gfa = AREA[z] ? AREA[z].gross : null;
     tag.textContent = 'Zone Analysis'; title.textContent = ZONE_NAME[z];
@@ -879,7 +1190,7 @@ function renderInspector(){
     ql.innerHTML = zc.items.slice(0,8).map(({l,share}) => qtyLi(l, share)).join('') || '<li class="text-slate-500">No priced items</li>';
   }
   // trades this week
-  const acts = (state.act ? [ACTIVITIES.find(a=>a.id===state.act)] : z ? ZONE_ACTS[z].map(id=>ACTIVITIES.find(a=>a.id===id)) : activeActs()).filter(a => !a.fittedOnly || state.scope==='fitted');
+  const acts = (state.act ? [findAct(state.act)] : z ? ZONE_ACTS[z].map(id=>ACTIVITIES.find(a=>a.id===id)) : activeActs()).filter(a => !a.fittedOnly || state.scope==='fitted');
   const live = acts.filter(a => ['active','delayed'].includes(actStatus(a)));
   document.getElementById('inspectTradesList').innerHTML = live.length ? live.map(a => `<li class="flex items-center justify-between py-1 border-b border-slate-800/60 gap-2"><span>${esc(a.name)}<span class="block text-[10px] text-slate-500">${esc(a.trade)}</span></span><span class="${actStatus(a)==='delayed'?'text-rose-400':'text-emerald-400'} font-mono whitespace-nowrap">${actStatus(a)==='delayed'?'Waiting':'Active ('+a.crew+' men)'}</span></li>`).join('')
     : '<li class="text-slate-500">No crews active this week in this selection.</li>';
@@ -904,6 +1215,10 @@ function ganttRows(){
   if (document.getElementById('chkCriticalOnly').checked) acts = acts.filter(a => a.crit);
   const f = (document.getElementById('ganttFilterInput').value || '').toLowerCase();
   if (f) acts = acts.filter(a => (a.name + ' ' + a.wbs + ' ' + a.grp + ' ' + a.trade).toLowerCase().includes(f));
+  if (state.lens !== 'exec' && document.getElementById('chkZoneTasks').checked){
+    const crit = document.getElementById('chkCriticalOnly').checked;
+    acts = acts.flatMap(a => [a, ...CHILDREN.filter(c => c.parent === a.id && (!f || (c.name + ' ' + c.wbs).toLowerCase().includes(f) || (a.name + ' ' + a.wbs).toLowerCase().includes(f)) && (!crit || c.crit))]);
+  }
   if (state.lens === 'exec'){ // summary bars per WBS group
     const groups = [...new Set(acts.map(a => a.grp))];
     return groups.map(gname => { const ga = acts.filter(a => a.grp === gname);
@@ -929,11 +1244,11 @@ function renderGantt(){
   const actCost = COST.cur.actCost;
   tbl.innerHTML = rows.map(a => {
     const sc = a.summary ? a._sc : sched(a), dur = sc.e - sc.s + 1;
-    const cost = a.summary ? a._ids.reduce((s,id)=>s+(actCost[id]||0),0) : (actCost[a.id]||0);
+    const cost = a.summary ? a._ids.reduce((s,id)=>s+(actCost[id]||0),0) : costOf(a);
     const right = state.lens === 'site' ? `${dur}w • ${a.crew||'-'}` : state.lens === 'controls' ? `${dur}w • ${a.crit?'0':a.fl}w • ${nf1.format(cost/1e6)}M` : `${dur}w • ${nf1.format(cost/1e6)}M`;
     const sel = state.act === a.id ? 'bg-sky-900/30' : '';
     return `<div class="flex items-center justify-between px-3 border-b border-slate-800/40 hover:bg-slate-800/40 cursor-pointer ${sel}" style="height:${ROWH}px" onclick="selectAct('${a.id}')">
-      <span class="truncate ${a.crit ? 'text-slate-100' : 'text-slate-400'}">${a.wbs ? `<span class="font-mono text-slate-500 mr-1">${a.wbs}</span>` : ''}${a.crit && state.lens!=='exec' ? '<i class="fa-solid fa-bolt text-rose-400 text-[9px] mr-1"></i>' : ''}${esc(a.name)}</span>
+      <span class="truncate ${a.child ? 'pl-4 text-[11px] text-slate-500' : a.crit ? 'text-slate-100' : 'text-slate-400'}">${a.wbs ? `<span class="font-mono text-slate-500 mr-1">${a.wbs}</span>` : ''}${a.crit && state.lens!=='exec' ? '<i class="fa-solid fa-bolt text-rose-400 text-[9px] mr-1"></i>' : ''}${esc(a.name)}</span>
       <span class="font-mono text-slate-400 whitespace-nowrap ml-2 text-[10px]">${right}</span></div>`;
   }).join('');
   const ghost = document.getElementById('chkShowBaselineShadow').checked;
@@ -962,7 +1277,8 @@ function positionCursor(){
 }
 function selectAct(id){
   if (id.startsWith('G:')) return;
-  state.act = id; state.zone = null; openInspector(); renderInspector(); renderGantt(); renderVisual();
+  if (!findAct(id)) return;
+  state.act = id; state.zone = null; openInspector(); renderInspector(); renderGantt(); renderVisual(); if (state.tab === 'bim') renderBIM();
 }
 function filterGanttSearch(){ const i = document.getElementById('ganttFilterInput'); i.classList.toggle('hidden'); if (!i.classList.contains('hidden')) i.focus(); else { i.value = ''; renderGantt(); } }
 
@@ -1106,6 +1422,7 @@ function renderKPIs(){
 function conflicts(){
   const w = state.week, A = id => actStatus(ACTIVITIES.find(a=>a.id===id)) === 'active';
   if (state.scen === 'delay'){ const sec = ACTIVITIES.find(a=>a.id==='sec'), sc = sched(sec); if (w >= sec.s + sec.d && w <= sc.e) return 'Building physically complete and parked, waiting purely on SEC energisation approval. Prelims are still running.'; }
+  const wc = weekConflicts(w); if (wc.length) return wc[0].msg + (wc.length > 1 ? ` (+${wc.length - 1} more in the 4D BIM tab)` : '');
   if (A('exc') && A('pile')) return 'Piling rigs working inside the open excavation while bulk dig continues. Sequence the work zone by zone and keep a haul ramp clear.';
   if (A('pod') && A('gf')) return 'Podium waterproofing is exposed to GF frame traffic and crane laydown. Protect the membrane or phase the podium.';
   if (A('cw') && A('l2') ) return 'Curtain wall hoisting under the active L2 pour zone. Tower crane time is shared, so split the crane schedule.';
@@ -1130,7 +1447,7 @@ function updateWeek(){
   document.getElementById('activeTradesCount').textContent = activeActs().filter(a => actStatus(a) === 'active').length;
   const c = conflicts(), ban = document.getElementById('spatialConflictBanner');
   if (c){ ban.classList.remove('hidden'); ban.classList.add('flex'); document.getElementById('spatialConflictText').textContent = c; } else { ban.classList.add('hidden'); ban.classList.remove('flex'); }
-  renderVisual(); renderGantt(); if (state.zone || state.act) renderInspector(); if (state.tab === 'cost') renderSCurve();
+  renderVisual(); renderGantt(); if (state.zone || state.act) renderInspector(); if (state.tab === 'cost') renderSCurve(); if (state.tab === 'bim') renderBIM();
 }
 function onScrub(v){ state.week = parseInt(v, 10); updateWeek(); }
 function stepSim(d){ state.week = Math.max(1, Math.min(projWeeks(), state.week + d)); updateWeek(); }
@@ -1168,11 +1485,11 @@ function setScenario(s){
 function setTab(t){
   state.tab = t;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
-  ['gantt','boq','cost','params'].forEach(p => document.getElementById('panel-' + p).classList.toggle('hidden', p !== t));
+  ['gantt','boq','cost','params','bim'].forEach(p => document.getElementById('panel-' + p).classList.toggle('hidden', p !== t));
   document.getElementById('panel-gantt').classList.toggle('flex', t === 'gantt');
   document.getElementById('ganttTools').classList.toggle('hidden', t !== 'gantt'); document.getElementById('ganttTools').classList.toggle('flex', t === 'gantt');
   document.getElementById('boqTools').classList.toggle('hidden', t !== 'boq'); document.getElementById('boqTools').classList.toggle('flex', t === 'boq');
-  if (t === 'cost') renderCost(); if (t === 'params') renderParams(); if (t === 'boq') renderBoQ(); if (t === 'gantt') renderGantt();
+  if (t === 'bim') renderBIM(); if (t === 'cost') renderCost(); if (t === 'params') renderParams(); if (t === 'boq') renderBoQ(); if (t === 'gantt') renderGantt();
 }
 function toggleModal(id, show){ const m = document.getElementById(id); m.classList.toggle('hidden', !show); m.classList.toggle('flex', show); }
 function toggleScheduleDataDrawer(){
@@ -1185,6 +1502,8 @@ function rawJSON(){
     project:'Crystal Gallery, Jeddah', source:'Concept i Design: Revised Design Submission 2, 27 Jan 2023', scope:state.scope, scenario:state.scen, currency:'SAR',
     areas:AREA, floorHeights_m:HEIGHT, parameters:P,
     activities:activeActs().map(a => { const s = sched(a); return {id:a.id, wbs:a.wbs, name:a.name, baselineStart:a.s, baselineDur:a.d, start:s.s, finish:s.e, critical:a.crit, float:a.fl, trade:a.trade, cost:Math.round(COST.cur.actCost[a.id]||0)}; }),
+    lbsZoneTasks:CHILDREN.map(c => ({id:c.id, parent:c.parent, zone:c.zone, start:c.s, finish:c.s + c.d - 1, cost:Math.round(CHILD_COST[c.id] || 0)})),
+    elementLinks:LINKS.map(k => ({elementId:k.eid, ifc:k.ifc, location:k.loc, boqItem:k.code, taskId:k.act, taskType:k.task, start:k.s, finish:k.e, qty:+k.qty.toFixed(2), unit:k.unit, cost:Math.round(k.cost)})),
     boq:BOQ.map(l => ({item:l.code, element:l.grp, desc:l.desc, qty:l.qty, unit:l.unit, rate:l.rate, amount:Math.round(l.amt), source:l.src, basis:l.basis})),
     summary:{direct:Math.round(COST.direct), prelims:Math.round(COST.prelims), ohp:Math.round(COST.ohp), designContingency:Math.round(COST.dc), constructionContingency:Math.round(COST.cc), prolongation:Math.round(COST.prolong), totalExVat:Math.round(COST.totalExVat), vat:Math.round(COST.vat), total:Math.round(COST.total)}
   }, null, 2);
