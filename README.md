@@ -5,6 +5,13 @@ Single-file 4D BIM + CPM project planning tool (`index.html`). Open it in a brow
 Dependencies (loaded from CDN): Tailwind CSS Play CDN v3, Three.js r128 (cdnjs). If Three.js fails to load, the
 3D pane shows a notice and everything else keeps working.
 
+## Shared schedule (published page)
+Published at https://claude.ai/artifact/5MM7PA32R4MZBHjaPx4NX7. Opened there, each project is one shared record
+(`projects/<id>`): edits save ~1.5 s after the last change and appear live for everyone with the page open; the header
+shows who saved last. Share-menu Contributors and above can edit; Viewers and Commenters see it read-only. Saving is
+last-writer-wins for the whole project, so two people editing the same minute can overwrite each other — the
+overwritten person is told. Cursor date, tabs and filters stay per person. Opened as a local file, the planner is local-only.
+
 ## Projects
 - **CG-JED: Crystal Gallery, Jeddah** (default). Generated from *concept i — Revised Design Submission 2 (27 Jan 2023)*.
   It has 48 activities over B2–L4. Quantities come from the Schedule of Areas (PDF p.17) and floor heights from the elevations and sections.

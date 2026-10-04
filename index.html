@@ -93,6 +93,7 @@
           <option value="BL2" class="bg-slate-900">BL2: Recovery Plan</option>
         </select>
       </div>
+      <span id="syncStatus" class="hidden lg:inline-flex items-center gap-1.5 px-2 py-1 rounded border border-slate-700 bg-[#141e34] text-[10px] font-mono text-slate-400 max-w-[260px] truncate" title="Where this schedule is saved">● Local only</span>
       <div class="relative inline-block text-left">
         <button onclick="toggleExportMenu()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded text-xs font-semibold">
           Data ▾
@@ -1121,7 +1122,10 @@
       if (!PROJECTS[id] || id === currentProjectId) return;
       if (ui.playing) toggle4DPlay();
       saveNow();
+      if (shared.dirty) { clearTimeout(shared.timer); flushShared(); }
       loadProject(id);
+      shared.firstApplied = false;
+      subscribeShared();
       ui.selectedFloor = null; ui.rows = 'all'; ui.search = ''; ui.contractor = 'ALL'; ui.selectedDrawing = null;
       $('rowsSelect').value = 'all'; $('activitySearch').value = '';
       ui.simDay = S.dataDate;
@@ -1144,8 +1148,149 @@
     function persist() {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(saveNow, 250);
+      queueSharedSave();
     }
     window.addEventListener('pagehide', () => { if (saveTimer) saveNow(); });
+
+    /* ---------- Shared schedule (claude.ai db capability) ----------
+       One document per project at projects/<id> holds the whole project as JSON. Edits save
+       ~1.5 s after the last change; every open copy applies other people's saves live.
+       Last writer wins at project level. View state (cursor date, tabs, filters) stays per person.
+       Opened as a local file there is no window.claude and the planner stays local-only. */
+    const COMPUTED_KEYS = ['successors', 'es', 'ef', 'ls', 'lf', 'remStart', 'remDur', 'totalFloat', 'isCritical', 'status', 'stepsDrive', 'weightPercent', 'baseCost', 'escFactor', 'physicalPercent', 'performancePercent', 'durationPercent', 'unitsPercent', 'contribution'];
+    // Strip derived values from activities and steps only (drawings have their own `status`, which must be kept).
+    function cleanProjectJSON() {
+      return JSON.stringify(project, function (k, v) {
+        const isActOrStep = this && typeof this === 'object' && (Array.isArray(this.predecessors) || 'stepPercent' in this);
+        return isActOrStep && COMPUTED_KEYS.includes(k) ? undefined : v;
+      });
+    }
+    const shared = { db: null, user: null, ref: null, unsub: null, myId: null, readOnly: false, exists: false, dirty: false,
+      timer: null, state: 'local', lastWriteId: null, lastJson: null, by: null, at: null, applying: false, firstApplied: false };
+    let sharedChain = Promise.resolve();
+
+    async function initShared() {
+      if (!(window.claude && typeof window.claude.use === 'function')) { renderSyncStatus(); return; }
+      const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      if (!db) { renderSyncStatus(); return; }
+      shared.db = db; shared.user = user;
+      if (user) {
+        shared.myId = await user.id();
+        const can = await user.can('data.write');
+        shared.readOnly = can === false;
+      }
+      subscribeShared();
+    }
+
+    function subscribeShared() {
+      if (!shared.db) return;
+      if (shared.unsub) { shared.unsub(); shared.unsub = null; }
+      const id = currentProjectId;
+      shared.ref = shared.db.doc('projects/' + id);
+      shared.exists = false; shared.lastJson = null; shared.state = 'connecting';
+      renderSyncStatus();
+      shared.unsub = shared.ref.onSnapshot(snap => onSharedSnapshot(id, snap), err => {
+        shared.state = 'error'; shared.error = err && err.code; renderSyncStatus();
+      });
+    }
+
+    function onSharedSnapshot(id, snap) {
+      if (id !== currentProjectId) return;
+      if (!snap.exists) {
+        shared.exists = false;
+        shared.state = shared.readOnly ? 'unshared-ro' : 'unshared';
+        renderSyncStatus();
+        return;
+      }
+      const d = snap.data();
+      shared.exists = true; shared.by = d.updatedBy || null; shared.at = d.updatedAt || null;
+      if (snap.metadata.hasPendingWrites || d.writeId === shared.lastWriteId) {
+        if (!shared.dirty) shared.state = 'synced';
+        renderSyncStatus();
+        return;
+      }
+      if (typeof d.json !== 'string' || d.json === shared.lastJson) { shared.state = 'synced'; renderSyncStatus(); return; }
+      let p;
+      try { p = JSON.parse(d.json); } catch (e) { return; }
+      if (!p || !Array.isArray(p.activities)) return;
+      if (shared.dirty) {
+        clearTimeout(shared.timer); shared.dirty = false;
+        showToast('Updated by a colleague', 'A newer shared version arrived and replaced your unsaved change. Re-enter it if still needed.', true);
+      }
+      shared.lastJson = d.json;
+      applySharedProject(p);
+      shared.state = 'synced';
+      renderSyncStatus();
+    }
+
+    function applySharedProject(p) {
+      const keepDay = ui.simDay;
+      shared.applying = true;
+      try {
+        setProject(p);
+        saveNow();
+        rebuildScene();
+        runCPM(true);
+        ui.simDay = clamp(keepDay, 0, num($('timeScrubber').max, keepDay));
+        updateTimeLabels(); renderGanttChart(); updateBIMProgress(ui.simDay); renderKPIs(); renderLocationViews();
+      } finally { shared.applying = false; }
+      if (shared.firstApplied) showToast('Schedule updated', 'A colleague saved changes; your view now shows them.');
+      shared.firstApplied = true;
+    }
+
+    function queueSharedSave() {
+      if (!shared.db || !shared.ref || shared.readOnly || shared.applying) return;
+      shared.dirty = true; shared.state = 'pending'; renderSyncStatus();
+      clearTimeout(shared.timer);
+      shared.timer = setTimeout(flushShared, 1500);
+    }
+
+    function flushShared() {
+      sharedChain = sharedChain.then(async () => {
+        if (!shared.dirty || !shared.ref) return;
+        const json = cleanProjectJSON();
+        shared.dirty = false;
+        if (json === shared.lastJson) { shared.state = 'synced'; renderSyncStatus(); return; }
+        const writeId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        const body = { json, writeId, updatedAt: new Date().toISOString(), updatedBy: shared.myId, projectId: currentProjectId, name: project.name };
+        shared.lastWriteId = writeId; shared.state = 'saving'; renderSyncStatus();
+        const attempt = () => shared.ref.set(body);
+        try {
+          try { await attempt(); }
+          catch (e) { if (e && e.code === 'unavailable') { await new Promise(r => setTimeout(r, 800 + Math.random() * 800)); await attempt(); } else throw e; }
+          shared.lastJson = json; shared.exists = true; shared.by = shared.myId; shared.at = body.updatedAt; shared.state = 'synced';
+        } catch (e) {
+          const code = e && e.code;
+          if (code === 'invalid_argument') { shared.readOnly = true; shared.state = 'readonly'; showToast('View only', 'You can look and plan locally, but you do not have permission to change the shared schedule.', true); }
+          else if (code === 'quota_exceeded') { shared.state = 'error'; showToast('Shared storage full', 'The shared schedule could not be saved. Delete old projects or ask the owner.', true); }
+          else { shared.state = 'error'; shared.error = code; showToast('Not saved to the shared copy', 'Your change is kept on this device. It will be shared with your next edit.', true); shared.dirty = true; }
+        }
+        renderSyncStatus();
+      });
+      return sharedChain;
+    }
+
+    async function renderSyncStatus() {
+      const el = $('syncStatus'); if (!el) return;
+      const set = (text, color, title) => { el.textContent = text; el.style.color = color; el.title = title || text; };
+      if (!shared.db) return set('● Local only', '#94a3b8', 'Saved in this browser only. Open the published page to share the schedule.');
+      if (shared.readOnly && shared.state !== 'synced') return set('● View only', '#94a3b8', 'You can view the shared schedule; edits stay on this device.');
+      switch (shared.state) {
+        case 'connecting': return set('● Connecting…', '#94a3b8');
+        case 'unshared': return set('● Not shared yet — your next edit shares it', '#fbbf24');
+        case 'unshared-ro': return set('● No shared copy yet', '#94a3b8');
+        case 'pending': return set('● Unsaved changes…', '#fbbf24');
+        case 'saving': return set('● Saving…', '#fbbf24');
+        case 'error': return set('● Not saved — kept on this device', '#f87171', 'Shared save failed (' + (shared.error || 'error') + ').');
+        case 'readonly': return set('● View only', '#94a3b8');
+      }
+      let who = 'someone';
+      if (shared.by && shared.user) {
+        try { const ps = await shared.user.profiles([shared.by]); who = shared.by === shared.myId ? 'you' : (ps[shared.by]?.name || 'a colleague'); } catch (e) { /* keep default */ }
+      }
+      const when = shared.at ? new Date(shared.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      set(`● Shared · saved ${when} by ${who}${shared.readOnly ? ' · view only' : ''}`, '#34d399');
+    }
 
     /* ---------- Progress engine (% complete types) ---------- */
     function computeProgress(act) {
@@ -2946,7 +3091,7 @@
     }
     function exportJSON() {
       toggleExportMenu();
-      const clean = JSON.parse(JSON.stringify(project, (k, v) => ['successors', 'es', 'ef', 'ls', 'lf', 'remStart', 'remDur', 'totalFloat', 'isCritical', 'status', 'stepsDrive', 'weightPercent'].includes(k) ? undefined : v));
+      const clean = JSON.parse(cleanProjectJSON());
       download(`${fileTag()}_project.json`, JSON.stringify(clean, null, 2), 'application/json');
     }
     function importJSON(input) {
@@ -3025,6 +3170,7 @@
       $('scaleSelect').value = ui.scale;
       runCPM(true);
       scrollGanttToCursor();
+      initShared();
       window.addEventListener('resize', () => { onWindowResize(); renderGanttChart(); renderLocationViews(); if (ui.view === 'evmDashboard') calculateEVM(); if (ui.view === 'resourceHistogram') renderResourceHistograms(); });
     });
   </script>
