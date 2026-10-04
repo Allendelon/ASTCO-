@@ -5,6 +5,28 @@ Single-file 4D BIM + CPM project planning tool (`index.html`). Open it in a brow
 Dependencies (loaded from CDN): Tailwind CSS Play CDN v3, Three.js r128 (cdnjs). If Three.js fails to load, the
 3D pane shows a notice and everything else keeps working.
 
+## Projects
+- **CG-JED: Crystal Gallery, Jeddah** (default). Generated from *concept i — Revised Design Submission 2 (27 Jan 2023)*.
+  It has 48 activities over B2–L4. Quantities come from the Schedule of Areas (PDF p.17) and floor heights from the elevations and sections.
+- **PRJ-101: High-Rise Tower** (sample used to demonstrate progress tracking).
+
+## Drawing → schedule → cost & resources (no P6 needed)
+Each Crystal Gallery activity carries a quantity basis (Quantities tab). Edit any value and every date, cost and curve updates:
+- duration = quantity ÷ (productivity per crew-day × crews)
+- budget = quantity × unit rate, split into labour / plant / materials / indirect by trade
+- manpower = crews × men per crew; plant = crews × plant per crew
+- each activity also lists the drawings it is built from
+
+**Drawing schedule** (Drawings tab): for each drawing, the date IFC is required = earliest start of the activities that use it − IFC lead (45 days by default).
+Click a drawing to filter the Gantt to the work that depends on it.
+
+**Exports for integration** (Data menu): cost-loaded schedule, monthly cash flow, manpower by trade per month, and the drawing schedule
+as CSV, plus the full project as JSON for re-import.
+
+**What is assumed, not taken from the drawings:** unit rates (SAR), productivities, crew sizes, basement storey heights (3.6 m),
+lump sums, and quantities measured off plans/elevations (shoring, facade, roofing, lift counts, external works). Each one is labelled
+in its "Quantity source" field. Replace them with QS and contractor data before using the budget or durations.
+
 ## What the engine actually does
 - **CPM with a data date (progress override):** completed work keeps its actual dates; in-progress work finishes at
   Data Date + Remaining Duration; unstarted work cannot start before the Data Date. FS/SS/FF/SF with lags,

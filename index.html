@@ -53,13 +53,9 @@
 
       <div class="hidden 2xl:block h-6 w-px bg-slate-800 mx-1"></div>
 
-      <div class="hidden 2xl:flex items-center space-x-1.5 bg-[#141e34] px-2.5 py-1 rounded-md border border-slate-700/70">
+      <div class="flex items-center space-x-1.5 bg-[#141e34] px-2.5 py-1 rounded-md border border-slate-700/70">
         <span class="text-[10px] uppercase font-mono text-slate-400">EPS:</span>
-        <select id="epsProjectSelect" class="max-w-[150px] 2xl:max-w-none bg-transparent text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer">
-          <option value="PRJ-101" class="bg-slate-900">PRJ-101: Kingdom Commercial High-Rise Tower</option>
-          <option value="PRJ-102" class="bg-slate-900" disabled>PRJ-102: Red Sea Resort (no data loaded)</option>
-          <option value="PRJ-103" class="bg-slate-900" disabled>PRJ-103: Jeddah Metro Stn 4 (no data loaded)</option>
-        </select>
+        <select id="epsProjectSelect" onchange="switchProject(this.value)" class="max-w-[200px] 2xl:max-w-none bg-transparent text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer"></select>
       </div>
 
       <div class="flex items-center space-x-1.5 bg-[#141e34] px-2 py-1 rounded-md border border-slate-700/70">
@@ -100,13 +96,16 @@
         <button onclick="toggleExportMenu()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded text-xs font-semibold">
           Data ▾
         </button>
-        <div id="exportDropdownMenu" class="hidden absolute right-0 mt-1 w-56 bg-[#0d1629] border border-slate-700 rounded-lg shadow-2xl py-1 z-50">
-          <a href="javascript:void(0)" onclick="exportCSV()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Export activities (.csv)</a>
+        <div id="exportDropdownMenu" class="hidden absolute right-0 mt-1 w-64 bg-[#0d1629] border border-slate-700 rounded-lg shadow-2xl py-1 z-50">
+          <a href="javascript:void(0)" onclick="exportCSV()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Cost-loaded schedule (.csv)</a>
+          <a href="javascript:void(0)" onclick="toggleExportMenu(); exportCashflowCSV()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Monthly cash flow (.csv)</a>
+          <a href="javascript:void(0)" onclick="toggleExportMenu(); exportTradeCSV()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Manpower by trade (.csv)</a>
+          <a href="javascript:void(0)" onclick="toggleExportMenu(); exportDrawingsCSV()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Drawing schedule (.csv)</a>
           <a href="javascript:void(0)" onclick="exportJSON()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Export full project (.json)</a>
           <a href="javascript:void(0)" onclick="document.getElementById('importFileInput').click()" class="block px-3 py-1.5 text-xs text-slate-300 hover:bg-sky-600 hover:text-white">Import project (.json)…</a>
           <div class="border-t border-slate-800 my-1"></div>
           <a href="javascript:void(0)" onclick="baselineCurrentSchedule()" class="block px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-950">Save current schedule as selected baseline</a>
-          <a href="javascript:void(0)" onclick="resetToSample()" class="block px-3 py-1.5 text-xs text-red-400 hover:bg-red-950">Reset to sample project</a>
+          <a href="javascript:void(0)" onclick="resetToSample()" class="block px-3 py-1.5 text-xs text-red-400 hover:bg-red-950">Reset project to original</a>
         </div>
         <input type="file" id="importFileInput" accept=".json,application/json" class="hidden" onchange="importJSON(this)">
       </div>
@@ -114,7 +113,7 @@
   </header>
 
   <!-- ======================== KPI STRIP ======================== -->
-  <div id="kpiStrip" class="h-14 bg-[#0b1324] border-b border-slate-800 grid grid-cols-6 shrink-0 divide-x divide-slate-800 whitespace-nowrap"></div>
+  <div id="kpiStrip" class="h-14 bg-[#0b1324] border-b border-slate-800 grid grid-cols-7 shrink-0 divide-x divide-slate-800 whitespace-nowrap"></div>
 
   <!-- ======================== TIME RIBBON ======================== -->
   <div class="h-11 bg-[#0a1020] border-b border-slate-800/90 flex items-center gap-2 px-3 shrink-0 text-xs whitespace-nowrap">
@@ -153,6 +152,7 @@
           <button onclick="switchLeftTab('elevation')" id="leftTab_elevation" class="left-tab"><span class="text-slate-500 mr-1">02</span>Elevation</button>
           <button onclick="switchLeftTab('sequence')" id="leftTab_sequence" class="left-tab"><span class="text-slate-500 mr-1">03</span>Floor sequence</button>
           <button onclick="switchLeftTab('compare')" id="leftTab_compare" class="left-tab"><span class="text-slate-500 mr-1">04</span>Compare</button>
+          <button onclick="switchLeftTab('drawings')" id="leftTab_drawings" class="left-tab"><span class="text-slate-500 mr-1">05</span>Drawings</button>
         </div>
         <div id="bimCamControls" class="flex items-center space-x-1 text-[10px]">
           <button onclick="resetBIMCamera('isometric')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 rounded font-mono">ISO</button>
@@ -216,6 +216,23 @@
           <tbody id="compareBody"></tbody>
         </table>
       </div>
+      <div id="drawingsView" class="left-view hidden flex-1 overflow-auto p-3 text-xs">
+        <div class="flex items-center justify-between mb-2 gap-2">
+          <span class="text-[11px] font-bold tracking-widest text-slate-300">DRAWING SCHEDULE — DRIVEN BY CONSTRUCTION NEED DATES</span>
+          <div class="flex items-center gap-2">
+            <label class="text-slate-400">IFC lead (days) <input type="number" min="0" id="drawingLeadInput" onchange="S.drawingLead = Math.max(0, Math.round(num(this.value, 45))); persist(); renderDrawings()" class="fld fld-inline font-mono"></label>
+            <button onclick="exportDrawingsCSV()" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded">Export CSV</button>
+          </div>
+        </div>
+        <p class="text-[10px] text-slate-500 mb-2" id="drawingsSourceNote"></p>
+        <table class="w-full text-[11px]">
+          <thead class="text-[9px] uppercase font-mono text-slate-500 text-left"><tr>
+            <th class="p-1">Register ID</th><th class="p-1">Title</th><th class="p-1">PDF p.</th><th class="p-1">Status</th>
+            <th class="p-1 text-center">Activities</th><th class="p-1 text-center">First work starts</th><th class="p-1 text-center">IFC required by</th><th class="p-1 text-center" title="IFC required date minus the status data date">Days to IFC (from DD)</th>
+          </tr></thead>
+          <tbody id="drawingsBody"></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- RIGHT: Schedule -->
@@ -234,6 +251,7 @@
               <option value="all">Project overview</option>
               <option value="floor">Selected floor</option>
               <option value="critical">Critical path</option>
+              <option value="drawing">Selected drawing</option>
             </select>
             <select id="scaleSelect" onchange="ui.scale = this.value; renderGanttChart(); scrollGanttToCursor()" class="fld" style="width:auto;padding:2px 4px">
               <option value="12w">12 weeks</option>
@@ -287,6 +305,7 @@
             <button onclick="switchDetailsTab('status')" id="tabBtn_status" class="tab-btn">Status</button>
             <button onclick="switchDetailsTab('relationships')" id="tabBtn_relationships" class="tab-btn">Relationships</button>
             <button onclick="switchDetailsTab('cbs')" id="tabBtn_cbs" class="tab-btn">Costs &amp; Resources</button>
+            <button onclick="switchDetailsTab('qto')" id="tabBtn_qto" class="tab-btn">Quantities</button>
           </div>
           <div class="flex items-center space-x-2 text-[11px] min-w-0">
             <span id="detailActivityIdBadge" class="font-mono text-sky-300 font-bold bg-sky-950 px-1.5 py-0.5 rounded border border-sky-800 truncate max-w-[260px]"></span>
@@ -351,8 +370,8 @@
               <div><label class="lbl">Trade phase (location views)</label>
                 <select id="genPhase" onchange="updateActiveField('phase', this.value || null)" class="fld"><option value="">— none —</option></select>
               </div>
-              <div><label class="lbl">Floors from (0 = fdn, 21 = roof)</label><input type="number" min="0" max="21" id="genFloorFrom" onchange="updateFloors()" class="fld font-mono"></div>
-              <div><label class="lbl">Floors to</label><input type="number" min="0" max="21" id="genFloorTo" onchange="updateFloors()" class="fld font-mono"></div>
+              <div><label class="lbl">Location from</label><select id="genFloorFrom" onchange="updateFloors()" class="fld"></select></div>
+              <div><label class="lbl">Location to</label><select id="genFloorTo" onchange="updateFloors()" class="fld"></select></div>
             </div>
           </div>
 
@@ -404,6 +423,9 @@
             </div>
           </div>
 
+          <!-- Quantities (drawing → schedule → cost/resources) -->
+          <div id="tabContentQto" class="p-4 flex-1 overflow-auto hidden text-xs"></div>
+
           <!-- Costs & Resources -->
           <div id="tabContentCbs" class="p-4 flex-1 overflow-auto hidden">
             <div class="grid grid-cols-4 gap-3 max-w-5xl text-xs font-mono">
@@ -439,7 +461,7 @@
         </div>
       </div>
       <div class="grid grid-cols-8 gap-3 my-4" id="evmCards"></div>
-      <div class="flex-1 bg-[#0d1629] border border-slate-800 rounded-xl p-4 flex flex-col min-h-[300px]">
+      <div class="shrink-0 bg-[#0d1629] border border-slate-800 rounded-xl p-4 flex flex-col overflow-hidden" style="height:340px">
         <div class="flex justify-between items-center mb-2">
           <span class="text-xs font-bold text-slate-300">Cumulative cost curves</span>
           <div class="flex items-center space-x-4 text-xs font-mono">
@@ -449,7 +471,19 @@
             <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-purple-400"></span> EAC forecast</span>
           </div>
         </div>
-        <div class="flex-1 relative"><svg id="sCurveSvg" class="w-full h-full"></svg></div>
+        <div class="flex-1 relative min-h-0"><svg id="sCurveSvg" class="absolute inset-0 w-full h-full"></svg></div>
+      </div>
+      <div class="shrink-0 bg-[#0d1629] border border-slate-800 rounded-xl p-4 mt-4 flex flex-col overflow-hidden" style="height:330px">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-xs font-bold text-slate-300">Monthly cash flow — cost-loaded schedule <span class="font-normal text-slate-500" id="cashflowNote"></span></span>
+          <div class="flex items-center gap-3 text-xs font-mono">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-2 bg-slate-500"></span> Baseline</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-2 bg-sky-500"></span> Forecast</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-emerald-400"></span> Cumulative forecast</span>
+            <button onclick="exportCashflowCSV()" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded">Export CSV</button>
+          </div>
+        </div>
+        <div class="flex-1 relative min-h-0"><svg id="cashflowSvg" class="absolute inset-0 w-full h-full"></svg></div>
       </div>
     </section>
 
@@ -469,7 +503,7 @@
         </div>
       </div>
       <div id="levelingReport" class="text-xs font-mono text-slate-300 mt-3"></div>
-      <div class="grid grid-cols-2 gap-4 my-4 flex-1">
+      <div class="grid grid-cols-2 gap-4 my-4" style="min-height:300px">
         <div class="bg-[#0d1629] border border-slate-800 rounded-xl p-4 flex flex-col min-h-[260px]">
           <h4 class="text-xs font-bold text-sky-300 mb-2">Direct labor (men/day, peak per week)</h4>
           <div class="flex-1 relative"><svg id="laborHistogramSvg" class="w-full h-full"></svg></div>
@@ -478,6 +512,13 @@
           <h4 class="text-xs font-bold text-amber-300 mb-2">Heavy plant (rigs/day, peak per week)</h4>
           <div class="flex-1 relative"><svg id="equipmentHistogramSvg" class="w-full h-full"></svg></div>
         </div>
+      </div>
+      <div class="bg-[#0d1629] border border-slate-800 rounded-xl p-4">
+        <div class="flex justify-between items-center mb-2">
+          <h4 class="text-xs font-bold text-slate-200">Manpower by trade — average men/day per month (forecast schedule)</h4>
+          <button onclick="exportTradeCSV()" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-xs">Export CSV</button>
+        </div>
+        <div id="tradeTable" class="overflow-auto"></div>
       </div>
     </section>
   </main>
@@ -588,11 +629,9 @@
   <script>
     'use strict';
 
-    const STORAGE_KEY = 'astco4d.project.v3';
+    const STORAGE_PREFIX = 'astco4d.v4.';
 
     /* ---------- Locations & trade phases (location-based view) ---------- */
-    const FLOOR_COUNT = 20;            // L1..L20
-    const ROOF = FLOOR_COUNT + 1;      // 0 = foundation, 21 = roof
     const PHASES = [
       { key: 'Substructure', color: '#8b7355' },
       { key: 'Structure', color: '#94a3b8' },
@@ -602,13 +641,28 @@
       { key: 'Close-out', color: '#22c55e' }
     ];
     const PHASE_COLOR = Object.fromEntries(PHASES.map(p => [p.key, p.color]));
-    function floorName(k) { return k === 0 ? 'Foundation' : k === ROOF ? 'Roof' : 'Level ' + k; }
+    // Locations are ordered bottom (k = 0) to top; each project defines its own list.
+    function LOCS() { return project.locations; }
+    function maxLoc() { return LOCS().length - 1; }
+    function floorName(k) { return LOCS()[k]?.name ?? 'Location ' + k; }
+    function floorShort(k) { return LOCS()[k]?.short ?? String(k); }
+    function towerLocations() {
+      const l = [{ k: 0, name: 'Foundation', short: 'FDN', below: true }];
+      for (let i = 1; i <= 20; i++) l.push({ k: i, name: 'Level ' + i, short: 'L' + String(i).padStart(2, '0') });
+      l.push({ k: 21, name: 'Roof', short: 'RF', roof: true });
+      return l;
+    }
 
     /* ---------- Utilities ---------- */
     function esc(v) {
       return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
-    function money(n) { return '$' + Math.round(n || 0).toLocaleString('en-US'); }
+    function curSym() { return (S && S.currency === 'SAR') ? 'SAR ' : '$'; }
+    function money(n) { return (n < 0 ? '-' : '') + curSym() + Math.round(Math.abs(n || 0)).toLocaleString('en-US'); }
+    function moneyShort(n) {
+      const a = Math.abs(n || 0), sgn = n < 0 ? '-' : '';
+      return sgn + curSym() + (a >= 1e9 ? (a / 1e9).toFixed(2) + 'B' : a >= 1e6 ? (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(0) + 'k' : Math.round(a));
+    }
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
     function num(v, fallback = 0) { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback; }
     function $(id) { return document.getElementById(id); }
@@ -635,9 +689,9 @@
 
     function sampleProject() {
       return {
-        version: 2,
+        version: 2, id: 'PRJ-101', name: 'Kingdom Commercial High-Rise Tower (sample)', model: 'tower', locations: towerLocations(),
         settings: {
-          dataDate: 70, projectStart: '2026-04-03', critThreshold: 0, mustFinish: null,
+          dataDate: 70, projectStart: '2026-04-03', critThreshold: 0, mustFinish: null, currency: 'USD', drawingLead: 45,
           stepsDrivePhysical: true, defaultPctType: 'Physical', laborLimit: 150, plantLimit: 10
         },
         periods: [
@@ -749,6 +803,184 @@
       };
     }
 
+
+    /* ---------- Crystal Gallery, Jeddah — model generated from the design drawings ----------
+       Source: concept i, "Crystal Gallery — Revised Design Submission 2", 27 Jan 2023 (31-page PDF).
+       Quantities marked "Sheet 17" come straight from the Schedule of Areas. Floor heights come from
+       Elevations A–D and the sections. Everything marked "derived" or "assumed" is an estimate to be
+       replaced by the QS: unit rates, productivities, crew sizes, and quantities measured off plans. */
+    const CG_DRAWINGS = [
+      { id: 'CG-A-001', title: 'Schedule of Areas', page: '17', rev: 'Sub 2' },
+      { id: 'CG-A-091', title: 'Basement 1 Plan', page: '15', rev: 'Sub 2' },
+      { id: 'CG-A-092', title: 'Basement 2 Plan', page: '16', rev: 'Sub 2' },
+      { id: 'CG-A-100', title: 'GF Landscape Plan', page: '9', rev: 'Sub 2' },
+      { id: 'CG-A-101', title: 'Ground Floor Plan', page: '10', rev: 'Sub 2' },
+      { id: 'CG-A-102', title: 'Level 1 Plan', page: '11', rev: 'Sub 2' },
+      { id: 'CG-A-103', title: 'Level 2 Plan (cinema)', page: '12', rev: 'Sub 2' },
+      { id: 'CG-A-104', title: 'Level 3 Plan', page: '13', rev: 'Sub 2' },
+      { id: 'CG-A-105', title: 'Level 4 Plan', page: '14', rev: 'Sub 2' },
+      { id: 'CG-A-201', title: 'Elevation A', page: '18', rev: 'Sub 2' },
+      { id: 'CG-A-202', title: 'Elevation B', page: '19', rev: 'Sub 2' },
+      { id: 'CG-A-203', title: 'Elevation C', page: '20', rev: 'Sub 2' },
+      { id: 'CG-A-204', title: 'Elevation D', page: '21', rev: 'Sub 2' },
+      { id: 'CG-A-301', title: 'Long Section', page: '22', rev: 'Sub 2' },
+      { id: 'CG-A-302', title: 'Cross Section 1', page: '23', rev: 'Sub 2' },
+      { id: 'CG-A-303', title: 'Cross Section 2', page: '24', rev: 'Sub 2' },
+      { id: 'CG-A-901', title: 'Perspectives / CGI', page: '26–30', rev: 'WIP (Sub 3)' }
+    ];
+    // Share of each activity's cost by CBS element, per trade (assumed split).
+    const TRADE_SPLIT = {
+      'Preliminaries': [0.35, 0.25, 0.20, 0.20], 'Shoring & Piling': [0.30, 0.35, 0.30, 0.05], 'Earthworks': [0.20, 0.65, 0.05, 0.10],
+      'Concrete & Structure': [0.35, 0.15, 0.45, 0.05], 'Facade': [0.30, 0.10, 0.55, 0.05], 'Roofing': [0.35, 0.10, 0.50, 0.05],
+      'MEP': [0.40, 0.05, 0.50, 0.05], 'Vertical Transport': [0.25, 0.05, 0.65, 0.05], 'Utilities': [0.25, 0.10, 0.60, 0.05],
+      'Finishes': [0.40, 0.05, 0.50, 0.05], 'Cinema Fit-out': [0.35, 0.05, 0.55, 0.05], 'Landscape & External': [0.35, 0.20, 0.40, 0.05],
+      'Testing & Commissioning': [0.70, 0.10, 0.05, 0.15]
+    };
+
+    function crystalGalleryProject() {
+      // Sheet 17 (Schedule of Areas) by level; heights from elevations/sections. Basement heights are not dimensioned → assumed.
+      const L = [
+        { k: 0, short: 'B2', name: 'Basement 2', below: true, height: 3.6, heightNote: 'assumed', gfa: 12500, use: { circ: 110, mep: 660, parking: 11730 }, cars: 237 },
+        { k: 1, short: 'B1', name: 'Basement 1', below: true, height: 3.6, heightNote: 'assumed', gfa: 12500, use: { circ: 134, mep: 802, parking: 11564 }, cars: 202 },
+        { k: 2, short: 'GF', name: 'Ground Floor', height: 7.0, gfa: 7503, use: { retail: 670, event: 435, fnb: 2522, terrace: 1150, circ: 1803, mep: 923 }, cars: 12 },
+        { k: 3, short: 'L1', name: 'Level 1', height: 6.0, gfa: 5622, use: { fnb: 3463, terrace: 940, circ: 946, mep: 273 } },
+        { k: 4, short: 'L2', name: 'Level 2', screen: true, height: 5.5, gfa: 5825, use: { fnb: 1446, terrace: 770, cinema: 2974, circ: 489, mep: 146 }, seats: 1075 },
+        { k: 5, short: 'L3', name: 'Level 3', screen: true, height: 5.5, gfa: 1902, use: { retail: 487, fnb: 623, terrace: 572, circ: 63, mep: 157 } },
+        { k: 6, short: 'L4', name: 'Level 4 / Roof', height: 3.5, gfa: 246, gfaNote: 'Sheet 17 gives net 246 m² only', use: { retail: 246 }, roof: true }
+      ];
+      const acts = [];
+      const MC = 'Main Contractor';
+      const add = (id, name, o) => {
+        const a = {
+          id, name, wbs: o.wbs, contractor: o.contractor || MC, trade: o.trade || null, calendar: 'CAL-6D',
+          phase: o.phase || null, floors: o.floors || null, kpi: o.kpi || null,
+          duration: o.dur || 0, remainingDuration: o.dur || 0, actualStart: null, actualFinish: null,
+          percentCompleteType: 'Physical', physicalManual: 0, cost: 0, actualCost: 0, budgetUnits: 0, actualUnits: 0, labor: 0, plant: 0,
+          cbs: { labor: 0, plant: 0, materials: 0, indirect: 0 }, predecessors: o.preds || [], meshKey: null, steps: o.steps || [], baselines: {},
+          dwgs: o.dwgs || [], qto: o.qto || null
+        };
+        acts.push(a); return a;
+      };
+      const fs = (id, lag = 0) => ({ id, type: 'FS', lag });
+      const ss = (id, lag = 0) => ({ id, type: 'SS', lag });
+      const ff = (id, lag = 0) => ({ id, type: 'FF', lag });
+      const q = (qty, unit, rate, prod, crews, crewSize, plantPerCrew, src) => ({ qty, unit, rate, prod, crews, crewSize, plantPerCrew, src });
+      const ls = (rate, days, crewSize, plant, src) => ({ qty: 1, unit: 'LS', rate, fixedDur: days, crews: 1, crewSize, plantPerCrew: plant, src });
+      const SECT = ['CG-A-301', 'CG-A-302', 'CG-A-303'];
+      const PLAN = ['CG-A-092', 'CG-A-091', 'CG-A-101', 'CG-A-102', 'CG-A-103', 'CG-A-104', 'CG-A-105'];
+      const ELEV = ['CG-A-201', 'CG-A-202', 'CG-A-203', 'CG-A-204'];
+
+      add('CG-0000', 'Notice to Proceed', { wbs: '0 Milestones', kpi: 'start' });
+      // 1 Enabling & substructure
+      add('CG-1010', 'Mobilisation, site set-up & enabling works', { wbs: '1 Substructure', trade: 'Preliminaries', phase: null,
+        preds: [fs('CG-0000')], dwgs: ['CG-A-100', 'CG-A-101'], qto: ls(3500000, 30, 25, 4, 'Lump sum (assumed)') });
+      add('CG-1020', 'Secant pile shoring & dewatering', { wbs: '1 Substructure', trade: 'Shoring & Piling', contractor: 'Geotechnical Sub',
+        phase: 'Substructure', floors: [0, 1], preds: [ss('CG-1010', 14)], dwgs: ['CG-A-091', 'CG-A-092', ...SECT],
+        qto: q(5400, 'm²', 1150, 45, 3, 12, 2, 'Derived: basement perimeter ≈450 m (B1/B2 plans) × 12 m retained depth') });
+      add('CG-1030', 'Bulk excavation & disposal (2 basements)', { wbs: '1 Substructure', trade: 'Earthworks', contractor: 'Geotechnical Sub',
+        phase: 'Substructure', floors: [0, 1], preds: [ss('CG-1020', 20), ff('CG-1020', 5)], dwgs: ['CG-A-092', ...SECT],
+        qto: q(112500, 'm³', 28, 1400, 2, 8, 6, 'Derived: 12,500 m² basement (Sheet 17) × 9.0 m (2 × 3.6 m + raft/blinding)') });
+      add('CG-1040', 'Raft foundation & below-grade waterproofing', { wbs: '1 Substructure', trade: 'Concrete & Structure',
+        phase: 'Substructure', floors: [0, 0], preds: [fs('CG-1030')], dwgs: ['CG-A-092', ...SECT],
+        qto: q(12500, 'm²', 720, 160, 3, 30, 1, 'Sheet 17: B2 gross area 12,500 m²') });
+
+      // 2 Structure per level (frame + slab above ≈ level GFA)
+      const sCrews = [4, 4, 4, 3, 3, 2, 1], sRate = [1050, 1050, 1150, 1050, 1600, 1050, 1050];
+      L.forEach((l, i) => {
+        const prev = i === 0 ? null : 'CG-2' + String(i - 1).padStart(2, '0') + '0';
+        const isCinema = l.short === 'L2';
+        add('CG-2' + String(i).padStart(2, '0') + '0', `RC frame & slab — ${l.short}${isCinema ? ' (incl. cinema long-span roof)' : ''}`, {
+          wbs: '2 Superstructure', trade: 'Concrete & Structure', phase: 'Structure', floors: [i, i],
+          preds: i === 0 ? [fs('CG-1040')] : [ss(prev, i <= 2 ? 25 : 20), ff(prev, 7)],
+          dwgs: [PLAN[i], ...SECT, ...(isCinema ? ['CG-A-202'] : [])],
+          qto: q(l.gfa, 'm²', sRate[i], isCinema ? 25 : 35, sCrews[i], 35, 1, `Sheet 17: ${l.short} gross area ${l.gfa.toLocaleString('en-US')} m²${l.gfaNote ? ' (' + l.gfaNote + ')' : ''}; height ${l.height} m${l.heightNote ? ' (' + l.heightNote + ')' : ''}`) });
+      });
+      const S_ = i => 'CG-2' + String(i).padStart(2, '0') + '0';
+
+      // 3 Envelope
+      add('CG-3010', 'Curtain wall & shopfront glazing — GF–L1', { wbs: '3 Envelope', trade: 'Facade', contractor: 'Facade Sub',
+        phase: 'Envelope', floors: [2, 3], preds: [fs(S_(3), 14)], dwgs: [...ELEV, 'CG-A-101', 'CG-A-102'],
+        qto: q(3100, 'm²', 1850, 35, 3, 8, 0.5, 'Derived: podium perimeter ≈400 m × 13 m (GF 7.0 + L1 6.0) × 60% glazed') });
+      add('CG-3020', 'Parametric perforated screen — L2–L3 blocks', { wbs: '3 Envelope', trade: 'Facade', contractor: 'Facade Sub',
+        phase: 'Envelope', floors: [4, 5], preds: [fs(S_(5), 14), fs(S_(4), 30)], dwgs: [...ELEV, 'CG-A-901'],
+        qto: q(4500, 'm²', 2400, 25, 3, 10, 1, 'Derived: two screen blocks ≈410 m perimeter × 11 m (L2 5.5 + L3 5.5)') });
+      add('CG-3030', 'Fluted metal cladding & cinema box enclosure', { wbs: '3 Envelope', trade: 'Facade', contractor: 'Facade Sub',
+        phase: 'Envelope', floors: [3, 4], preds: [fs(S_(4), 14)], dwgs: ['CG-A-203', 'CG-A-204'],
+        qto: q(3600, 'm²', 520, 60, 2, 8, 0.5, 'Derived: service/cinema façades on Elevations C & D ≈160 m × 22 m') });
+      add('CG-3040', 'Roofing, waterproofing & shading pergolas', { wbs: '3 Envelope', trade: 'Roofing',
+        phase: 'Envelope', floors: [5, 6], preds: [fs(S_(6))], dwgs: ['CG-A-105', ...SECT],
+        qto: q(6500, 'm²', 380, 220, 2, 10, 0.3, 'Derived: L2/L3/L4 roof areas + pergolas from plans & sections') });
+
+      // 4 MEP rough-in per level
+      const mCrews = [4, 4, 3, 3, 3, 2, 1], mRate = [520, 520, 1250, 1250, 1450, 1250, 1250];
+      L.forEach((l, i) => {
+        const sid = S_(i), sDur = Math.ceil(l.gfa / ((l.short === 'L2' ? 25 : 35) * sCrews[i]));
+        add('CG-4' + String(i).padStart(2, '0') + '0', `MEP rough-in — ${l.short}${l.below ? ' (ventilation, fire, drainage)' : ''}`, {
+          wbs: '4 MEP', trade: 'MEP', contractor: 'MEP Sub', phase: 'Rough-in', floors: [i, i],
+          preds: [ss(sid, Math.ceil(sDur * 0.5)), ff(sid, 14)], dwgs: [PLAN[i], 'CG-A-001'],
+          qto: q(l.gfa, 'm²', mRate[i], 25, mCrews[i], 14, 0.2, `Sheet 17: ${l.short} gross area; MEP/service rooms ${l.use.mep || 0} m²`) });
+      });
+      const M_ = i => 'CG-4' + String(i).padStart(2, '0') + '0';
+      add('CG-4500', 'Central plant: chillers, AHUs, pumps & tanks', { wbs: '4 MEP', trade: 'MEP', contractor: 'MEP Sub',
+        phase: 'Rough-in', floors: [6, 6], preds: [ss('CG-3040'), fs(S_(6))], dwgs: ['CG-A-105', 'CG-A-092', 'CG-A-091'],
+        qto: ls(14000000, 75, 30, 2, 'Lump sum (assumed); plant rooms on B1/B2 plans and roof') });
+      add('CG-4600', 'Utilities: SCECO substation, LPG tank, generator & fuel', { wbs: '4 MEP', trade: 'Utilities', contractor: 'MEP Sub',
+        phase: 'Rough-in', floors: [2, 2], preds: [fs(S_(2), 30)], dwgs: ['CG-A-101', 'CG-A-091'],
+        qto: ls(6500000, 60, 18, 1, 'Lump sum (assumed); SCECO 54 m², LPG 68 m², generator 78 m² on GF plan') });
+      add('CG-4700', 'Escalators, retail passenger & service lifts', { wbs: '4 MEP', trade: 'Vertical Transport', contractor: 'Lifts Sub',
+        phase: 'Rough-in', floors: [0, 5], preds: [fs(S_(5))], dwgs: [...PLAN.slice(0, 6), ...SECT],
+        qto: q(18, 'no.', 650000, 0.04, 4, 5, 0.2, 'Derived: ≈10 escalators + 8 lifts counted from plans — verify') });
+      add('CG-4800', 'Permanent power energised (SCECO)', { wbs: '0 Milestones', kpi: 'power', preds: [fs('CG-4600'), fs(M_(2))] });
+
+      // 5 Finishes by use (Sheet 17)
+      const fin = [];
+      L.forEach((l, i) => {
+        const u = l.use, P = PLAN[i], mid = M_(i);
+        const envPred = i === 2 || i === 3 ? [ss('CG-3010', 20)] : i === 4 || i === 5 ? [ss('CG-3020', 20)] : [];
+        const mk = (suffix, name, o) => { const a = add('CG-5' + String(i) + suffix, name, Object.assign({ wbs: '5 Finishes', phase: 'Finishes', floors: [i, i], dwgs: [P, 'CG-A-001'] }, o)); fin.push(a.id); return a; };
+        if (u.parking) mk('10', `Car park finishes, coatings & line marking — ${l.short} (${l.cars} bays)`, { trade: 'Finishes',
+          preds: [ss(mid, 40), ff(mid, 7)], qto: q(u.parking, 'm²', 140, 450, 1, 10, 0.2, `Sheet 17: ${l.short} parking/driveway ${u.parking.toLocaleString('en-US')} m², ${l.cars} cars`) });
+        if ((u.circ || 0) >= 50 && !l.below) mk('20', `Public circulation & WC finishes — ${l.short}`, { trade: 'Finishes',
+          preds: [ss(mid, 25), ...envPred], qto: q(u.circ, 'm²', 1900, 8, Math.max(1, Math.round(u.circ / 600)), 10, 0.1, `Sheet 17: ${l.short} public circulation & WC ${u.circ.toLocaleString('en-US')} m²`) });
+        const shell = (u.fnb || 0) + (u.retail || 0);
+        if (shell) mk('30', `Tenant shell & core handover — ${l.short} (F&B + retail)`, { trade: 'Finishes',
+          preds: [ss(mid, 20), ...envPred], qto: q(shell, 'm²', 420, 30, Math.max(1, Math.round(shell / 1500)), 8, 0.1, `Sheet 17: ${l.short} F&B ${(u.fnb || 0).toLocaleString('en-US')} m² + retail ${(u.retail || 0).toLocaleString('en-US')} m²`) });
+        if (u.terrace) mk('40', `Terraces & outdoor seating — ${l.short}`, { trade: 'Finishes',
+          preds: envPred.length ? [fs(envPred[0].id)] : [ss(mid, 20)], qto: q(u.terrace, 'm²', 900, 12, Math.max(1, Math.round(u.terrace / 700)), 8, 0.1, `Sheet 17: ${l.short} terrace ${u.terrace.toLocaleString('en-US')} m²`) });
+        if (u.cinema) mk('50', `Cinema fit-out — ${l.short} (${l.seats.toLocaleString('en-US')} seats)`, { trade: 'Cinema Fit-out', contractor: 'Cinema Operator (by others?)',
+          preds: [ss(mid, 20), fs('CG-3030')], dwgs: [P, 'CG-A-001', 'CG-A-202'], qto: q(u.cinema, 'm²', 5800, 6, 3, 15, 0.2, `Sheet 17: cinema ${u.cinema.toLocaleString('en-US')} m², ${l.seats.toLocaleString('en-US')} seats`) });
+        if (u.event) mk('60', `Event plaza & fountain — ${l.short}`, { trade: 'Landscape & External', contractor: 'Landscape Sub',
+          preds: [fs(S_(2), 30)], dwgs: ['CG-A-100', P], qto: q(u.event, 'm²', 4500, 6, 1, 12, 0.5, `Sheet 17: event plaza ${u.event} m² (fountain per GF Landscape Plan)`) });
+      });
+      add('CG-5900', 'External works: roads, drop-off, parking & planting', { wbs: '5 Finishes', trade: 'Landscape & External', contractor: 'Landscape Sub',
+        phase: 'Finishes', floors: [2, 2], preds: [fs(S_(2), 60), ss('CG-4600', 30)], dwgs: ['CG-A-100'],
+        qto: q(8000, 'm²', 450, 120, 2, 12, 1, 'Derived: site outside building footprint ≈8,000 m² from GF Landscape Plan') });
+
+      // 6 Close-out
+      add('CG-6010', 'Testing & commissioning — all MEP systems', { wbs: '6 Close-out', trade: 'Testing & Commissioning', contractor: 'MEP Sub',
+        phase: 'Close-out', floors: [0, 6], preds: [...L.map((l, i) => fs(M_(i))), fs('CG-4500'), fs('CG-4700'), fs('CG-4800')], dwgs: ['CG-A-001'],
+        qto: ls(2200000, 90, 25, 0.5, 'Lump sum (assumed)') });
+      add('CG-6020', 'Civil Defense & authority inspections', { wbs: '6 Close-out', trade: 'Testing & Commissioning',
+        phase: 'Close-out', floors: [0, 6], preds: [ss('CG-6010', 30), ...fin.map(id => fs(id))], dwgs: [...PLAN],
+        qto: ls(400000, 30, 6, 0, 'Lump sum (assumed)') });
+      add('CG-6090', 'Handover & mall opening', { wbs: '0 Milestones', kpi: 'handover', preds: [fs('CG-6020'), fs('CG-5900'), fs('CG-6010')] });
+
+      return {
+        version: 4, id: 'CG-JED', name: 'Crystal Gallery, Jeddah', model: 'massing', locations: L, autoBaseline: true,
+        source: 'concept i — Crystal Gallery Revised Design Submission 2 (27 Jan 2023)',
+        drawings: CG_DRAWINGS.map(d => Object.assign({ status: d.rev.startsWith('WIP') ? 'Concept / WIP' : 'Design Development' }, d)),
+        settings: { dataDate: 0, projectStart: '2026-11-01', critThreshold: 0, mustFinish: null, currency: 'SAR', drawingLead: 45,
+          stepsDrivePhysical: true, defaultPctType: 'Physical', laborLimit: 550, plantLimit: 16 },
+        periods: [],
+        activities: acts
+      };
+    }
+
+    const PROJECTS = {
+      'CG-JED': { label: 'CG-JED: Crystal Gallery, Jeddah (from drawings)', factory: crystalGalleryProject },
+      'PRJ-101': { label: 'PRJ-101: High-Rise Tower (sample)', factory: () => sampleProject() }
+    };
+
     /* ---------- State ---------- */
     let project = null;
     let activities = [];
@@ -764,13 +996,18 @@
       stepsCols: { weight: true, weightPercent: true, stepPercent: true, completed: true }
     };
 
-    function loadProject() {
+    let currentProjectId = 'CG-JED';
+    function storageKey(id) { return STORAGE_PREFIX + (id || currentProjectId); }
+
+    function loadProject(id) {
+      currentProjectId = PROJECTS[id] ? id : 'CG-JED';
       let loaded = null;
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(storageKey());
         if (raw) loaded = JSON.parse(raw);
       } catch (e) { loaded = null; }
-      setProject(loaded && Array.isArray(loaded.activities) ? loaded : sampleProject());
+      setProject(loaded && Array.isArray(loaded.activities) ? loaded : PROJECTS[currentProjectId].factory());
+      try { localStorage.setItem(STORAGE_PREFIX + 'current', currentProjectId); } catch (e) { /* ignore */ }
     }
 
     function setProject(p) {
@@ -778,22 +1015,49 @@
       project = p;
       project.settings = Object.assign({}, base.settings, p.settings || {});
       project.periods = Array.isArray(p.periods) ? p.periods : [];
+      if (!Array.isArray(project.locations) || !project.locations.length) project.locations = towerLocations();
+      project.model = project.model || (project.locations.length === 22 ? 'tower' : 'massing');
+      project.drawings = Array.isArray(project.drawings) ? project.drawings : [];
       activities = project.activities;
       activities.forEach(a => {
         a.predecessors = Array.isArray(a.predecessors) ? a.predecessors : [];
         a.steps = Array.isArray(a.steps) ? a.steps : [];
         a.baselines = a.baselines || {};
         a.cbs = a.cbs || { labor: 0, plant: 0, materials: 0, indirect: 0 };
+        a.dwgs = Array.isArray(a.dwgs) ? a.dwgs : [];
         if (a.levelDelay == null) a.levelDelay = 0;
       });
       S = project.settings;
-      if (!activities.find(a => a.id === ui.selectedId)) ui.selectedId = activities[0]?.id || null;
+      if (project.autoBaseline && calculateSchedule()) {
+        activities.forEach(a => { a.baselines.BL0 = { start: a.es, end: a.ef }; });
+        delete project.autoBaseline;
+      }
+      if (!activities.find(a => a.id === ui.selectedId)) ui.selectedId = (activities.find(a => a.duration > 0) || activities[0])?.id || null;
+    }
+
+    function switchProject(id) {
+      if (!PROJECTS[id] || id === currentProjectId) return;
+      if (ui.playing) toggle4DPlay();
+      saveNow();
+      loadProject(id);
+      ui.selectedFloor = null; ui.rows = 'all'; ui.search = ''; ui.contractor = 'ALL'; ui.selectedDrawing = null;
+      $('rowsSelect').value = 'all'; $('activitySearch').value = '';
+      ui.simDay = S.dataDate;
+      rebuildScene();
+      runCPM(true);
+      scrollGanttToCursor();
+      showToast('Project loaded', project.name);
+    }
+
+    function renderProjectSelect() {
+      $('epsProjectSelect').innerHTML = Object.entries(PROJECTS).map(([k, p]) => `<option value="${k}" class="bg-slate-900">${esc(p.label)}</option>`).join('');
+      $('epsProjectSelect').value = currentProjectId;
     }
 
     let saveTimer = null;
     function saveNow() {
       clearTimeout(saveTimer); saveTimer = null;
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(project)); } catch (e) { /* storage unavailable */ }
+      try { localStorage.setItem(storageKey(), JSON.stringify(project)); } catch (e) { /* storage unavailable */ }
     }
     function persist() {
       clearTimeout(saveTimer);
@@ -831,6 +1095,24 @@
         : act.physicalPercent;
     }
     function round1(v) { return Math.round(v * 10) / 10; }
+
+    /* ---------- Quantity-driven duration, cost and resources ----------
+       duration = quantity ÷ (productivity per crew-day × crews); cost = quantity × unit rate;
+       crew/plant loading = crews × crew size / plant per crew. Lump sums use a fixed duration. */
+    function applyQTO(a) {
+      const q = a.qto;
+      if (!q) return;
+      const crews = Math.max(1, Math.round(num(q.crews, 1)));
+      a.duration = q.fixedDur != null ? Math.max(0, Math.round(num(q.fixedDur)))
+        : Math.max(1, Math.ceil(num(q.qty) / Math.max(1e-9, num(q.prod) * crews)));
+      a.cost = Math.round(num(q.qty) * num(q.rate));
+      a.labor = crews * num(q.crewSize);
+      a.plant = Math.round(crews * num(q.plantPerCrew) * 10) / 10;
+      a.budgetUnits = a.duration * a.labor * 10;
+      if (a.actualStart == null) a.remainingDuration = a.duration;
+      const sp = TRADE_SPLIT[a.trade] || [0.35, 0.15, 0.45, 0.05];
+      a.cbs = { labor: Math.round(a.cost * sp[0]), plant: Math.round(a.cost * sp[1]), materials: Math.round(a.cost * sp[2]), indirect: Math.round(a.cost * sp[3]) };
+    }
 
     /* ---------- CPM engine (progress override, data-date aware) ---------- */
     function topoOrder() {
@@ -873,7 +1155,7 @@
       scheduleOK = true;
       const dd = Math.max(0, Math.round(num(S.dataDate)));
       const byId = new Map(activities.map(a => [a.id, a]));
-      activities.forEach(a => { a.successors = []; computeProgress(a); });
+      activities.forEach(a => { a.successors = []; applyQTO(a); computeProgress(a); });
       activities.forEach(a => a.predecessors.forEach(p => {
         const pa = byId.get(p.id);
         if (pa) pa.successors.push({ id: a.id, type: p.type || 'FS', lag: num(p.lag) });
@@ -965,26 +1247,29 @@
       renderGanttChart();
       renderActivityDetailsDock();
       calculateEVM();
-      if (ui.view === 'resourceHistogram') renderResourceHistograms();
+      if (ui.view === 'resourceHistogram') { renderResourceHistograms(); renderTradeTable(); }
+      if (ui.view === 'evmDashboard') renderCashflow();
       updateBIMProgress(ui.simDay);
       updateTimeLabels();
       renderStopChips();
       renderKPIs();
       renderLocationViews();
       if (ui.leftTab === 'compare') renderCompare();
+      if (ui.leftTab === 'drawings') renderDrawings();
     }
 
     /* ---------- Location views (elevation, floor sequence, compare, KPIs) ---------- */
     function switchLeftTab(tab) {
       ui.leftTab = tab;
-      ['model', 'elevation', 'sequence', 'compare'].forEach(t => $('leftTab_' + t).classList.toggle('active', t === tab));
+      ['model', 'elevation', 'sequence', 'compare', 'drawings'].forEach(t => $('leftTab_' + t).classList.toggle('active', t === tab));
+      $('drawingsView').classList.toggle('hidden', tab !== 'drawings');
       $('threeCanvasContainer').classList.toggle('hidden', tab !== 'model');
       $('elevationView').classList.toggle('hidden', tab !== 'elevation');
       $('sequenceView').classList.toggle('hidden', tab !== 'sequence');
       $('compareView').classList.toggle('hidden', tab !== 'compare');
       $('bimCamControls').classList.toggle('hidden', tab !== 'model');
       if (tab === 'model') onWindowResize();
-      if (tab === 'compare') renderCompare(); else renderLocationViews();
+      if (tab === 'compare') renderCompare(); else if (tab === 'drawings') renderDrawings(); else renderLocationViews();
     }
 
     function renderLocationViews() {
@@ -1000,34 +1285,41 @@
       const svg = $('elevationSvg');
       const W = svg.clientWidth || 500, H = svg.clientHeight || 400;
       svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-      const n = matrix.length, rowH = Math.max(8, (H - 30) / n), bw = Math.min(W * 0.6, 340), x0 = (W - bw) / 2, bays = 8;
-      let out = '';
-      matrix.forEach((row, i) => {
-        const y = 6 + i * rowH;
+      const locs = LOCS();
+      // Row height ∝ floor-to-floor height; width ∝ √GFA (equal when the project gives neither).
+      const totalH = locs.reduce((x, l) => x + num(l.height, 1), 0);
+      const maxRootA = Math.max(...locs.map(l => Math.sqrt(num(l.gfa, 1))));
+      const usableH = H - 30, maxW = Math.min(W * 0.62, 360), cx = W / 2, bays = 8;
+      let y = 6, out = '', groundY = null;
+      matrix.forEach(row => {           // matrix runs top → bottom
+        const l = locs[row.k];
+        const rowH = Math.max(8, usableH * num(l.height, 1) / totalH);
+        const rw = Math.max(40, maxW * Math.sqrt(num(l.gfa, 1)) / maxRootA), rx = cx - rw / 2;
         const st = floorStage(row);
-        const isRoof = row.k === ROOF, isFdn = row.k === 0;
-        const rx = isRoof ? x0 + bw * 0.2 : isFdn ? x0 - 10 : x0, rw = isRoof ? bw * 0.6 : isFdn ? bw + 20 : bw;
         const sel = ui.selectedFloor === row.k;
         const base = stageColor(st.stage);
         const fillN = st.active ? Math.round(st.activePct * bays) : 0;
-        const tip = `${floorName(row.k)} — ${st.stage === 'Future' ? 'not started' : st.stage + ' complete'}${st.active ? ` · ${st.active} ${Math.round(st.activePct * 100)}%` : ''}${row.ready != null ? ` · ready ${shortDate(row.ready)}` : ''}`;
+        if (l.below && groundY == null) groundY = y;
+        const tip = `${l.name}${l.gfa ? ' · ' + l.gfa.toLocaleString('en-US') + ' m²' : ''}${l.height && project.model !== 'tower' ? ' · ' + l.height + ' m' : ''} — ${st.stage === 'Future' ? 'not started' : st.stage + ' complete'}${st.active ? ` · ${st.active} ${Math.round(st.activePct * 100)}%` : ''}${row.ready != null ? ` · ready ${shortDate(row.ready)}` : ''}`;
         out += `<g class="cursor-pointer" onclick="selectFloor(${row.k})"><title>${esc(tip)}</title>
-          <rect x="${rx}" y="${y}" width="${rw}" height="${rowH - 2}" rx="1.5" fill="${base === 'transparent' ? '#0f172a' : base + '55'}" stroke="${sel ? '#f97316' : '#334155'}" stroke-width="${sel ? 2 : 1}" ${st.stage === 'Future' ? 'stroke-dasharray="3,2"' : ''}/>`;
-        if (!isFdn && !isRoof) {
-          const bwid = (rw - 8) / bays;
-          for (let j = 0; j < bays; j++) {
-            const c = j < fillN ? PHASE_COLOR[st.active] : base === 'transparent' ? '#1e293b' : base;
-            out += `<rect x="${rx + 4 + j * bwid + 1}" y="${y + rowH * 0.2}" width="${bwid - 2}" height="${Math.max(2, rowH * 0.5)}" fill="${c}" opacity="${j < fillN || base !== 'transparent' ? 0.9 : 0.6}"/>`;
-          }
+          <rect x="${rx}" y="${y}" width="${rw}" height="${rowH - 2}" rx="1.5" fill="${base === 'transparent' ? (l.below ? '#111827' : '#0f172a') : base + '55'}" stroke="${sel ? '#f97316' : '#334155'}" stroke-width="${sel ? 2 : 1}" ${st.stage === 'Future' ? 'stroke-dasharray="3,2"' : ''}/>`;
+        const bw = (rw - 8) / bays;
+        for (let j = 0; j < bays; j++) {
+          const c = j < fillN ? PHASE_COLOR[st.active] : base === 'transparent' ? '#1e293b' : base;
+          out += `<rect x="${rx + 4 + j * bw + 1}" y="${y + rowH * 0.22}" width="${bw - 2}" height="${Math.max(2, rowH * 0.48)}" fill="${c}" opacity="${j < fillN || base !== 'transparent' ? 0.9 : 0.6}"/>`;
         }
-        out += `<text x="${x0 - 16}" y="${y + rowH / 2 + 3}" fill="${sel ? '#fb923c' : '#64748b'}" font-size="9" font-family="monospace" text-anchor="end">${isRoof ? 'RF' : isFdn ? 'FDN' : 'L' + String(row.k).padStart(2, '0')}</text>`;
-        if (st.active) out += `<circle cx="${x0 + bw + 14}" cy="${y + rowH / 2}" r="3" fill="${PHASE_COLOR[st.active]}"/>`;
+        out += `<text x="${cx - maxW / 2 - 12}" y="${y + rowH / 2 + 3}" fill="${sel ? '#fb923c' : '#64748b'}" font-size="9" font-family="monospace" text-anchor="end">${esc(l.short || row.k)}</text>`;
+        if (st.active) out += `<circle cx="${cx + maxW / 2 + 12}" cy="${y + rowH / 2}" r="3" fill="${PHASE_COLOR[st.active]}"/>`;
         out += '</g>';
+        y += rowH;
       });
-      out += `<line x1="${x0 - 40}" y1="${6 + n * rowH}" x2="${x0 + bw + 40}" y2="${6 + n * rowH}" stroke="#475569" stroke-width="2"/>`;
+      const gy = groundY ?? y;
+      out += `<line x1="${cx - maxW / 2 - 30}" y1="${gy}" x2="${cx + maxW / 2 + 30}" y2="${gy}" stroke="#a16207" stroke-width="2"/>
+        <text x="${cx + maxW / 2 + 28}" y="${gy - 3}" fill="#a16207" font-size="9" font-family="monospace" text-anchor="end">GROUND</text>`;
       svg.innerHTML = out;
       $('phaseLegend').innerHTML = `<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 border border-dashed border-slate-500"></span>Future</span>` +
-        PHASES.map(p => `<span class="flex items-center gap-1"><span class="w-2.5 h-2.5" style="background:${p.color}"></span>${p.key}</span>`).join('');
+        PHASES.map(p => `<span class="flex items-center gap-1"><span class="w-2.5 h-2.5" style="background:${p.color}"></span>${p.key}</span>`).join('') +
+        (project.model !== 'tower' ? '<span class="text-slate-600">· height ∝ floor height, width ∝ √GFA</span>' : '');
     }
 
     function phaseSummary(matrix, key) {
@@ -1089,9 +1381,12 @@
 
     function renderKPIs() {
       const m = locationMatrix(ui.simDay);
-      const floors = m.filter(r => r.k >= 1 && r.k <= FLOOR_COUNT);
-      const structDone = floors.filter(r => r.cells.Structure && r.cells.Structure.pct >= 1).length;
-      const ready = floors.filter(r => r.complete).length;
+      const structRows = m.filter(r => r.cells.Structure);
+      const structDone = structRows.filter(r => r.cells.Structure.pct >= 1).length;
+      const fitRows = m.filter(r => r.cells.Finishes);
+      const ready = fitRows.filter(r => r.complete).length;
+      const bac = activities.reduce((x, a) => x + a.cost, 0);
+      const spend = activities.reduce((x, a) => x + a.cost * progressAt(a, ui.simDay), 0);
       const cur = keyDates('CUR'), bl = keyDates(ui.baseline);
       const dateCell = (label, d, b) => {
         if (d == null) return `<div class="kpi-cell"><div class="k">${label}</div><div class="v">—</div></div>`;
@@ -1102,8 +1397,9 @@
       };
       $('kpiStrip').innerHTML = `
         <div class="kpi-cell"><div class="k">Viewing date</div><div class="v text-orange-400">${dateFromDay(ui.simDay).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div><div class="d text-slate-500">Day ${ui.simDay} · data date D${S.dataDate}${ui.simDay > S.dataDate ? ' · forecast' : ''}</div></div>
-        <div class="kpi-cell"><div class="k">Structure</div><div class="v">${structDone} / ${FLOOR_COUNT} levels</div><div class="d text-slate-500">frame complete</div></div>
-        <div class="kpi-cell"><div class="k">Floors handover-ready</div><div class="v">${ready} / ${FLOOR_COUNT} floors</div><div class="d text-slate-500">all trades complete</div></div>
+        <div class="kpi-cell"><div class="k">Structure</div><div class="v">${structDone} / ${structRows.length} levels</div><div class="d text-slate-500">frame complete</div></div>
+        <div class="kpi-cell"><div class="k">Levels handover-ready</div><div class="v">${ready} / ${fitRows.length} levels</div><div class="d text-slate-500">all trades complete</div></div>
+        <div class="kpi-cell"><div class="k">Cost-loaded value at date</div><div class="v">${moneyShort(spend)}</div><div class="d text-slate-500">${bac ? Math.round(spend / bac * 100) : 0}% of ${moneyShort(bac)} budget</div></div>
         ${dateCell('Topping out', cur.topping, bl.topping)}
         ${dateCell('Permanent power', cur.power, bl.power)}
         ${dateCell('Handover', cur.handover, bl.handover)}`;
@@ -1161,6 +1457,7 @@
         (ui.contractor === 'ALL' || a.contractor === ui.contractor) &&
         (ui.rows !== 'critical' || a.isCritical) &&
         (ui.rows !== 'floor' || ui.selectedFloor == null || coversFloor(a, ui.selectedFloor)) &&
+        (ui.rows !== 'drawing' || !ui.selectedDrawing || a.dwgs.includes(ui.selectedDrawing)) &&
         (!q || a.id.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)));
     }
 
@@ -1223,7 +1520,7 @@
     // Per floor, per phase: { pct, done, total, finish }
     function locationMatrix(t) {
       const rows = [];
-      for (let k = ROOF; k >= 0; k--) {
+      for (let k = maxLoc(); k >= 0; k--) {
         const cells = {};
         PHASES.forEach(ph => {
           const acts = activities.filter(a => a.phase === ph.key && coversFloor(a, k));
@@ -1387,7 +1684,8 @@
       container.querySelectorAll('.gantt-row').forEach(r => r.onclick = () => { if (!ganttDrag.moved) selectActivity(r.dataset.id); });
       $('ganttTimelineContainer').scrollTop = $('activityTableContainer').scrollTop;
       $('relLinesBtn').classList.toggle('active', ui.showLinks);
-      $('ganttScopeLabel').innerText = 'GANTT · ' + (ui.rows === 'floor' && ui.selectedFloor != null ? floorName(ui.selectedFloor).toUpperCase()
+      $('ganttScopeLabel').innerText = 'GANTT · ' + (ui.rows === 'drawing' && ui.selectedDrawing ? ui.selectedDrawing
+        : ui.rows === 'floor' && ui.selectedFloor != null ? floorName(ui.selectedFloor).toUpperCase()
         : ui.rows === 'critical' ? 'CRITICAL PATH' : 'PROJECT OVERVIEW');
     }
 
@@ -1446,8 +1744,13 @@
       $('genOD').value = a.duration;
       $('genPhase').innerHTML = '<option value="">— none —</option>' + PHASES.map(p => `<option>${p.key}</option>`).join('');
       $('genPhase').value = a.phase || '';
+      const locOpts = '<option value="">—</option>' + LOCS().map(l => `<option value="${l.k}">${esc(l.short)} · ${esc(l.name)}</option>`).join('');
+      $('genFloorFrom').innerHTML = locOpts; $('genFloorTo').innerHTML = locOpts;
       $('genFloorFrom').value = a.floors ? a.floors[0] : '';
       $('genFloorTo').value = a.floors ? a.floors[1] : '';
+      $('genOD').disabled = !!a.qto; $('cbsBACInput').disabled = !!a.qto;
+      ['resLabor', 'resPlant', 'resBudgetUnits'].forEach(id => $(id).disabled = !!a.qto);
+      renderQtoTab(a);
 
       // Status
       $('statAS').value = a.actualStart ?? '';
@@ -1584,12 +1887,55 @@
       } else a[field] = n;
       afterEdit();
     }
+    function renderQtoTab(a) {
+      const el = $('tabContentQto');
+      const q = a.qto;
+      if (!q) {
+        el.innerHTML = `<p class="text-slate-400 mb-2">This activity has no quantity basis, so its duration, budget and crew are entered by hand.</p>
+          <button onclick="addQtoBasis()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded font-semibold">Add quantity basis</button>`;
+        return;
+      }
+      const fld = (key, label, val, extra = '') => `<div><label class="lbl">${label}</label><input ${extra} value="${esc(val ?? '')}" onchange="updateQto('${key}', this.value)" class="fld font-mono"></div>`;
+      const lsMode = q.fixedDur != null;
+      el.innerHTML = `
+        <div class="grid grid-cols-6 gap-3 max-w-5xl">
+          ${fld('qty', 'Quantity', q.qty, 'type="number" min="0"')}
+          ${fld('unit', 'Unit', q.unit)}
+          ${fld('rate', `Unit rate (${esc(curSym().trim())})`, q.rate, 'type="number" min="0"')}
+          ${lsMode ? fld('fixedDur', 'Fixed duration (days)', q.fixedDur, 'type="number" min="0"') : fld('prod', `Productivity (${esc(q.unit)}/crew-day)`, q.prod, 'type="number" min="0" step="any"')}
+          ${fld('crews', 'Crews', q.crews, 'type="number" min="1"')}
+          ${fld('crewSize', 'Men per crew', q.crewSize, 'type="number" min="0"')}
+          ${fld('plantPerCrew', 'Plant per crew', q.plantPerCrew, 'type="number" min="0" step="0.1"')}
+          <div class="col-span-5">${fld('src', 'Quantity source', q.src)}</div>
+        </div>
+        <div class="grid grid-cols-4 gap-3 max-w-5xl mt-3 font-mono">
+          <div class="kpi"><span class="lbl">Duration</span><b class="text-amber-300">${a.duration} d</b> <span class="text-[10px] text-slate-500">${lsMode ? 'fixed' : `= ${num(q.qty).toLocaleString('en-US')} ÷ (${q.prod} × ${q.crews})`}</span></div>
+          <div class="kpi"><span class="lbl">Budget</span><b class="text-emerald-300">${money(a.cost)}</b> <span class="text-[10px] text-slate-500">= qty × rate</span></div>
+          <div class="kpi"><span class="lbl">Manpower</span><b class="text-sky-300">${a.labor} men/day</b> · ${a.plant} plant</div>
+          <div class="kpi"><span class="lbl">Trade</span><b>${esc(a.trade || '—')}</b></div>
+        </div>
+        <div class="mt-3"><label class="lbl">Drawings this activity is built from</label>
+          <div class="flex flex-wrap gap-1">${a.dwgs.length ? a.dwgs.map(id => { const d = project.drawings.find(x => x.id === id);
+            return `<span class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono text-[10px]" title="${esc(d ? d.title + ' · PDF p.' + d.page + ' · ' + d.status : '')}">${esc(id)}${d ? ' · ' + esc(d.title) : ''}</span>`; }).join('') : '<span class="text-slate-500">none linked</span>'}</div>
+        </div>
+        <p class="text-[10px] text-amber-400/80 mt-2">Rates, productivities and crew sizes are indicative planning assumptions. Replace them with QS / contractor data; every dependent date, cost and resource curve updates on change.</p>`;
+    }
+    function updateQto(key, val) {
+      const a = selectedAct(); if (!a || !a.qto) return;
+      a.qto[key] = ['unit', 'src'].includes(key) ? val : Math.max(0, num(val));
+      afterEdit();
+    }
+    function addQtoBasis() {
+      const a = selectedAct(); if (!a) return;
+      a.qto = { qty: 1, unit: 'LS', rate: a.cost || 0, fixedDur: a.duration, crews: 1, crewSize: a.labor || 0, plantPerCrew: a.plant || 0, src: 'Manual lump sum' };
+      afterEdit(); switchDetailsTab('qto');
+    }
     function updateFloors() {
       const a = selectedAct(); if (!a) return;
       const f = $('genFloorFrom').value, t = $('genFloorTo').value;
       if (f === '' && t === '') a.floors = null;
       else {
-        const lo = clamp(Math.round(num(f, num(t))), 0, ROOF), hi = clamp(Math.round(num(t, lo)), 0, ROOF);
+        const lo = clamp(Math.round(num(f, num(t))), 0, maxLoc()), hi = clamp(Math.round(num(t, lo)), 0, maxLoc());
         a.floors = [Math.min(lo, hi), Math.max(lo, hi)];
       }
       afterEdit();
@@ -1717,7 +2063,7 @@
     /* ---------- Tabs & views ---------- */
     function switchDetailsTab(key) {
       ui.tab = key;
-      ['steps', 'general', 'status', 'relationships', 'cbs'].forEach(t => {
+      ['steps', 'general', 'status', 'relationships', 'cbs', 'qto'].forEach(t => {
         $('tabBtn_' + t).classList.toggle('active', t === key);
         $('tabContent' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('hidden', t !== key);
       });
@@ -1736,8 +2082,8 @@
       if (view === 'ganttFull') { bimPane.classList.add('hidden'); p6Pane.classList.add('w-full'); }
       else if (view === 'bimFull') { p6Pane.classList.add('hidden'); bimPane.classList.add('w-full'); }
       else { bimPane.classList.add('w-1/2'); p6Pane.classList.add('w-1/2'); }
-      if (view === 'evmDashboard') calculateEVM();
-      if (view === 'resourceHistogram') { $('laborLimitInput').value = S.laborLimit; $('plantLimitInput').value = S.plantLimit; renderResourceHistograms(); }
+      if (view === 'evmDashboard') { calculateEVM(); renderCashflow(); }
+      if (view === 'resourceHistogram') { $('laborLimitInput').value = S.laborLimit; $('plantLimitInput').value = S.plantLimit; renderResourceHistograms(); renderTradeTable(); }
       onWindowResize();
     }
 
@@ -1842,22 +2188,151 @@
         <line x1="${X(S.dataDate)}" y1="${Y(t.ac)}" x2="${X(forecastFinish)}" y2="${Y(t.eac)}" stroke="#c084fc" stroke-width="2" stroke-dasharray="6,3"/>
         <text x="${X(forecastFinish)}" y="${Y(t.eac) - 6}" fill="#c084fc" font-family="monospace" font-size="9" text-anchor="end">EAC ${money(t.eac)} @ D${forecastFinish}</text>
         ${dots}
-        <text x="${pad.left + 4}" y="${pad.top + 10}" fill="#64748b" font-family="monospace" font-size="9">${project.periods.length} stored period(s)</text>`;
+        <text x="${pad.left + cw - 4}" y="${pad.top + ch - 6}" fill="#64748b" font-family="monospace" font-size="9" text-anchor="end">${project.periods.length} stored period(s)</text>`;
     }
 
     /* ---------- Resources & leveling ---------- */
+    // Daily loads via difference arrays: O(activities + days).
     function resourceProfile() {
       const span = projectFinish + 1;
-      const labor = new Array(span).fill(0), plant = new Array(span).fill(0);
+      const dl = new Float64Array(span + 1), dp = new Float64Array(span + 1);
       activities.forEach(a => {
-        if (a.status === 'complete') {
-          for (let d = a.es; d < a.ef && d < span; d++) { labor[d] += num(a.labor); plant[d] += num(a.plant); }
-          return;
-        }
-        // In-progress work: history up to data date, remaining from data date
-        for (let d = Math.max(0, a.es); d < a.ef && d < span; d++) { labor[d] += num(a.labor); plant[d] += num(a.plant); }
+        const s0 = clamp(Math.round(a.es), 0, span), e0 = clamp(Math.round(a.ef), 0, span);
+        if (e0 <= s0) return;
+        dl[s0] += num(a.labor); dl[e0] -= num(a.labor);
+        dp[s0] += num(a.plant); dp[e0] -= num(a.plant);
       });
+      const labor = new Array(span).fill(0), plant = new Array(span).fill(0);
+      let l = 0, p = 0;
+      for (let d = 0; d < span; d++) { l += dl[d]; p += dp[d]; labor[d] = l; plant[d] = Math.round(p * 10) / 10; }
       return { labor, plant };
+    }
+
+    /* ---------- Calendar months, cash flow & manpower by trade ---------- */
+    function monthBuckets(lastDay) {
+      const out = [];
+      let d = 0;
+      while (d <= lastDay) {
+        const dt = dateFromDay(d);
+        const next = new Date(dt.getFullYear(), dt.getMonth() + 1, 1);
+        const nd = Math.round((next - dateFromDay(0)) / 86400000);
+        out.push({ start: d, end: Math.max(d + 1, nd), label: dt.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }) });
+        d = Math.max(d + 1, nd);
+      }
+      return out;
+    }
+    function overlap(a0, a1, b0, b1) { return Math.max(0, Math.min(a1, b1) - Math.max(a0, b0)); }
+
+    // Cost spread evenly over each activity's working days (linear cost loading).
+    function cashflow() {
+      const lastBl = Math.max(0, ...activities.map(a => baselineOf(a)?.end || 0));
+      const months = monthBuckets(Math.max(projectFinish, lastBl));
+      months.forEach(m => { m.base = 0; m.fcst = 0; });
+      activities.forEach(a => {
+        if (!a.cost) return;
+        const spread = (s0, e0, key) => {
+          if (e0 <= s0) { const mm = months.find(m => s0 >= m.start && s0 < m.end) || months[months.length - 1]; mm[key] += a.cost; return; }
+          months.forEach(m => { m[key] += a.cost * overlap(s0, e0, m.start, m.end) / (e0 - s0); });
+        };
+        spread(a.es, a.ef, 'fcst');
+        const b = baselineOf(a);
+        if (b) spread(b.start, b.end, 'base');
+      });
+      let cb = 0, cf = 0;
+      months.forEach(m => { cb += m.base; cf += m.fcst; m.cumBase = cb; m.cumFcst = cf; });
+      return months;
+    }
+
+    function tradeLoading() {
+      const months = monthBuckets(projectFinish);
+      const trades = [...new Set(activities.filter(a => a.labor > 0).map(a => a.trade || a.contractor || 'Other'))].sort();
+      const rows = trades.map(t => ({ trade: t, vals: months.map(m => {
+        const md = activities.filter(a => (a.trade || a.contractor || 'Other') === t)
+          .reduce((x, a) => x + num(a.labor) * overlap(a.es, a.ef, m.start, m.end), 0);
+        return md / (m.end - m.start);
+      }) }));
+      const total = months.map((m, i) => rows.reduce((x, r) => x + r.vals[i], 0));
+      return { months, rows, total };
+    }
+
+    function renderCashflow() {
+      const svg = $('cashflowSvg'); if (!svg) return;
+      const months = cashflow();
+      const W = svg.clientWidth || 900, H = svg.clientHeight || 240;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      const pad = { l: 70, r: 60, t: 12, b: 28 }, cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+      const maxM = Math.max(1, ...months.map(m => Math.max(m.base, m.fcst)));
+      const maxC = Math.max(1, months[months.length - 1]?.cumFcst || 1, months[months.length - 1]?.cumBase || 1);
+      const bw = cw / Math.max(1, months.length);
+      let out = '';
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.t + ch - ch * i / 4;
+        out += `<line x1="${pad.l}" y1="${y}" x2="${pad.l + cw}" y2="${y}" stroke="#1e293b"/>
+          <text x="${pad.l - 6}" y="${y + 3}" fill="#64748b" font-size="9" font-family="monospace" text-anchor="end">${moneyShort(maxM * i / 4)}</text>
+          <text x="${pad.l + cw + 6}" y="${y + 3}" fill="#10b981" font-size="9" font-family="monospace">${moneyShort(maxC * i / 4)}</text>`;
+      }
+      months.forEach((m, i) => {
+        const x = pad.l + i * bw;
+        const hb = ch * m.base / maxM, hf = ch * m.fcst / maxM;
+        out += `<rect x="${x + bw * 0.12}" y="${pad.t + ch - hb}" width="${bw * 0.36}" height="${hb}" fill="#64748b"><title>${m.label} baseline ${money(m.base)}</title></rect>
+          <rect x="${x + bw * 0.5}" y="${pad.t + ch - hf}" width="${bw * 0.36}" height="${hf}" fill="#0ea5e9"><title>${m.label} forecast ${money(m.fcst)} · cumulative ${money(m.cumFcst)}</title></rect>`;
+        if (months.length <= 24 || i % 2 === 0) out += `<text x="${x + bw / 2}" y="${H - 10}" fill="#64748b" font-size="8" font-family="monospace" text-anchor="middle">${m.label}</text>`;
+      });
+      const line = key => months.map((m, i) => `${pad.l + (i + 1) * bw},${pad.t + ch - ch * m[key] / maxC}`).join(' ');
+      out += `<polyline fill="none" stroke="#10b981" stroke-width="2" points="${pad.l},${pad.t + ch} ${line('cumFcst')}"/>
+        <polyline fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3" points="${pad.l},${pad.t + ch} ${line('cumBase')}"/>`;
+      svg.innerHTML = out;
+      const peak = months.reduce((x, m) => m.fcst > x.fcst ? m : x, months[0] || { fcst: 0 });
+      $('cashflowNote').innerText = `· ${months.length} months · peak ${moneyShort(peak.fcst)} in ${peak.label || '—'} · ${ui.baseline} vs current`;
+    }
+
+    function renderTradeTable() {
+      const { months, rows, total } = tradeLoading();
+      const max = Math.max(1, ...rows.flatMap(r => r.vals));
+      const cell = v => `<td class="px-1 text-center font-mono" style="background:rgba(14,165,233,${(v / max * 0.8).toFixed(2)})">${v >= 0.5 ? Math.round(v) : ''}</td>`;
+      $('tradeTable').innerHTML = `<table class="text-[10px] w-full border-separate" style="border-spacing:1px">
+        <thead><tr class="text-slate-500"><th class="text-left px-1 sticky left-0 bg-[#0d1629]">Trade</th>${months.map(m => `<th class="px-1 font-mono font-normal">${m.label}</th>`).join('')}<th class="px-1">Peak</th></tr></thead>
+        <tbody>${rows.map(r => `<tr><td class="px-1 whitespace-nowrap text-slate-300 sticky left-0 bg-[#0d1629]">${esc(r.trade)}</td>${r.vals.map(cell).join('')}<td class="px-1 text-center font-mono text-amber-300">${Math.round(Math.max(...r.vals))}</td></tr>`).join('')}
+        <tr class="font-bold"><td class="px-1 text-slate-200 sticky left-0 bg-[#0d1629]">Total</td>${total.map(v => `<td class="px-1 text-center font-mono ${v > S.laborLimit ? 'text-red-400' : 'text-slate-200'}">${Math.round(v)}</td>`).join('')}<td class="px-1 text-center font-mono text-amber-300">${Math.round(Math.max(...total))}</td></tr></tbody></table>`;
+    }
+
+    /* ---------- Drawing schedule: each drawing is needed (IFC) a lead time before the first work that uses it ---------- */
+    function drawingNeeds() {
+      const lead = num(S.drawingLead, 45);
+      return project.drawings.map(d => {
+        const acts = activities.filter(a => a.dwgs.includes(d.id));
+        const first = acts.length ? Math.min(...acts.map(a => a.es)) : null;
+        return Object.assign({}, d, { acts, first, needBy: first == null ? null : first - lead });
+      });
+    }
+    const DWG_STATUSES = ['Concept / WIP', 'Design Development', 'Sub 3', 'IFC issued', 'Shop drawings approved'];
+    function renderDrawings() {
+      $('drawingLeadInput').value = num(S.drawingLead, 45);
+      $('drawingsSourceNote').innerText = project.source
+        ? `Source: ${project.source}. Register IDs are assigned by this tool — the submission has no sheet numbers.`
+        : 'No drawing register for this project.';
+      const rows = drawingNeeds().sort((x, y) => (x.needBy ?? 1e9) - (y.needBy ?? 1e9));
+      $('drawingsBody').innerHTML = rows.map(d => {
+        const done = d.status === 'IFC issued' || d.status === 'Shop drawings approved';
+        const left = d.needBy == null ? null : d.needBy - S.dataDate;
+        const cls = done ? 'text-emerald-400' : left == null ? 'text-slate-500' : left < 0 ? 'text-red-400 font-bold' : left < 30 ? 'text-amber-400' : 'text-slate-300';
+        const sel = ui.rows === 'drawing' && ui.selectedDrawing === d.id;
+        return `<tr class="border-b border-slate-800/60 cursor-pointer hover:bg-slate-800/40 ${sel ? 'bg-orange-950/40' : ''}" onclick="selectDrawing('${esc(d.id)}')">
+          <td class="p-1 font-mono text-sky-400">${esc(d.id)}</td><td class="p-1 text-slate-200">${esc(d.title)}</td><td class="p-1 font-mono text-slate-500">${esc(d.page)}</td>
+          <td class="p-1" onclick="event.stopPropagation()"><select onchange="setDrawingStatus('${esc(d.id)}', this.value)" class="fld" style="padding:1px 4px;width:auto">${DWG_STATUSES.map(st => `<option ${st === d.status ? 'selected' : ''}>${st}</option>`).join('')}</select></td>
+          <td class="p-1 text-center font-mono" title="${esc(d.acts.map(a => a.id).join(', '))}">${d.acts.length}</td>
+          <td class="p-1 text-center font-mono text-slate-400">${d.first == null ? '—' : shortDate(d.first)}</td>
+          <td class="p-1 text-center font-mono ${cls}">${d.needBy == null ? '—' : dateFromDay(d.needBy).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}</td>
+          <td class="p-1 text-center font-mono ${cls}">${done ? '✓' : left == null ? '—' : left < 0 ? Math.abs(left) + ' late' : left}</td>
+        </tr>`;
+      }).join('');
+    }
+    function setDrawingStatus(id, st) { const d = project.drawings.find(x => x.id === id); if (d) { d.status = st; persist(); renderDrawings(); } }
+    function selectDrawing(id) {
+      ui.selectedDrawing = ui.selectedDrawing === id && ui.rows === 'drawing' ? null : id;
+      ui.rows = ui.selectedDrawing ? 'drawing' : 'all';
+      $('rowsSelect').value = ui.rows;
+      renderScheduleTable(); renderGanttChart(); renderDrawings();
     }
 
     function overloadedDays(profile) {
@@ -1975,10 +2450,72 @@
       const dir = new THREE.DirectionalLight(0xfffaed, 0.85); dir.position.set(40, 70, 30); scene.add(dir);
       const rim = new THREE.DirectionalLight(0x0284c7, 0.4); rim.position.set(-30, 20, -30); scene.add(rim);
       const grid = new THREE.GridHelper(90, 30, 0x0284c7, 0x1e293b); grid.position.y = -0.1; scene.add(grid);
-      createBIMGeometry();
+      rebuildScene();
       setupCameraMouseControls(canvas);
-      resetBIMCamera('isometric');
       animate3D();
+    }
+
+    const orbitTarget = { y: 18 };
+    function rebuildScene() {
+      if (!scene) return;
+      Object.values(bimMeshes).forEach(o => scene.remove(o));
+      bimMeshes = {}; craneJib = null;
+      if (project.model === 'massing') { buildMassing(); orbitTarget.y = 3; } else { createBIMGeometry(); orbitTarget.y = 18; }
+      resetBIMCamera('isometric');
+    }
+
+    /* Schematic massing from the area schedule: one block per level, footprint ∝ GFA (aspect 1.3),
+       height = floor-to-floor height. Not BIM geometry — the drawings are 2D PDFs. */
+    const MASS_SCALE = 0.35;
+    function buildMassing() {
+      const locs = LOCS();
+      let y = -locs.filter(l => l.below).reduce((x, l) => x + num(l.height, 3.5), 0) * MASS_SCALE;
+      locs.forEach(l => {
+        const h = num(l.height, 3.5) * MASS_SCALE, gfa = num(l.gfa, 1000);
+        const w = Math.sqrt(gfa * 1.3) * MASS_SCALE, d = gfa / Math.sqrt(gfa * 1.3) * MASS_SCALE;
+        const slab = addMesh(new THREE.BoxGeometry(w, h * 0.92, d), l.below ? 0x6b7280 : 0x94a3b8, { roughness: 0.6 });
+        slab.position.set(0, y + h / 2, 0); slab.userData.baseY = y + h / 2; slab.userData.h = h * 0.92;
+        scene.add(slab); bimMeshes['loc_' + l.k] = slab;
+        if (!l.below) {
+          const shell = addMesh(new THREE.BoxGeometry(w + 0.8, h * 0.92, d + 0.8), l.screen ? 0xc2410c : 0x38bdf8, { opacity: 0.5, roughness: 0.2, metalness: l.screen ? 0.3 : 0.7 });
+          shell.position.set(0, y + h / 2, 0); shell.userData.baseY = y + h / 2;
+          scene.add(shell); bimMeshes['shell_' + l.k] = shell;
+        }
+        y += h;
+      });
+      // Tower crane beside the footprint (visual reference only)
+      const mast = place(addMesh(new THREE.BoxGeometry(0.8, 22, 0.8), 0xfacc15, { wireframe: true }), -26, 8, -18);
+      const pivot = new THREE.Group(); pivot.position.set(-26, 19, -18);
+      const jib = addMesh(new THREE.BoxGeometry(30, 0.7, 0.7), 0xfacc15); jib.position.set(10, 0, 0);
+      pivot.add(jib); craneJib = pivot;
+      const crane = groupOf([mast, pivot]); scene.add(crane); bimMeshes.crane = crane;
+    }
+
+    function updateMassing(day) {
+      const m = locationMatrix(day);
+      m.forEach(row => {
+        const slab = bimMeshes['loc_' + row.k], shell = bimMeshes['shell_' + row.k];
+        if (!slab) return;
+        const st = floorStage(row);
+        const frame = row.cells.Structure || row.cells.Substructure;
+        const fp = frame ? frame.pct : (st.stage !== 'Future' ? 1 : 0);
+        const mat = slab.material;
+        if (fp <= 0 && !st.active) { mat.wireframe = true; mat.opacity = 0.18; mat.color.setHex(slab.userData.baseColor); slab.scale.y = 1; slab.position.y = slab.userData.baseY; }
+        else {
+          mat.wireframe = false; mat.opacity = 0.92;
+          const colorKey = st.active || (st.stage !== 'Future' ? st.stage : 'Structure');
+          mat.color.set(PHASE_COLOR[colorKey] || '#94a3b8');
+          const f = clamp(fp || 0.05, 0.05, 1);
+          slab.scale.y = f; slab.position.y = slab.userData.baseY - slab.userData.h * (1 - f) / 2;
+        }
+        if (shell) {
+          const env = row.cells.Envelope;
+          const ep = env ? env.pct : (fp >= 1 ? 1 : 0);
+          shell.visible = ep > 0;
+          shell.material.wireframe = ep < 1;
+          shell.material.opacity = 0.15 + 0.45 * ep;
+        }
+      });
     }
 
     function addMesh(geo, color, opts = {}) {
@@ -2033,6 +2570,7 @@
         `<div class="flex justify-between gap-3"><span class="${a.isCritical ? 'text-red-400' : 'text-sky-300'}">${esc(a.id)}</span><span class="text-slate-300 truncate max-w-[170px]">${esc(a.name)}</span></div>`).join('')
         : '<span class="text-slate-500">No work scheduled at this day</span>';
       if (!scene) return;
+      if (project.model === 'massing') { updateMassing(day); return; }
       Object.values(bimMeshes).forEach(obj => meshesOf(obj).forEach(m => { styleMesh(m, 'planned'); m.visible = true; m.scale.y = 1; if (m.userData.baseY != null) m.position.y = m.userData.baseY; }));
       activities.forEach(a => {
         const obj = a.meshKey && bimMeshes[a.meshKey];
@@ -2055,6 +2593,14 @@
 
     function highlight3DElement(id) {
       const a = activities.find(x => x.id === id);
+      if (scene && a && project.model === 'massing' && a.floors) {
+        for (let k = a.floors[0]; k <= a.floors[1]; k++) {
+          const m = bimMeshes['loc_' + k]; if (!m) continue;
+          m.material.emissive.setHex(0x0ea5e9); m.material.emissiveIntensity = 0.6;
+          setTimeout(() => { m.material.emissive.setHex(0x000000); m.material.emissiveIntensity = 0; }, 900);
+        }
+        return;
+      }
       if (!scene || !a || !bimMeshes[a.meshKey]) return;
       meshesOf(bimMeshes[a.meshKey]).forEach(m => {
         m.material.emissive.setHex(0x0ea5e9); m.material.emissiveIntensity = 0.5;
@@ -2077,13 +2623,14 @@
     }
     function applyOrbit() {
       camera.position.set(orbit.radius * Math.sin(orbit.phi) * Math.sin(orbit.theta), orbit.radius * Math.cos(orbit.phi), orbit.radius * Math.sin(orbit.phi) * Math.cos(orbit.theta));
-      camera.lookAt(0, 18, 0);
+      camera.lookAt(0, orbitTarget.y, 0);
     }
     function resetBIMCamera(angle) {
       if (!camera) return;
-      if (angle === 'top') { orbit.phi = 0.1; orbit.theta = 0; orbit.radius = 95; }
-      else if (angle === 'front') { orbit.phi = Math.PI / 2 - 0.15; orbit.theta = 0; orbit.radius = 85; }
-      else { orbit.phi = Math.PI / 3; orbit.theta = Math.PI / 4; orbit.radius = 95; }
+      const r = project.model === 'massing' ? 92 : 95;
+      if (angle === 'top') { orbit.phi = 0.1; orbit.theta = 0; orbit.radius = r; }
+      else if (angle === 'front') { orbit.phi = Math.PI / 2 - 0.15; orbit.theta = 0; orbit.radius = r * 0.9; }
+      else { orbit.phi = Math.PI / 3; orbit.theta = Math.PI / 4; orbit.radius = r; }
       applyOrbit();
     }
     function toggleCraneAnimation() { ui.craneAnimating = !ui.craneAnimating; $('craneToggleBtn').innerText = `Crane: ${ui.craneAnimating ? 'ON' : 'OFF'}`; }
@@ -2166,20 +2713,44 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     function csvCell(v) { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+    function fileTag() { return `${currentProjectId}_DD${S.dataDate}`; }
+    function csvLines(rows) { return rows.map(r => r.map(csvCell).join(',')).join('\n'); }
     function exportCSV() {
       toggleExportMenu();
-      const cols = ['id', 'name', 'wbs', 'contractor', 'duration', 'remDur', 'es', 'ef', 'ls', 'lf', 'totalFloat', 'isCritical', 'physicalPercent', 'performancePercent', 'percentCompleteType', 'cost', 'actualCost', 'predecessors', 'blStart', 'blFinish'];
-      const lines = [cols.join(',')].concat(activities.map(a => {
-        const b = baselineOf(a) || {};
-        const row = Object.assign({}, a, { predecessors: a.predecessors.map(p => `${p.id}:${p.type}${p.lag >= 0 ? '+' : ''}${p.lag}`).join(' '), blStart: b.start, blFinish: b.end });
-        return cols.map(c => csvCell(row[c])).join(',');
-      }));
-      download(`ASTCO_schedule_DD${S.dataDate}.csv`, lines.join('\n'), 'text/csv');
+      const head = ['id', 'name', 'wbs', 'trade', 'contractor', 'phase', 'location_from', 'location_to', 'quantity', 'unit', 'unit_rate', 'productivity_per_crew_day', 'crews', 'men_per_day', 'plant_per_day',
+        'duration_d', 'remaining_d', 'start_day', 'finish_day', 'start_date', 'finish_date', 'total_float', 'critical', 'budget', 'actual_cost', 'perf_pct',
+        'cbs_labor', 'cbs_plant', 'cbs_materials', 'cbs_indirect', 'predecessors', 'bl_start_day', 'bl_finish_day', 'drawings', 'quantity_source'];
+      const iso = d => { const x = dateFromDay(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+      const rows = activities.map(a => {
+        const q = a.qto || {}, b = baselineOf(a) || {};
+        return [a.id, a.name, a.wbs, a.trade || '', a.contractor, a.phase || '', a.floors ? floorShort(a.floors[0]) : '', a.floors ? floorShort(a.floors[1]) : '',
+          q.qty ?? '', q.unit ?? '', q.rate ?? '', q.prod ?? '', q.crews ?? '', a.labor, a.plant,
+          a.duration, a.remDur, a.es, a.ef, iso(a.es), iso(a.ef), a.totalFloat ?? '', a.isCritical ? 'Y' : 'N', a.cost, a.actualCost, a.performancePercent,
+          a.cbs.labor, a.cbs.plant, a.cbs.materials, a.cbs.indirect, a.predecessors.map(p => `${p.id}:${p.type}${p.lag >= 0 ? '+' : ''}${p.lag}`).join(' '),
+          b.start ?? '', b.end ?? '', a.dwgs.join(' '), q.src ?? ''];
+      });
+      download(`${fileTag()}_cost_loaded_schedule.csv`, csvLines([head, ...rows]), 'text/csv');
+    }
+    function exportCashflowCSV() {
+      const m = cashflow();
+      download(`${fileTag()}_cashflow.csv`, csvLines([['month', 'start_day', 'end_day', `baseline_${ui.baseline}`, 'forecast', `cum_baseline_${ui.baseline}`, 'cum_forecast', 'currency'],
+        ...m.map(x => [x.label, x.start, x.end, Math.round(x.base), Math.round(x.fcst), Math.round(x.cumBase), Math.round(x.cumFcst), S.currency || 'USD'])]), 'text/csv');
+    }
+    function exportTradeCSV() {
+      const t = tradeLoading();
+      download(`${fileTag()}_manpower_by_trade.csv`, csvLines([['trade', ...t.months.map(m => m.label), 'peak'],
+        ...t.rows.map(r => [r.trade, ...r.vals.map(v => Math.round(v)), Math.round(Math.max(...r.vals))]),
+        ['TOTAL', ...t.total.map(v => Math.round(v)), Math.round(Math.max(...t.total))]]), 'text/csv');
+    }
+    function exportDrawingsCSV() {
+      const rows = drawingNeeds();
+      download(`${fileTag()}_drawing_schedule.csv`, csvLines([['register_id', 'title', 'pdf_page', 'current_rev', 'status', 'activities', 'first_work_day', 'ifc_required_day', 'ifc_required_date'],
+        ...rows.map(d => [d.id, d.title, d.page, d.rev, d.status, d.acts.map(a => a.id).join(' '), d.first ?? '', d.needBy ?? '', d.needBy == null ? '' : dateFromDay(d.needBy).toISOString().slice(0, 10)])]), 'text/csv');
     }
     function exportJSON() {
       toggleExportMenu();
       const clean = JSON.parse(JSON.stringify(project, (k, v) => ['successors', 'es', 'ef', 'ls', 'lf', 'remStart', 'remDur', 'totalFloat', 'isCritical', 'status', 'stepsDrive', 'weightPercent'].includes(k) ? undefined : v));
-      download(`ASTCO_project_DD${S.dataDate}.json`, JSON.stringify(clean, null, 2), 'application/json');
+      download(`${fileTag()}_project.json`, JSON.stringify(clean, null, 2), 'application/json');
     }
     function importJSON(input) {
       const file = input.files?.[0]; if (!file) return;
@@ -2187,6 +2758,7 @@
         const p = JSON.parse(txt);
         if (!p || !Array.isArray(p.activities)) throw new Error('missing "activities" array');
         setProject(p);
+        rebuildScene();
         runCPM();
         showToast('Project imported', `${activities.length} activities loaded from ${file.name}.`);
       }).catch(e => showToast('Import failed', String(e.message || e), true))
@@ -2194,10 +2766,11 @@
     }
     function resetToSample() {
       toggleExportMenu();
-      if (!confirm('Discard all local changes and reload the sample project?')) return;
-      try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
-      setProject(sampleProject());
+      if (!confirm(`Discard all local changes to ${project.name} and regenerate it?`)) return;
+      try { localStorage.removeItem(storageKey()); } catch (e) { /* ignore */ }
+      setProject(PROJECTS[currentProjectId].factory());
       ui.simDay = S.dataDate;
+      rebuildScene();
       runCPM();
     }
 
@@ -2239,11 +2812,14 @@
 
     /* ---------- Init ---------- */
     window.addEventListener('load', () => {
-      loadProject();
+      let startId = 'CG-JED';
+      try { startId = localStorage.getItem(STORAGE_PREFIX + 'current') || startId; } catch (e) { /* ignore */ }
+      loadProject(startId);
+      renderProjectSelect();
       ui.simDay = S.dataDate;
       $('activityTableContainer').addEventListener('scroll', e => { $('ganttTimelineContainer').scrollTop = e.target.scrollTop; });
       setSimSpeed(1);
-      switchDetailsTab('steps');
+      switchDetailsTab(selectedAct()?.qto ? 'qto' : 'steps');
       try { initThreeJS(); } catch (err) { console.error('3D init failed', err); $('bimUnavailable').classList.remove('hidden'); }
       switchMainView('splitView');
       setupGanttDrag();
