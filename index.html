@@ -36,7 +36,8 @@
     .gantt-row { height: 28px; }
   </style>
 </head>
-<body class="h-full flex flex-col overflow-hidden select-none text-[12px]">
+<body class="h-full overflow-hidden">
+<div id="appShell" class="h-full flex flex-col overflow-hidden select-none text-[12px]">
 
   <!-- ======================== HEADER ======================== -->
   <header class="h-12 bg-[#0d1527] border-b border-slate-800 flex items-center justify-between gap-2 px-3 shrink-0 z-30 shadow-md whitespace-nowrap">
@@ -598,6 +599,36 @@
     </div>
   </div>
 
+  <div id="exportModal" class="modal hidden">
+    <div class="modal-box max-w-3xl flex flex-col" style="max-height:85vh">
+      <div class="modal-head"><h4 class="font-bold text-white text-xs">Export · <span id="exportFileName" class="font-mono"></span></h4><button onclick="closeModal('exportModal')" class="text-slate-400 hover:text-white text-lg" aria-label="Close">&times;</button></div>
+      <div class="p-4 flex flex-col gap-2 text-xs min-h-0">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <span id="exportMeta" class="text-slate-400 font-mono"></span>
+          <div class="flex gap-2">
+            <button onclick="copyExport()" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold">Copy to clipboard</button>
+            <button onclick="saveExportFile()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200" title="Works when the planner is opened as a local file">Download file</button>
+          </div>
+        </div>
+        <textarea id="exportText" readonly class="fld font-mono text-[10px] select-text" style="height:50vh;white-space:pre;overflow:auto"></textarea>
+        <p class="text-[10px] text-slate-500">CSV, UTF-8, comma-separated, first row is the header. If Download does nothing in your browser view, use Copy and paste into Excel (Data → From Text/CSV) or your ERP import template.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="confirmModal" class="modal hidden">
+    <div class="modal-box max-w-sm">
+      <div class="modal-head"><h4 class="font-bold text-white text-xs">Please confirm</h4><button onclick="closeModal('confirmModal')" class="text-slate-400 hover:text-white text-lg" aria-label="Close">&times;</button></div>
+      <div class="p-5 space-y-4 text-xs">
+        <p id="confirmMessage" class="text-slate-200"></p>
+        <div class="flex justify-end gap-2">
+          <button onclick="closeModal('confirmModal')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">Cancel</button>
+          <button onclick="confirmYes()" id="confirmOkBtn" class="px-4 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white font-bold">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="notificationToast" class="fixed bottom-4 right-4 z-50 translate-y-20 opacity-0 transition-all duration-300 bg-sky-950/95 border border-sky-500 text-white px-4 py-2.5 rounded-xl shadow-2xl pointer-events-none max-w-md">
     <h5 id="toastTitle" class="font-bold text-xs"></h5>
     <p id="toastMessage" class="text-[11px] text-slate-300"></p>
@@ -620,6 +651,30 @@
     .kpi-cell .v { font-size: 17px; font-weight: 700; color: #f1f5f9; line-height: 1.3; }
     .kpi-cell .d { font-size: 10px; }
     #ganttTimelineContainer.dragging { cursor: grabbing; }
+    /* Narrow screens: stack the panes and let the page scroll vertically (never sideways). */
+    @media (max-width: 900px) {
+      #appShell, body { overflow-y: auto !important; overflow-x: hidden !important; height: auto !important; min-height: 100%; }
+      header { height: auto !important; flex-wrap: wrap; row-gap: 6px; padding-block: 6px !important; white-space: normal !important; }
+      header > div { flex-wrap: wrap; row-gap: 4px; max-width: 100%; }
+      #kpiStrip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; height: auto !important; }
+      #kpiStrip > div { border-left: 0 !important; border-top: 1px solid #1e293b; }
+      #kpiStrip > div:first-child { grid-column: 1 / -1; }
+      body > div.h-11, #appShell > div.h-11 { height: auto !important; flex-wrap: wrap; padding-block: 6px; white-space: normal !important; }
+      #timeScrubber { flex-basis: 100%; }
+      #workspaceContainer { flex-direction: column; overflow: visible !important; min-height: 100vh; }
+      #bimPane, #p6Pane { width: 100% !important; }
+      #bimPane { height: 70vh; flex: none; }
+      #p6Pane { height: 130vh; flex: none; }
+      #p6Pane .h-9, #activityDetailsPane > div:first-child { height: auto !important; flex-wrap: wrap; row-gap: 4px; padding-block: 4px; }
+      #bimPane > div:first-child { overflow-x: auto; }
+      #bimPane > div:first-child > div:first-child { flex-shrink: 0; }
+      #elevationView { flex-direction: column; }
+      #elevationView aside { width: 100% !important; border-left: 0 !important; }
+      .grid.grid-cols-4, .grid.grid-cols-6, .grid.grid-cols-8 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+      #evmDashboardPane .grid, #resourceDashboardPane .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+      #resourceDashboardPane > .grid { grid-template-columns: 1fr !important; }
+      #evmDashboardPane > div:first-child, #resourceDashboardPane > div:first-child { flex-wrap: wrap; gap: 8px; }
+    }
     .lbl { display: block; color: #94a3b8; font-size: 10px; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; margin-bottom: 4px; }
     .fld { width: 100%; background: #16233d; border: 1px solid #334155; border-radius: 4px; padding: 4px 8px; color: #e2e8f0; }
     .fld.fld-inline { width: 72px; display: inline-block; margin-left: 4px; }
@@ -2043,11 +2098,12 @@
     }
     function deleteSelectedActivity() {
       const a = selectedAct(); if (!a) return;
-      if (!confirm(`Delete ${a.id} — ${a.name}? Its relationships will be removed.`)) return;
-      project.activities = activities = activities.filter(x => x.id !== a.id);
-      activities.forEach(x => x.predecessors = x.predecessors.filter(p => p.id !== a.id));
-      ui.selectedId = activities[0]?.id || null;
-      afterEdit();
+      askConfirm(`Delete ${a.id} — ${a.name}? Its relationships will be removed.`, 'Delete activity', () => {
+        project.activities = activities = activities.filter(x => x.id !== a.id);
+        activities.forEach(x => x.predecessors = x.predecessors.filter(p => p.id !== a.id));
+        ui.selectedId = activities[0]?.id || null;
+        afterEdit();
+      });
     }
 
     /* ---------- Templates ---------- */
@@ -2066,12 +2122,15 @@
     function applyTemplateDirectly(key) {
       const t = STEP_TEMPLATES[key]; const a = selectedAct();
       if (!t || !a) return;
-      if (a.steps.some(s => s.stepPercent > 0) && !confirm(`${a.id} has step progress recorded. Replace its steps anyway?`)) return;
-      a.steps = t.steps.map((s, i) => ({ id: i + 1, name: s.name, weight: s.weight, stepPercent: 0, completed: false }));
-      a.percentCompleteType = 'Physical';
-      closeModal('stepTemplatesModal'); closeModal('applyTemplateModal');
-      afterEdit();
-      showToast('Template applied', `${t.name} applied to ${a.id}.`);
+      const apply = () => {
+        a.steps = t.steps.map((s, i) => ({ id: i + 1, name: s.name, weight: s.weight, stepPercent: 0, completed: false }));
+        a.percentCompleteType = 'Physical';
+        closeModal('stepTemplatesModal'); closeModal('applyTemplateModal');
+        afterEdit();
+        showToast('Template applied', `${t.name} applied to ${a.id}.`);
+      };
+      if (a.steps.some(s => s.stepPercent > 0)) askConfirm(`${a.id} has step progress recorded. Replace its steps anyway?`, 'Replace steps', apply);
+      else apply();
     }
 
     function applyStepsColumnsCustomization() {
@@ -2147,10 +2206,11 @@
 
     function baselineCurrentSchedule() {
       toggleExportMenu();
-      if (!confirm(`Overwrite ${ui.baseline} with the current schedule dates?`)) return;
-      activities.forEach(a => a.baselines[ui.baseline] = { start: a.es, end: a.ef });
-      runCPM(true);
-      showToast('Baseline saved', `${ui.baseline} now holds the current schedule.`);
+      askConfirm(`Overwrite ${ui.baseline} with the current schedule dates?`, 'Overwrite baseline', () => {
+        activities.forEach(a => a.baselines[ui.baseline] = { start: a.es, end: a.ef });
+        runCPM(true);
+        showToast('Baseline saved', `${ui.baseline} now holds the current schedule.`);
+      });
     }
 
     /* ---------- EVM ---------- */
@@ -2201,8 +2261,7 @@
       showToast('Period stored', `EV/AC/PV snapshot saved for D${S.dataDate}. Advance the Data Date in Calculations for the next period.`);
     }
     function clearPeriodHistory() {
-      if (!confirm('Delete all stored period snapshots?')) return;
-      project.periods = []; persist(); calculateEVM();
+      askConfirm('Delete all stored period snapshots?', 'Delete history', () => { project.periods = []; persist(); calculateEVM(); });
     }
 
     function renderSCurveSvg(t) {
@@ -2800,11 +2859,55 @@
 
     /* ---------- Import / export ---------- */
     function toggleExportMenu() { $('exportDropdownMenu').classList.toggle('hidden'); }
+    // Exports open in a panel with Copy and Download: hosted viewers block script-started downloads,
+    // and pasted CSV goes straight into Excel or an ERP import sheet.
+    let pendingExport = null;
     function download(name, content, type) {
-      const url = URL.createObjectURL(new Blob([content], { type }));
-      const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+      pendingExport = { name, content, type };
+      $('exportFileName').innerText = name;
+      $('exportMeta').innerText = `${content.split('\n').length.toLocaleString('en-US')} lines · ${(content.length / 1024).toFixed(1)} KB`;
+      $('exportText').value = content;
+      openModal('exportModal');
+    }
+    async function saveExportFile() {
+      if (!pendingExport) return;
+      // Hosted on claude.ai: the viewer's downloads capability asks the viewer to confirm the save.
+      if (window.claude && typeof window.claude.use === 'function') {
+        const dl = await window.claude.use('downloads');
+        if (dl) {
+          try {
+            await dl.save({ filename: pendingExport.name, data: pendingExport.content });
+            showToast('Saved', pendingExport.name);
+          } catch (e) {
+            const code = e && e.code;
+            if (code === 'declined') return;
+            if (code === 'rate_limited') { showToast('Save already open', 'Finish the open save prompt, then try again.', true); return; }
+            showToast('Download unavailable here', 'Use Copy to clipboard and paste into Excel instead.', true);
+          }
+          return;
+        }
+        showToast('Download unavailable here', 'Use Copy to clipboard and paste into Excel instead.', true);
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([pendingExport.content], { type: pendingExport.type }));
+      const a = document.createElement('a'); a.href = url; a.download = pendingExport.name;
+      document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+    function copyExport() {
+      const ta = $('exportText');
+      const done = () => showToast('Copied', `${pendingExport?.name || 'Export'} is on the clipboard — paste into Excel or your ERP import sheet.`);
+      const fallback = () => { ta.focus(); ta.select(); showToast('Select and copy', 'Clipboard access was refused; the text is selected — press Ctrl+C.'); };
+      try { navigator.clipboard.writeText(ta.value).then(done, fallback); } catch (e) { fallback(); }
+    }
+    let confirmAction = null;
+    function askConfirm(message, label, fn) {
+      $('confirmMessage').innerText = message;
+      $('confirmOkBtn').innerText = label;
+      confirmAction = fn;
+      openModal('confirmModal');
+    }
+    function confirmYes() { closeModal('confirmModal'); const fn = confirmAction; confirmAction = null; if (fn) fn(); }
     function csvCell(v) { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
     function fileTag() { return `${currentProjectId}_DD${S.dataDate}`; }
     function csvLines(rows) { return rows.map(r => r.map(csvCell).join(',')).join('\n'); }
@@ -2860,12 +2963,13 @@
     }
     function resetToSample() {
       toggleExportMenu();
-      if (!confirm(`Discard all local changes to ${project.name} and regenerate it?`)) return;
-      try { localStorage.removeItem(storageKey()); } catch (e) { /* ignore */ }
-      setProject(PROJECTS[currentProjectId].factory());
-      ui.simDay = S.dataDate;
-      rebuildScene();
-      runCPM();
+      askConfirm(`Discard all local changes to ${project.name} and regenerate it?`, 'Reset project', () => {
+        try { localStorage.removeItem(storageKey()); } catch (e) { /* ignore */ }
+        setProject(PROJECTS[currentProjectId].factory());
+        ui.simDay = S.dataDate;
+        rebuildScene();
+        runCPM();
+      });
     }
 
     /* ---------- Modals & toast ---------- */
@@ -2924,5 +3028,6 @@
       window.addEventListener('resize', () => { onWindowResize(); renderGanttChart(); renderLocationViews(); if (ui.view === 'evmDashboard') calculateEVM(); if (ui.view === 'resourceHistogram') renderResourceHistograms(); });
     });
   </script>
+</div>
 </body>
 </html>
