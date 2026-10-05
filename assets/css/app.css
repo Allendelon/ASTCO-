@@ -1,5 +1,8 @@
 /* ASCTO IPC — supplementary styles (Tailwind handles the rest). */
 
+/* Toggling el.hidden must win over Tailwind display utilities (e.g. inline-flex). */
+[hidden] { display: none !important; }
+
 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }

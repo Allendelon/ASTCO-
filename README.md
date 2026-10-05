@@ -13,6 +13,10 @@ npx http-server -p 8080 .
 
 Opening `index.html` directly from disk also works. External assets come from CDNs: Tailwind Play CDN, Chart.js 4.4.1 (jsDelivr) and Google Fonts.
 
+## Hosted viewing page (claude.ai Artifact)
+
+`python3 tools/build_artifact.py OUT_DIR` writes the page in the Artifact host's format (no `<html>`/`<head>`/`<body>` wrappers), and the `assets/` files are published alongside it. Inside that viewer, confirmations use in-page dialogs, the Excel certificate and JSON backup are saved through the viewer's save confirmation (`downloads` capability), and the Print buttons are hidden because the viewer cannot open a print dialog. Data stays in each viewer's own browser; it is not shared between people.
+
 ## Official certificate template
 
 The certificate follows the client's **CONTRACTOR PAYMENT CERTIFICATE** workbook (`IPC - 1.xlsx`, sheet `IPC-000-000`, A1:M62):

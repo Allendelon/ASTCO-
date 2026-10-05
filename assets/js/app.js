@@ -948,6 +948,73 @@
     showToast('Signatories saved', 'success');
   }
 
+  /* ================= In-page dialogs & file saving ================= */
+  // Native confirm()/prompt() are unavailable in embedded viewers (they return false/null immediately),
+  // so confirmations are built into the page.
+
+  let dialogState = null;
+
+  function askDialog(message, opts) {
+    return new Promise(function (resolve) {
+      if (dialogState) dialogState.resolve(null);
+      dialogState = { resolve: resolve, input: !!opts.input };
+      setTxt('dialogMessage', message);
+      const inp = $('dialogInput');
+      inp.hidden = !opts.input;
+      inp.value = opts.value || '';
+      const ok = $('dialogConfirm');
+      ok.textContent = opts.confirmLabel || 'Confirm';
+      ok.className = 'px-4 py-2 text-white font-semibold rounded-lg ' + (opts.danger ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-700 hover:bg-emerald-800');
+      openModal('dialogModal');
+      (opts.input ? inp : ok).focus();
+    });
+  }
+
+  function closeDialog(result) {
+    closeModal('dialogModal');
+    const d = dialogState;
+    dialogState = null;
+    if (d) d.resolve(result);
+  }
+
+  function askConfirm(message, confirmLabel, danger) {
+    return askDialog(message, { confirmLabel: confirmLabel, danger: danger }).then(function (r) { return r === true; });
+  }
+
+  function askText(message, value, confirmLabel) {
+    return askDialog(message, { input: true, value: value, confirmLabel: confirmLabel, danger: true });
+  }
+
+  function inViewer() {
+    return !!(window.claude && typeof window.claude.use === 'function');
+  }
+
+  // Inside the claude.ai viewer, files go through the viewer's save confirmation (downloads capability);
+  // elsewhere, a normal browser download. Resolves 'saved' or 'declined'.
+  async function saveFile(filename, data) {
+    if (inViewer()) {
+      const downloads = await window.claude.use('downloads');
+      if (!downloads) throw new Error('saving files is not available in this view');
+      try {
+        await downloads.save({ filename: filename, data: data });
+        return 'saved';
+      } catch (err) {
+        if (err && err.code === 'declined') return 'declined';
+        throw new Error((err && err.message) || 'save failed');
+      }
+    }
+    const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    return 'saved';
+  }
+
   /* ================= Actions ================= */
 
   function handleSaveContractor(e) {
@@ -1143,11 +1210,11 @@
     commit();
   }
 
-  function deleteFrom(listName, id, label) {
+  async function deleteFrom(listName, id, label) {
     const c = activeContractor();
     const item = c && findById(c[listName], id);
     if (!item) return;
-    if (!window.confirm('Delete ' + label + ' ' + item.code + '? This cannot be undone.')) return;
+    if (!await askConfirm('Delete ' + label + ' ' + item.code + '? This cannot be undone.', 'Delete', true)) return;
     c[listName] = c[listName].filter(function (x) { return String(x.id) !== String(id); });
     addAudit(c, 'red', label + ' ' + item.code + ' deleted', item.desc || '');
     valuationChanged(c, label + ' ' + item.code);
@@ -1174,13 +1241,13 @@
     commit();
   }
 
-  function signStage(key) {
+  async function signStage(key) {
     const c = activeContractor();
     if (!c) return;
     const n = nextStage(c);
     if (!n || n.key !== key) return;
     const fin = calc(c);
-    if (!window.confirm(n.label + ': sign ' + c.currentIpcNo + ' for net payment due ' + formatSAR(fin.netPaymentDue) + '?')) return;
+    if (!await askConfirm(n.label + ': sign ' + c.currentIpcNo + ' for a net payment due of ' + formatSAR(fin.netPaymentDue) + '?', 'Sign off')) return;
     c.signoffs[key] = todayDMY();
     syncStatus(c);
     addAudit(c, 'green', n.label + ' signed for ' + c.currentIpcNo, n.who + ' signed. Net payment due ' + formatSAR(fin.netPaymentDue) + '.');
@@ -1188,10 +1255,10 @@
     showToast(n.label + ' signed' + (c.approvalStatus === 'Approved' ? ' — certificate approved for payment.' : '.'), 'success');
   }
 
-  function returnIpc() {
+  async function returnIpc() {
     const c = activeContractor();
     if (!c || c.returned || c.approvalStatus === 'Approved') return;
-    const reason = window.prompt('Reason for returning ' + c.currentIpcNo + ' to the contractor:', 'Measurement clarification required');
+    const reason = await askText('Reason for returning ' + c.currentIpcNo + ' to the contractor:', 'Measurement clarification required', 'Return IPC');
     if (reason === null) return;
     c.returned = { reason: reason || 'No reason given', ts: todayDMY() };
     c.signoffs = { consultant: null, siteOffice: null, homeOffice: null };
@@ -1210,7 +1277,7 @@
     commit();
   }
 
-  function newIpcCycle() {
+  async function newIpcCycle() {
     const c = activeContractor();
     if (!c) return;
     if (c.approvalStatus !== 'Approved') {
@@ -1220,7 +1287,7 @@
     }
     const fin = calc(c);
     const nextNo = formatIpcNo(parseIpcNo(c.currentIpcNo) + 1);
-    if (!window.confirm('Close ' + c.currentIpcNo + ' (net payment due ' + formatSAR(fin.netPaymentDue) + ') and open ' + nextNo + '? Current figures will be locked as "last period".')) return;
+    if (!await askConfirm('Close ' + c.currentIpcNo + ' (net payment due ' + formatSAR(fin.netPaymentDue) + ') and open ' + nextNo + '? Current figures will be locked as "last period".', 'Open ' + nextNo)) return;
 
     c.history.push(historyRow(c.currentIpcNo, shortMonth(String(c.valuationPeriod).split(' to ')[0]), {
       gross: fin.totalGrossPeriod,
@@ -1268,10 +1335,12 @@
     try {
       const model = buildCertificate(state.settings, activeProject(), c, calc(c));
       const safeRef = String(c.contractRef || c.companyName).replace(/[^A-Za-z0-9_-]+/g, '_');
-      await window.IPCExport.exportCertificate(model, model.sheetName + '_' + safeRef + '.xlsx');
+      const blob = await window.IPCExport.buildCertificateXlsx(model);
+      const result = await saveFile(model.sheetName + '_' + safeRef + '.xlsx', blob);
+      if (result === 'declined') return showToast('Excel download cancelled.', 'info');
       addAudit(c, 'blue', 'Excel certificate exported', model.application.ipcNo + ' exported to the official template.');
       saveState();
-      showToast('Excel certificate downloaded (official template).', 'success');
+      showToast('Excel certificate saved (official template).', 'success');
     } catch (err) {
       showToast('Excel export failed: ' + err.message, 'warning');
     } finally {
@@ -1280,24 +1349,21 @@
     }
   }
 
-  function resetDemo() {
-    if (!window.confirm('Reset ALL projects, contractors and IPC history to the demo data? Your local changes will be lost (export first if needed).')) return;
+  async function resetDemo() {
+    if (!await askConfirm('Reset all projects, contractors and IPC history to the demo data? Your changes will be lost — use Backup first if you need them.', 'Reset demo', true)) return;
     state = freshState();
     activeSectorFilter = 'all';
     commit();
     showToast('Demo data restored', 'info');
   }
 
-  function exportData() {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'ascto-ipc-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  async function exportData() {
+    try {
+      const result = await saveFile('ascto-ipc-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(state, null, 2));
+      if (result !== 'declined') showToast('Backup saved.', 'success');
+    } catch (err) {
+      showToast('Backup failed: ' + err.message, 'warning');
+    }
   }
 
   function importData(file) {
@@ -1397,6 +1463,11 @@
     $('mosForm').addEventListener('submit', handleSaveMos);
     $('detailsForm').addEventListener('submit', handleSaveDetails);
     $('settingsForm').addEventListener('submit', handleSaveSettings);
+    $('dialogForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      closeDialog(dialogState && dialogState.input ? $('dialogInput').value.trim() : true);
+    });
+    $('dialogCancel').addEventListener('click', function () { closeDialog(null); });
 
     // Delegated handlers for dynamically rendered rows.
     document.addEventListener('change', function (e) {
@@ -1411,7 +1482,9 @@
     document.addEventListener('click', function (e) {
       const el = e.target.closest && e.target.closest('[data-action]');
       if (!el) {
-        if (e.target.classList && e.target.classList.contains('modal-backdrop')) closeModal(e.target.id);
+        if (e.target.classList && e.target.classList.contains('modal-backdrop')) {
+          if (e.target.id === 'dialogModal') closeDialog(null); else closeModal(e.target.id);
+        }
         return;
       }
       const a = el.getAttribute('data-action');
@@ -1427,12 +1500,17 @@
     });
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
-      document.querySelectorAll('.modal-backdrop').forEach(function (m) { if (!m.classList.contains('hidden')) closeModal(m.id); });
+      document.querySelectorAll('.modal-backdrop').forEach(function (m) {
+        if (m.classList.contains('hidden')) return;
+        if (m.id === 'dialogModal') closeDialog(null); else closeModal(m.id);
+      });
     });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     state = loadState();
+    // The claude.ai viewer cannot open the print dialog; Excel export covers the official copy there.
+    if (inViewer()) document.querySelectorAll('.print-action').forEach(function (b) { b.hidden = true; });
     bindEvents();
     saveState();
     renderApp();

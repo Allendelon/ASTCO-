@@ -140,25 +140,18 @@
     return bytes.buffer;
   }
 
-  async function exportCertificate(model, fileName) {
+  // Returns the filled official workbook as a Blob; the caller decides how to save it.
+  async function buildCertificateXlsx(model) {
     if (!root.IPC_TEMPLATE_XLSX_B64) throw new Error('IPC template not loaded');
     const ExcelJS = await loadExcelJS();
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(base64ToArrayBuffer(root.IPC_TEMPLATE_XLSX_B64));
     fillTemplate(wb.worksheets[0], model);
     const buf = await wb.xlsx.writeBuffer();
-    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   }
 
-  const api = { fillTemplate, exportCertificate, toDate };
+  const api = { fillTemplate, buildCertificateXlsx, toDate };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.IPCExport = api;
 })(typeof window !== 'undefined' ? window : globalThis);
