@@ -179,38 +179,79 @@
     const advRecoveredCum = Math.min(grossCum * advRate, advTotalPaid);
     const advRecoveredPrev = Math.min(grossPrev * advRate, advTotalPaid);
 
-    const otherDeductionsCum = num(c.otherDeductionsToDate);
-    const otherDeductionsPrev = num(c.otherDeductionsPrev);
+    // Template lines that are entered as cumulative-to-date and previous values.
+    const pair = function (key) {
+      const cum = num(c[key + 'ToDate']);
+      const prev = num(c[key + 'Prev']);
+      return { cum: cum, prev: prev, period: cum - prev };
+    };
+    const reimb = pair('reimbursables');          // line 02
+    const retRelease = pair('retentionReleased'); // line 05
+    const vatAdj = pair('vatAdjustment');         // line 06 (additions)
+    const ld = pair('liquidatedDamages');         // line 08
+    const other = pair('otherDeductions');        // line 09
+    const otherPay = pair('otherPayments');       // line 11
 
-    const totalDedCum = retentionCum + advRecoveredCum + otherDeductionsCum;
-    const totalDedPrev = retentionPrev + advRecoveredPrev + otherDeductionsPrev;
+    // Line 04: advance actually paid to the contractor (via IPC-00). Older saved data without the
+    // field is treated as fully paid, which matches how it was valued before.
+    const advPaid = {
+      cum: c.advancePaidToDate != null ? num(c.advancePaidToDate) : advTotalPaid,
+      prev: c.advancePaidPrev != null ? num(c.advancePaidPrev) : advTotalPaid
+    };
+    advPaid.period = advPaid.cum - advPaid.prev;
+    // Recovery can never exceed what has actually been paid.
+    const advRecoveredCumCapped = Math.min(advRecoveredCum, advPaid.cum);
+    const advRecoveredPrevCapped = Math.min(advRecoveredPrev, advPaid.prev);
 
-    const netCum = grossCum - totalDedCum;
-    const netPrev = grossPrev - totalDedPrev;
+    // A — TOTAL GROSS TO DATE (template lines 01–06)
+    const totalGrossCum = grossCum + reimb.cum + advPaid.cum + retRelease.cum + vatAdj.cum;
+    const totalGrossPrev = grossPrev + reimb.prev + advPaid.prev + retRelease.prev + vatAdj.prev;
 
+    // B — TOTAL DEDUCTIONS TO DATE (lines 06–09)
+    const totalDedCum = advRecoveredCumCapped + retentionCum + ld.cum + other.cum;
+    const totalDedPrev = advRecoveredPrevCapped + retentionPrev + ld.prev + other.prev;
+
+    const netCum = totalGrossCum - totalDedCum;   // A − B
+    const netPrev = totalGrossPrev - totalDedPrev;
+
+    // C — payments already made: previous IPC payments (line 10) + other payments to date (line 11).
+    // Line 10 equals what previous certificates paid ex-VAT, so (A − B) − C is this period's due.
+    const previousIpcPayments = netPrev - otherPay.prev;
+    const totalPaymentsToDate = previousIpcPayments + otherPay.cum;
+    const dueExVat = netCum - totalPaymentsToDate;
+
+    // Line 12 — VAT on the amount due. The VAT adjustment line is a VAT correction, so it is not taxed again.
     const vatRate = c.vatRate != null ? num(c.vatRate) : 0.15;
-    const vatCum = netCum * vatRate;
-    const vatPrev = netPrev * vatRate;
+    const vatPeriod = (dueExVat - vatAdj.period) * vatRate;
+    const paymentDue = dueExVat + vatPeriod;
 
-    const r = {
+    // Line 13.1 — deduction applied after VAT (e.g. back-charges invoiced separately).
+    const postVatDeduction = num(c.postVatDeduction);
+    const netPaymentDue = paymentDue - postVatDeduction;
+
+    return {
       boqContractTotal, boqCumTotal, boqPrevTotal, boqPeriodTotal: boqCumTotal - boqPrevTotal,
       voApprovedTotal, voCumTotal, voPrevTotal, voPeriodTotal: voCumTotal - voPrevTotal,
       mosInvoiceTotal, mosCumTotal, mosPrevTotal, mosPeriodTotal: mosCumTotal - mosPrevTotal,
+      // "gross" = value of work (BOQ + VO + MOS): drives progress %, retention and advance recovery.
       grossCum, grossPrev, grossPeriod: grossCum - grossPrev,
       revisedContractSum, progressPercent,
       retentionRate: retRate, retentionCapRate: retCapRate, retentionCap,
       retentionCum, retentionPrev, retentionPeriod: retentionCum - retentionPrev,
-      advTotalPaid, advRecoveryRate: advRate,
-      advRecoveredCum, advRecoveredPrev, advRecoveredPeriod: advRecoveredCum - advRecoveredPrev,
-      advRemainingBalance: Math.max(0, advTotalPaid - advRecoveredCum),
-      otherDeductionsCum, otherDeductionsPrev, otherDeductionsPeriod: otherDeductionsCum - otherDeductionsPrev,
+      advTotalPaid, advRecoveryRate: advRate, advPaid,
+      advRecoveredCum: advRecoveredCumCapped, advRecoveredPrev: advRecoveredPrevCapped,
+      advRecoveredPeriod: advRecoveredCumCapped - advRecoveredPrevCapped,
+      advRemainingBalance: Math.max(0, advPaid.cum - advRecoveredCumCapped),
+      reimb, retRelease, vatAdj, ld, otherPay,
+      otherDeductionsCum: other.cum, otherDeductionsPrev: other.prev, otherDeductionsPeriod: other.period,
+      totalGrossCum, totalGrossPrev, totalGrossPeriod: totalGrossCum - totalGrossPrev,
       totalDedCum, totalDedPrev, totalDedPeriod: totalDedCum - totalDedPrev,
       netCum, netPrev, netPeriod: netCum - netPrev,
-      vatRate, vatCum, vatPrev, vatPeriod: vatCum - vatPrev,
-      finalDueCum: netCum + vatCum, finalDuePrev: netPrev + vatPrev
+      previousIpcPayments, totalPaymentsToDate, dueExVat,
+      vatRate, vatPeriod, paymentDue, postVatDeduction, netPaymentDue,
+      // Back-compat alias used across the UI for "amount payable on this certificate".
+      finalDuePeriod: netPaymentDue
     };
-    r.finalDuePeriod = r.finalDueCum - r.finalDuePrev;
-    return r;
   }
 
   /* ---------- Planned baseline (indicative logistic S-curve) ---------- */

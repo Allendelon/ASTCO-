@@ -1,14 +1,16 @@
 /*
  * ASCTO IPC — application controller (state, persistence, rendering, actions).
- * Depends on: calc.js (window.IPC), data.js (window.IPC_SEED), Chart.js 4.x (window.Chart, optional).
+ * Depends on: calc.js (window.IPC), certificate.js (window.IPCCert), export-xlsx.js (window.IPCExport),
+ * data.js (window.IPC_SEED), templates/ipc-template.js, Chart.js 4.x (window.Chart, optional).
  */
 (function () {
   'use strict';
 
   const {
-    num, formatSAR, formatDeduction, formatNumber, formatIpcNo, parseIpcNo,
-    addMonths, monthsBetween, shortMonth, amountToWords, calculateContractorFinancials: calc, logisticShare
+    num, formatSAR, formatNumber, formatIpcNo, parseIpcNo, parseDMY, formatDMY,
+    addMonths, monthsBetween, shortMonth, calculateContractorFinancials: calc, logisticShare
   } = window.IPC;
+  const { buildCertificate, defaultSettings, CONSULTANT_POSITIONS } = window.IPCCert;
 
   const STORAGE_KEY = 'ascto-ipc-state-v1';
   const SECTOR_COLORS = {
@@ -18,11 +20,47 @@
     'Malls & Retail': 'bg-pink-100 text-pink-800 border-pink-200',
     'Residential': 'bg-emerald-100 text-emerald-800 border-emerald-200'
   };
-  const STATUS_META = {
-    'Under Review': { badge: 'bg-amber-100 text-amber-800', label: 'Under Review' },
-    'Approved': { badge: 'bg-emerald-100 text-emerald-800', label: 'Approved' },
-    'Returned': { badge: 'bg-rose-100 text-rose-800', label: 'Returned with Snags' }
+  const STATUS_BADGE = {
+    'Under Review': 'bg-amber-100 text-amber-800',
+    'Approved': 'bg-emerald-100 text-emerald-800',
+    'Returned': 'bg-rose-100 text-rose-800'
   };
+  const STAGES = [
+    { key: 'consultant', label: 'Consultant Valuation', who: 'Consultant site office' },
+    { key: 'siteOffice', label: 'Site Office Review', who: 'Employer site office' },
+    { key: 'homeOffice', label: 'Home Office Approval', who: 'Employer home office' }
+  ];
+  // Template lines entered as "this period" movements on top of a stored previous cumulative.
+  const ADJUSTMENTS = [
+    { key: 'reimbursables', line: '02', label: 'Reimbursable expenses, equipment, transport', kind: 'add' },
+    { key: 'retentionReleased', line: '05', label: 'Release of retention', kind: 'add' },
+    { key: 'vatAdjustment', line: '06', label: 'VAT adjustment value (not re-taxed)', kind: 'add' },
+    { key: 'liquidatedDamages', line: '08', label: 'Liquidated damages', kind: 'ded' },
+    { key: 'otherDeductions', line: '09', label: 'Other deductions (NCR / safety penalties)', kind: 'ded' },
+    { key: 'otherPayments', line: '11', label: 'Other payments made outside IPCs', kind: 'ded' }
+  ];
+  const DETAIL_FIELDS = [
+    ['companyName', 'Contractor name', 'text', true],
+    ['package', 'Contract name / scope', 'text', true],
+    ['contractRef', 'Contract number', 'text', true],
+    ['contractType', 'Contract type', 'text'],
+    ['paymentType', 'Payment type', 'text'],
+    ['taxInvoiceNo', 'Tax invoice no.', 'text'],
+    ['invoiceDate', 'Invoice date', 'date'],
+    ['valuationDate', 'Date of valuation', 'date'],
+    ['repName', 'Contractor representative', 'text'],
+    ['repRole', 'Representative title', 'text'],
+    ['beneficiaryName', 'Beneficiary name', 'text'],
+    ['vatRegNo', 'Contractor VAT reg. number', 'text'],
+    ['bankName', 'Bank name', 'text'],
+    ['iban', 'IBAN no.', 'text'],
+    ['advanceValidUntil', 'Advance payment guarantee valid until', 'date'],
+    ['performanceBondValue', 'Performance bond value (SAR)', 'number'],
+    ['performanceBondValidUntil', 'Performance bond valid until', 'date'],
+    ['piInsuranceValue', 'P.I. insurance value (SAR)', 'number'],
+    ['tplInsuranceValue', 'Third party liability value (SAR)', 'number'],
+    ['wcInsuranceValue', "Workmen's compensation value (SAR)", 'number']
+  ];
   const TONE_DOT = { blue: 'bg-blue-500', amber: 'bg-amber-500', green: 'bg-emerald-500', red: 'bg-rose-500', gold: 'bg-midad-gold' };
 
   let state = null;
@@ -54,12 +92,22 @@
   // Built manually: en-GB toLocaleDateString renders September as "Sept" on current ICU, which breaks parsing.
   function todayDMY() {
     const d = new Date();
-    return window.IPC.formatDMY({ d: d.getDate(), m: d.getMonth(), y: d.getFullYear() });
+    return formatDMY({ d: d.getDate(), m: d.getMonth(), y: d.getFullYear() });
   }
 
   function nowStamp() {
     const d = new Date();
     return todayDMY() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  function dmyToIso(s) {
+    const p = parseDMY(s);
+    return p ? p.y + '-' + String(p.m + 1).padStart(2, '0') + '-' + String(p.d).padStart(2, '0') : '';
+  }
+
+  function isoToDmy(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    return m ? formatDMY({ d: parseInt(m[3], 10), m: parseInt(m[2], 10) - 1, y: parseInt(m[1], 10) }) : '';
   }
 
   // Reads an optional numeric form field: blank -> fallback, otherwise the number (0 is a valid entry).
@@ -70,18 +118,72 @@
     return Number.isFinite(n) ? n : fallback;
   }
 
+  function round2(n) {
+    return Math.round(n * 100) / 100;
+  }
+
+  function periodEnd(c) {
+    const parts = String(c.valuationPeriod || '').split(' to ');
+    return parts[1] || parts[0] || '';
+  }
+
+  /* ================= Status & sign-off ================= */
+
+  function nextStage(c) {
+    if (c.returned) return null;
+    const s = STAGES.find(function (st) { return !c.signoffs[st.key]; });
+    return s || null;
+  }
+
+  function syncStatus(c) {
+    c.approvalStatus = c.returned ? 'Returned' : c.signoffs.homeOffice ? 'Approved' : 'Under Review';
+  }
+
+  function statusLabel(c) {
+    if (c.returned) return 'Returned with Snags';
+    const n = nextStage(c);
+    return n ? 'Awaiting ' + n.label : 'Approved';
+  }
+
+  // Any change to the valuation after someone has signed invalidates the signatures:
+  // nobody should be able to approve one figure and pay another.
+  function valuationChanged(c, what) {
+    if (!STAGES.some(function (st) { return c.signoffs[st.key]; })) return;
+    c.signoffs = { consultant: null, siteOffice: null, homeOffice: null };
+    syncStatus(c);
+    addAudit(c, 'red', 'Sign-offs cleared', what + ' changed after sign-off — the certificate must be re-certified.');
+    showToast('Valuation changed after sign-off — sign-offs cleared, re-certification required.', 'warning');
+  }
+
   /* ================= State & persistence ================= */
+
+  function historyRow(ipcNo, period, f) {
+    return {
+      ipcNo: ipcNo, period: period,
+      gross: f.gross, retention: f.retention, advance: f.advance, other: f.other,
+      net: f.net, vat: f.vat, postVat: f.postVat || 0, total: f.total, status: f.status || 'Disbursed'
+    };
+  }
 
   function seedHistory(c) {
     const fin = calc(c);
     const prior = parseIpcNo(c.currentIpcNo) - 1;
-    c.history = [];
-    if (prior <= 0 || fin.grossPrev <= 0) return;
-
-    // Split the previously certified gross across prior IPCs along an S-shaped profile.
-    // The final prior row lands exactly on the "Previous" column, so the ledger reconciles.
-    const worksShare = (fin.boqPrevTotal + fin.voPrevTotal) / fin.grossPrev;
     const periodStart = String(c.valuationPeriod || '').split(' to ')[0];
+    c.history = [];
+    if (prior < 0) return;
+
+    // IPC-00: the advance payment certificate (template line 04), paid before the first valuation.
+    if (fin.advPaid.prev > 0) {
+      const adv = fin.advPaid.prev;
+      c.history.push(historyRow('IPC-00', shortMonth(addMonths(periodStart, -prior - 1)), {
+        gross: adv, retention: 0, advance: 0, other: 0, net: adv, vat: adv * fin.vatRate, total: adv * (1 + fin.vatRate)
+      }));
+    }
+    if (prior === 0 || fin.grossPrev <= 0) return;
+
+    // Split the previously certified work value across prior IPCs along an S-shaped profile.
+    // The final prior row lands exactly on the "Last Period" figures, so the ledger reconciles.
+    const worksShare = (fin.boqPrevTotal + fin.voPrevTotal) / fin.grossPrev;
     let last = { gross: 0, ret: 0, adv: 0, oth: 0 };
     for (let k = 1; k <= prior; k++) {
       const share = k === prior ? 1 : 0.5 * (k / prior) + 0.5 * logisticShare(k / prior);
@@ -89,32 +191,15 @@
       const cum = {
         gross: gross,
         ret: Math.min(gross * worksShare * fin.retentionRate, fin.retentionCap),
-        adv: Math.min(gross * fin.advRecoveryRate, fin.advTotalPaid),
+        adv: Math.min(gross * fin.advRecoveryRate, fin.advPaid.prev),
         oth: k === prior ? fin.otherDeductionsPrev : 0
       };
-      const row = {
-        ipcNo: formatIpcNo(k),
-        period: shortMonth(addMonths(periodStart, k - prior - 1)),
-        gross: cum.gross - last.gross,
-        retention: cum.ret - last.ret,
-        advance: cum.adv - last.adv,
-        other: cum.oth - last.oth
-      };
-      row.net = row.gross - row.retention - row.advance - row.other;
-      row.vat = row.net * fin.vatRate;
-      row.total = row.net + row.vat;
-      row.status = 'Disbursed';
-      c.history.push(row);
+      const r = { gross: cum.gross - last.gross, retention: cum.ret - last.ret, advance: cum.adv - last.adv, other: cum.oth - last.oth };
+      r.net = r.gross - r.retention - r.advance - r.other;
+      r.vat = r.net * fin.vatRate;
+      r.total = r.net + r.vat;
+      c.history.push(historyRow(formatIpcNo(k), shortMonth(addMonths(periodStart, k - prior - 1)), r));
       last = cum;
-    }
-  }
-
-  function seedAudit(c) {
-    c.audit = [
-      { ts: c.issueDate, tone: 'blue', title: c.currentIpcNo + ' valuation cycle registered', detail: 'Payment application submitted by ' + c.companyName + ' and verified by quantity surveyors.' }
-    ];
-    if (c.approvalStatus === 'Approved') {
-      c.audit.unshift({ ts: c.issueDate, tone: 'green', title: 'Final commercial approval granted', detail: 'Certificate transmitted to Finance & Treasury for payment release.' });
     }
   }
 
@@ -124,17 +209,68 @@
     c.mos = c.mos || [];
     c.variations.forEach(function (v) { if (v.prevPct == null) v.prevPct = 0; });
     c.mos.forEach(function (m) { if (m.prevQty == null) m.prevQty = 0; });
-    if (c.approvalStatus === 'Flagged') c.approvalStatus = 'Returned';
-    if (!STATUS_META[c.approvalStatus]) c.approvalStatus = 'Under Review';
+    ADJUSTMENTS.forEach(function (a) {
+      if (c[a.key + 'ToDate'] == null) c[a.key + 'ToDate'] = 0;
+      if (c[a.key + 'Prev'] == null) c[a.key + 'Prev'] = 0;
+    });
+    if (c.advancePaidToDate == null) c.advancePaidToDate = num(c.advancePaymentOriginal);
+    if (c.advancePaidPrev == null) c.advancePaidPrev = num(c.advancePaymentOriginal);
+    if (c.postVatDeduction == null) c.postVatDeduction = 0;
+    if (!c.paymentType) c.paymentType = 'Interim Payment';
+    if (!c.contractType) c.contractType = 'Re-measured (FIDIC Red Book)';
+    if (c.invoiceDate == null) c.invoiceDate = c.issueDate || '';
+    if (c.valuationDate == null) c.valuationDate = periodEnd(c);
+    ['taxInvoiceNo', 'beneficiaryName', 'vatRegNo', 'bankName', 'iban', 'advanceValidUntil', 'performanceBondValidUntil'].forEach(function (k) {
+      if (c[k] == null) c[k] = '';
+    });
+    ['performanceBondValue', 'piInsuranceValue', 'tplInsuranceValue', 'wcInsuranceValue'].forEach(function (k) {
+      if (c[k] == null) c[k] = 0;
+    });
+
+    if (!c.signoffs) {
+      // Map the earlier single-step status onto the template's three sign-off tiers.
+      const d = c.issueDate || todayDMY();
+      const st = c.approvalStatus === 'Flagged' ? 'Returned' : c.approvalStatus;
+      c.signoffs = { consultant: st === 'Returned' ? null : d, siteOffice: st === 'Approved' ? d : null, homeOffice: st === 'Approved' ? d : null };
+      c.returned = st === 'Returned' ? { reason: 'Returned for clarification', ts: d } : null;
+    }
+    if (c.returned === undefined) c.returned = null;
+    syncStatus(c);
+
     if (!Array.isArray(c.history)) seedHistory(c);
-    if (!Array.isArray(c.audit)) seedAudit(c);
+    if (!Array.isArray(c.audit)) {
+      c.audit = [{ ts: c.issueDate, tone: 'blue', title: c.currentIpcNo + ' payment application submitted', detail: 'Submitted by ' + c.companyName + ' with joint measurements.' }];
+      STAGES.forEach(function (st) {
+        if (c.signoffs[st.key]) c.audit.unshift({ ts: c.signoffs[st.key], tone: 'green', title: st.label + ' signed', detail: st.who + ' signed ' + c.currentIpcNo + '.' });
+      });
+    }
+  }
+
+  function normalizeProject(p) {
+    p.contractors = p.contractors || [];
+    if (!Array.isArray(p.consultantTeam)) {
+      // Template order: Sr. Engineer, Quantity Surveyor, Contracts Administrator, Project Manager.
+      p.consultantTeam = ['', '', '', p.engineerName || ''];
+    }
+    p.contractors.forEach(normalizeContractor);
+  }
+
+  function normalizeState(s) {
+    s.version = 2;
+    const d = defaultSettings();
+    s.settings = s.settings || {};
+    s.settings.employerName = s.settings.employerName || d.employerName;
+    s.settings.siteOffice = s.settings.siteOffice || d.siteOffice;
+    s.settings.homeOffice = s.settings.homeOffice || d.homeOffice;
+    delete s.approver;
+    Object.values(s.projects).forEach(normalizeProject);
+    if (!s.projects[s.activeProjectKey]) s.activeProjectKey = Object.keys(s.projects)[0];
+    return s;
   }
 
   function freshState() {
     const seed = JSON.parse(JSON.stringify(window.IPC_SEED));
-    const s = { version: 1, approver: seed.approver, projects: seed.projects, activeProjectKey: Object.keys(seed.projects)[0] };
-    Object.values(s.projects).forEach(function (p) { p.contractors.forEach(normalizeContractor); });
-    return s;
+    return normalizeState({ projects: seed.projects, activeProjectKey: Object.keys(seed.projects)[0] });
   }
 
   function isValidState(s) {
@@ -149,11 +285,7 @@
     } catch {
       saved = null;
     }
-    if (!isValidState(saved)) return freshState();
-    Object.values(saved.projects).forEach(function (p) { (p.contractors = p.contractors || []).forEach(normalizeContractor); });
-    if (!saved.projects[saved.activeProjectKey]) saved.activeProjectKey = Object.keys(saved.projects)[0];
-    if (!saved.approver) saved.approver = window.IPC_SEED.approver;
-    return saved;
+    return isValidState(saved) ? normalizeState(saved) : freshState();
   }
 
   function saveState() {
@@ -196,15 +328,12 @@
   /* ================= Rendering ================= */
 
   function renderSelectors() {
-    const ps = $('projectSelector');
-    ps.innerHTML = Object.values(state.projects).map(function (p) {
+    $('projectSelector').innerHTML = Object.values(state.projects).map(function (p) {
       return '<option value="' + esc(p.id) + '"' + (p.id === state.activeProjectKey ? ' selected' : '') + '>' +
         esc(p.name) + ' (' + esc(p.sector) + ')</option>';
     }).join('');
-
     const p = activeProject();
-    const cs = $('contractorSelector');
-    cs.innerHTML = p.contractors.map(function (c) {
+    $('contractorSelector').innerHTML = p.contractors.map(function (c) {
       return '<option value="' + esc(c.id) + '"' + (c.id === p.activeContractorId ? ' selected' : '') + '>' +
         esc(c.companyName) + ' (' + esc(c.package) + ')</option>';
     }).join('');
@@ -215,11 +344,8 @@
     const proj = activeProject();
     const c = activeContractor();
     renderContractorsTab();
-    if (!c) {
-      $('noContractorNotice').hidden = false;
-      return;
-    }
-    $('noContractorNotice').hidden = true;
+    $('noContractorNotice').hidden = !!c;
+    if (!c) return;
     const fin = calc(c);
 
     renderKpis(c, fin);
@@ -228,98 +354,137 @@
     renderVoTable(c);
     renderMosTable(c, fin);
     renderDeductions(c, fin);
-    renderWorkflow(c);
+    renderWorkflow(proj, c);
     renderAnalyticsSummary(fin);
     if (activeTab === 'analytics') renderCharts(proj, c, fin);
   }
 
   function renderKpis(c, fin) {
-    const meta = STATUS_META[c.approvalStatus];
     setTxt('kpiRevisedContract', formatSAR(fin.revisedContractSum));
     setTxt('kpiOriginalContract', 'Base: ' + formatSAR(c.originalContractSum));
     setTxt('kpiGrossCertified', formatSAR(fin.grossCum));
     setTxt('kpiPercentCompleted', fin.progressPercent.toFixed(2) + '%');
-    setTxt('kpiNetPayable', formatSAR(fin.finalDuePeriod));
+    setTxt('kpiNetPayable', formatSAR(fin.netPaymentDue));
     setTxt('kpiVatAmount', (fin.vatRate * 100).toFixed(0) + '% VAT: ' + formatSAR(fin.vatPeriod));
     setTxt('kpiIpcNumber', c.currentIpcNo);
     const badge = $('kpiStatusBadge');
-    badge.textContent = meta.label;
-    badge.className = 'text-xs px-2 py-0.5 rounded-full font-medium ' + meta.badge;
-    const cutoff = String(c.valuationPeriod || '').split(' to ')[1] || c.valuationPeriod;
-    setTxt('kpiValuationDate', 'Cut-off: ' + cutoff);
+    badge.textContent = statusLabel(c);
+    badge.className = 'text-xs px-2 py-0.5 rounded-full font-medium ' + STATUS_BADGE[c.approvalStatus];
+    setTxt('kpiValuationDate', 'Cut-off: ' + periodEnd(c));
+  }
+
+  /* ----- Certificate: on-screen replica of the official template (A1:M62) ----- */
+
+  // Template column widths A..M (Excel character units, K/L widened — see tools/clean_template.py).
+  const CERT_COLS = [9.4, 5.9, 3.1, 6.4, 9.7, 21, 3.6, 4.6, 17, 31.4, 18, 18, 31.3];
+
+  function amt(n, red) {
+    if (n == null) return '';
+    const v = round2(n);
+    const s = formatNumber(Math.abs(v));
+    if (v < 0) return '<span class="text-rose-600">(' + s + ')</span>';
+    return red ? '<span class="text-rose-600">' + s + '</span>' : s;
+  }
+
+  function cell(html, span, cls, rowspan) {
+    return '<td' + (span > 1 ? ' colspan="' + span + '"' : '') + (rowspan > 1 ? ' rowspan="' + rowspan + '"' : '') +
+      ' class="' + (cls || '') + '">' + (html == null ? '' : html) + '</td>';
+  }
+
+  function kv(label, value, label2, value2, valueCls) {
+    return '<tr>' + cell(esc(label), 5, 'cl') + cell(value, 5, 'cv ' + (valueCls || '')) + cell(esc(label2 || ''), 1, 'cl') + cell(value2, 2, 'cv') + '</tr>';
+  }
+
+  function band(text, cls) {
+    return '<tr>' + cell(esc(text), 13, 'cband ' + (cls || '')) + '</tr>';
   }
 
   function renderCertificate(proj, c, fin) {
-    setTxt('certIpcNoDisplay', c.currentIpcNo);
-    setTxt('certValuationPeriod', c.valuationPeriod);
-    setTxt('certIssueDate', c.issueDate);
-    setTxt('certProjectName', proj.name);
-    setTxt('certClientName', proj.client);
-    setTxt('certConsultantName', proj.consultant);
-    setTxt('certContractorName', c.companyName + ' (' + c.package + ')');
-    setTxt('certContractRef', c.contractRef);
-    setTxt('certPackageTrade', c.tradeCategory);
-    setTxt('certContractDates', proj.commenceDate + ' to ' + proj.completeDate);
+    const m = buildCertificate(state.settings, proj, c, fin);
+    const a = m.application;
+    const k = m.contract;
+    const naAmount = function (n) { return n > 0 ? formatNumber(n) : 'N/A'; };
+    const rows = [];
 
-    setTxt('certContractorSignCompany', c.companyName);
-    setTxt('certContractorSignName', c.repName);
-    setTxt('certContractorSignRole', c.repRole);
-    setTxt('certContractorSignSig', String(c.repName || '').split(' ').slice(-1)[0]);
-    setTxt('certEngineerCompany', proj.consultant);
-    setTxt('certEngineerName', proj.engineerName || '—');
-    setTxt('certEngineerRole', proj.engineerRole || 'Resident Engineer');
-    setTxt('certEngineerSig', String(proj.engineerName || '').replace(/,.*$/, '').replace(/^(Dr\.|Eng\.)\s*/, ''));
-    setTxt('certApproverName', state.approver.name);
-    setTxt('certApproverRole', state.approver.role);
-    setTxt('certApproverSig', state.approver.name.replace(/^(Dr\.|Eng\.)\s*/, ''));
-
-    const meta = STATUS_META[c.approvalStatus];
-    const ab = $('midadApprovalBadge');
-    ab.textContent = c.approvalStatus === 'Approved' ? 'Authorized' : meta.label;
-    ab.className = 'text-xs px-2 py-0.5 rounded font-semibold ' + meta.badge;
-    $('approverSigBlock').classList.toggle('opacity-30', c.approvalStatus !== 'Approved');
-
-    const rows = [
-      ['valRow1', fin.boqCumTotal, fin.boqPrevTotal, fin.boqPeriodTotal],
-      ['valRow2', fin.voCumTotal, fin.voPrevTotal, fin.voPeriodTotal],
-      ['valRow3', fin.mosCumTotal, fin.mosPrevTotal, fin.mosPeriodTotal],
-      ['valGross', fin.grossCum, fin.grossPrev, fin.grossPeriod],
-      ['valNet', fin.netCum, fin.netPrev, fin.netPeriod],
-      ['valVat', fin.vatCum, fin.vatPrev, fin.vatPeriod],
-      ['valTotalIncVat', fin.finalDueCum, fin.finalDuePrev, fin.finalDuePeriod]
-    ];
-    rows.forEach(function (r) {
-      setTxt(r[0] + 'Cum', formatSAR(r[1]));
-      setTxt(r[0] + 'Prev', formatSAR(r[2]));
-      setTxt(r[0] + 'Period', formatSAR(r[3]));
+    rows.push('<tr class="crow-logo">' + cell(esc(m.header.employer), 3, 'clogo') + cell(esc(m.header.consultant), 9, 'clogo') + cell(esc(m.header.contractor), 1, 'clogo') + '</tr>');
+    rows.push(band('CONTRACTOR PAYMENT CERTIFICATE', 'ctitle'));
+    rows.push(band('PAYMENT APPLICATION DETAILS', 'csection'));
+    rows.push(kv('Payment Application No.:', '<b>' + esc(a.ipcNo) + '</b>', 'Payment Type:', esc(a.paymentType)));
+    rows.push(kv('TAX Invoice No.:', esc(a.taxInvoiceNo), 'Invoice Date:', esc(a.invoiceDate)));
+    rows.push(kv('Period of Valuation:', esc(a.periodOfValuation) + ' <span class="text-slate-500 font-normal">(' + esc(a.periodRange) + ')</span>', 'Date of Valuation:', esc(a.valuationDate)));
+    rows.push(band('PROJECT/CONTRACT DETAILS', 'csection'));
+    rows.push(kv('Contractor Name:', '<b>' + esc(k.contractorName) + '</b>', 'Contract Number:', esc(k.contractNumber)));
+    rows.push(kv('Contract Name/Scope:', esc(k.scope), 'Contract Type:', esc(k.contractType)));
+    rows.push(kv('Original Contract Sum:', formatNumber(k.originalSum), 'Commencement Date:', esc(k.commencement)));
+    rows.push(kv('Approved Variation Orders:', formatNumber(k.approvedVOs), 'Original Completion Date:', esc(k.completion)));
+    rows.push(kv('Revised Contract Sum:', '<b>' + formatNumber(k.revisedSum) + '</b>', 'Duration', esc(k.duration)));
+    rows.push(kv('Remaining Contract Sum', formatNumber(k.remainingSum), 'Beneficiary Name', esc(k.beneficiary)));
+    rows.push(kv('Contractor`s VAT Reg. Number:', esc(k.vatRegNo), 'Bank Name', esc(k.bankName)));
+    rows.push(kv('', '', 'IBAN No.', esc(k.iban)));
+    [['Advance Payment Value:', k.advanceValue, k.advanceValidUntil], ['Performance Bond Value:', k.bondValue, k.bondValidUntil]].forEach(function (r) {
+      rows.push('<tr>' + cell(esc(r[0]), 5, 'cl') + cell(naAmount(r[1]), 1, 'cv') + cell('Valid until', 3, 'cl') + cell(esc(r[2] || 'N/A'), 1, 'cv') + cell('', 3, 'cv') + '</tr>');
     });
-    const dedRows = [
-      ['valRet', fin.retentionCum, fin.retentionPrev, fin.retentionPeriod],
-      ['valAdv', fin.advRecoveredCum, fin.advRecoveredPrev, fin.advRecoveredPeriod],
-      ['valOth', fin.otherDeductionsCum, fin.otherDeductionsPrev, fin.otherDeductionsPeriod],
-      ['valDedTotal', fin.totalDedCum, fin.totalDedPrev, fin.totalDedPeriod]
-    ];
-    dedRows.forEach(function (r) {
-      setTxt(r[0] + 'Cum', formatDeduction(r[1]));
-      setTxt(r[0] + 'Prev', formatDeduction(r[2]));
-      setTxt(r[0] + 'Period', formatDeduction(r[3]));
+    [['P.I Insurance Value:', k.piInsurance], ['Third Party Liability Value:', k.tplInsurance], ["Workmen's Compensation Value:", k.wcInsurance]].forEach(function (r) {
+      rows.push('<tr>' + cell(esc(r[0]), 5, 'cl') + cell(naAmount(r[1]), 5, 'cv') + cell('', 3, 'cv') + '</tr>');
     });
 
-    setTxt('valRetentionCapText', formatSAR(fin.retentionCap));
-    setTxt('valRetRateText', (fin.retentionRate * 100).toFixed(0) + '%');
-    setTxt('valRetCapRateText', (fin.retentionCapRate * 100).toFixed(0) + '%');
-    setTxt('valAdvRateText', (fin.advRecoveryRate * 100).toFixed(0) + '%');
-    setTxt('valVatRateText', (fin.vatRate * 100).toFixed(0) + '%');
-    setTxt('valVatRateText2', (fin.vatRate * 100).toFixed(0) + '%');
-    const advPct = fin.advTotalPaid > 0 ? (fin.advRecoveredCum / fin.advTotalPaid) * 100 : 0;
-    setTxt('valAdvanceRecPct', advPct.toFixed(1) + '%');
-    setTxt('certAmountInWords', amountToWords(fin.finalDuePeriod));
-    $('negativeCertNotice').hidden = fin.finalDuePeriod >= 0;
+    rows.push(band('PAYMENT DETAILS', 'csection'));
+    rows.push('<tr class="chead">' + cell('', 9) + cell('LAST PERIOD', 1, 'text-center') + cell('THIS PERIOD', 1, 'text-center') + cell('CUMULATIVE', 1, 'text-center') + cell('Remarks', 1, 'text-center') + '</tr>');
+    const groups = { 23: ['CURRENT VALUATION OF WORKS DONE', 9], 32: ['DEDUCTIONS', 5], 37: ['NET PAYMENTS TO DATE', 3], 40: ['', 1] };
+    m.lines.forEach(function (l) {
+      const isTotal = l.style.indexOf('total') >= 0;
+      const red = l.style.indexOf('ded') >= 0;
+      const cls = isTotal ? 'ctotal' : '';
+      let html = '<tr class="' + cls + '">';
+      if (groups[l.row]) html += cell(esc(groups[l.row][0]), 1, 'cgroup', groups[l.row][1]);
+      const descCls = l.style === 'head' ? 'font-bold' : l.style === 'sub' ? 'pl-6' : l.style === 'vat' ? 'font-bold text-emerald-700' : l.style === 'vatadj' ? 'font-bold text-orange-600' : red && !isTotal ? 'font-bold text-rose-600' : '';
+      html += cell(esc(l.no), 1, 'text-center font-bold') + cell(esc(l.desc), 7, descCls) +
+        cell(amt(l.last, red), 1, 'cnum') + cell(amt(l.this, red), 1, 'cnum cthis') + cell(amt(l.cum, red), 1, 'cnum') + cell(esc(l.remark), 1, 'text-[11px] text-slate-500') + '</tr>';
+      rows.push(html);
+    });
+    rows.push('<tr class="cdue">' + cell('PAYMENT DUE IN THE PERIOD FOR THIS PAYMENT CERTIFICATE:', 9) + cell('', 1) + cell(amt(m.paymentDue), 1, 'cnum cthis') + cell('', 1) + cell('(A − B − C) + VAT', 1, 'text-[11px] font-normal text-slate-500') + '</tr>');
+    rows.push('<tr>' + cell('OTHER DEDUCTION', 1, 'cgroup') + cell('13.1', 1, 'text-center font-bold') + cell('Other Deductions (after VAT)', 7, 'font-bold text-rose-600') + cell('', 1) + cell(amt(m.postVatDeduction, true), 1, 'cnum cthis') + cell('', 2) + '</tr>');
+    rows.push('<tr class="cdue">' + cell('NET PAYMENT DUE IN THE PERIOD FOR THIS PAYMENT CERTIFICATE:', 9) + cell('', 1) + cell(amt(m.netPaymentDue), 1, 'cnum cthis') + cell('', 2) + '</tr>');
+    rows.push('<tr>' + cell('AMOUNT IN WORDS:', 4, 'font-bold') + cell(esc(m.amountInWords), 9, 'cwords') + '</tr>');
+
+    const s = m.signatures;
+    rows.push(band('SIGNATURES', 'csection'));
+    rows.push(band(s.consultantTitle, 'csub'));
+    const four = function (label, vals) {
+      return '<tr>' + cell(esc(label), 3, 'cl') + cell(vals[0], 3) + cell(vals[1], 4) + cell(vals[2], 1) + cell(vals[3], 2) + '</tr>';
+    };
+    rows.push(four('Name :', s.consultant.map(function (x) { return esc(x.name); })));
+    rows.push(four('Position :', s.consultant.map(function (x) { return '<b>' + esc(x.position) + '</b>'; })));
+    rows.push(four('Signature :', ['', '', '', '']).replace(/<tr>/, '<tr class="csig">'));
+    rows.push(four('Date :', s.consultant.map(function (x) { return esc(x.date); })));
+    [[s.siteTitle, s.siteDepartment, s.site], [s.homeTitle, s.homeDepartment, s.home]].forEach(function (t) {
+      rows.push(band(t[0], 'csub'));
+      rows.push('<tr>' + cell('Department', 3, 'cl') + cell(esc(t[1]), 10, 'font-bold') + '</tr>');
+      const two = function (label, vals, trCls) {
+        return '<tr' + (trCls ? ' class="' + trCls + '"' : '') + '>' + cell(esc(label), 3, 'cl') + cell(vals[0], 7) + cell(vals[1], 3) + '</tr>';
+      };
+      rows.push(two('Name :', t[2].map(function (x) { return esc(x.name); })));
+      rows.push(two('Position :', t[2].map(function (x) { return '<b>' + esc(x.position) + '</b>'; })));
+      rows.push(two('Signature :', ['', ''], 'csig'));
+      rows.push(two('Date :', t[2].map(function (x) { return esc(x.date); })));
+    });
+
+    const total = CERT_COLS.reduce(function (s2, w) { return s2 + w; }, 0);
+    const cols = CERT_COLS.map(function (w) { return '<col style="width:' + (w / total * 100).toFixed(2) + '%">'; }).join('');
+    $('certSheet').innerHTML = '<table class="cert-table"><colgroup>' + cols + '</colgroup><tbody>' + rows.join('') + '</tbody></table>';
+
+    $('negativeCertNotice').hidden = fin.netPaymentDue >= 0;
+    const st = $('certStatusStrip');
+    st.textContent = m.application.ipcNo + ' · ' + statusLabel(c);
+    st.className = 'text-xs px-2.5 py-1 rounded-full font-semibold ' + STATUS_BADGE[c.approvalStatus];
+  }
+
+  function emptyRow(cols, msg) {
+    return '<tr><td colspan="' + cols + '" class="py-6 text-center text-slate-400 text-xs">' + esc(msg) + '</td></tr>';
   }
 
   function renderBoqTable(c, fin) {
-    const tbody = $('boqTableBody');
-    tbody.innerHTML = c.boqItems.map(function (item) {
+    $('boqTableBody').innerHTML = c.boqItems.map(function (item) {
       const prev = num(item.prevQty);
       const total = prev + num(item.thisQty);
       const cq = num(item.contractQty);
@@ -345,7 +510,6 @@
         '<td class="py-2.5 px-2 text-center no-print"><button data-action="boq-del" data-id="' + esc(item.id) + '" class="text-rose-400 hover:text-rose-600 p-1" title="Delete item" aria-label="Delete ' + esc(item.code) + '">✕</button></td>' +
         '</tr>';
     }).join('') || emptyRow(12, 'No BOQ items. Add one to start measuring.');
-
     setTxt('boqFooterContractTotal', formatSAR(fin.boqContractTotal));
     setTxt('boqFooterCertifiedTotal', formatSAR(fin.boqCumTotal));
     filterBoqTable();
@@ -399,16 +563,23 @@
     setTxt('mosCertifiedTotal', formatSAR(fin.mosCumTotal));
   }
 
-  function emptyRow(cols, msg) {
-    return '<tr><td colspan="' + cols + '" class="py-6 text-center text-slate-400 text-xs">' + esc(msg) + '</td></tr>';
+  function adjustmentRow(id, line, label, kind, prev, period, cum) {
+    const color = kind === 'ded' ? 'text-rose-600' : 'text-emerald-700';
+    return '<tr class="hover:bg-slate-50">' +
+      '<td class="py-2 px-3 font-bold text-slate-500">' + esc(line) + '</td>' +
+      '<td class="py-2 px-3 font-medium text-slate-800">' + esc(label) + ' <span class="text-[10px] uppercase font-bold ' + color + '">' + (kind === 'ded' ? 'deduct' : kind === 'post' ? 'after VAT' : 'add') + '</span></td>' +
+      '<td class="py-2 px-3 text-right text-slate-500">' + (prev == null ? '—' : formatNumber(prev)) + '</td>' +
+      '<td class="py-1.5 px-2 text-right bg-amber-50/50"><input type="number" step="0.01" value="' + esc(round2(period)) + '" data-action="adj" data-key="' + esc(id) + '" aria-label="' + esc(label) + ' this period"' +
+        ' class="w-36 px-2 py-1 text-right text-xs font-bold text-amber-900 bg-white border border-amber-300 rounded"></td>' +
+      '<td class="py-2 px-3 text-right font-bold ' + color + '">' + (cum == null ? '—' : formatNumber(cum)) + '</td></tr>';
   }
 
   function renderDeductions(c, fin) {
-    const advPct = fin.advTotalPaid > 0 ? (fin.advRecoveredCum / fin.advTotalPaid) * 100 : 0;
-    setTxt('advCardTotalPaid', formatSAR(fin.advTotalPaid));
+    const advPct = fin.advPaid.cum > 0 ? (fin.advRecoveredCum / fin.advPaid.cum) * 100 : 0;
+    setTxt('advCardTotalPaid', formatSAR(fin.advPaid.cum) + (fin.advPaid.cum < fin.advTotalPaid ? ' of ' + formatSAR(fin.advTotalPaid) : ''));
     setTxt('advCardCumRecovered', formatSAR(fin.advRecoveredCum));
     setTxt('advCardBalance', formatSAR(fin.advRemainingBalance));
-    setTxt('advCardRate', (fin.advRecoveryRate * 100).toFixed(0) + '% deducted from each IPC gross');
+    setTxt('advCardRate', (fin.advRecoveryRate * 100).toFixed(0) + '% of each IPC work value');
     setTxt('advCardPct', advPct.toFixed(1) + '% Complete');
     $('advCardProgressBar').style.width = Math.min(100, advPct) + '%';
 
@@ -417,27 +588,32 @@
     setTxt('retCardCapLabel', 'Maximum Retention Limit (' + (fin.retentionCapRate * 100).toFixed(0) + '% Contract Sum):');
     setTxt('retCardCapLimit', formatSAR(fin.retentionCap));
     setTxt('retCardCumWithheld', formatSAR(fin.retentionCum));
+    setTxt('retCardReleased', formatSAR(fin.retRelease.cum));
     setTxt('retCardRemainingCap', formatSAR(Math.max(0, fin.retentionCap - fin.retentionCum)));
     setTxt('retCardPct', retPct.toFixed(1) + '% of Cap');
     $('retCardProgressBar').style.width = Math.min(100, retPct) + '%';
 
-    setTxt('othPrevDisplay', formatSAR(fin.otherDeductionsPrev));
-    const othInput = $('othPeriodInput');
-    if (document.activeElement !== othInput) othInput.value = round(fin.otherDeductionsPeriod);
-    setTxt('othCumDisplay', formatSAR(fin.otherDeductionsCum));
+    const adjRows = [adjustmentRow('advancePaid', '04', 'Advance payment paid to contractor', 'add', fin.advPaid.prev, fin.advPaid.period, fin.advPaid.cum)];
+    ADJUSTMENTS.forEach(function (a) {
+      adjRows.push(adjustmentRow(a.key, a.line, a.label, a.kind, num(c[a.key + 'Prev']), num(c[a.key + 'ToDate']) - num(c[a.key + 'Prev']), num(c[a.key + 'ToDate'])));
+    });
+    adjRows.push(adjustmentRow('postVatDeduction', '13.1', 'Other deduction after VAT (this certificate only)', 'post', null, fin.postVatDeduction, null));
+    // Don't clobber a field the user is typing into.
+    if (!$('adjTableBody').contains(document.activeElement)) $('adjTableBody').innerHTML = adjRows.join('');
 
     const hist = c.history.map(function (h, idx) {
       const paid = h.status === 'Disbursed';
       return '<tr class="hover:bg-slate-50">' +
         '<td class="py-2.5 px-3 font-bold">' + esc(h.ipcNo) + '</td>' +
         '<td class="py-2.5 px-3 text-slate-600">' + esc(h.period) + '</td>' +
-        '<td class="py-2.5 px-3 text-right">' + formatSAR(h.gross) + '</td>' +
-        '<td class="py-2.5 px-3 text-right text-rose-600">' + formatSAR(h.retention) + '</td>' +
-        '<td class="py-2.5 px-3 text-right text-rose-600">' + formatSAR(h.advance) + '</td>' +
-        '<td class="py-2.5 px-3 text-right text-rose-600">' + formatSAR(h.other) + '</td>' +
-        '<td class="py-2.5 px-3 text-right font-medium">' + formatSAR(h.net) + '</td>' +
-        '<td class="py-2.5 px-3 text-right">' + formatSAR(h.vat) + '</td>' +
-        '<td class="py-2.5 px-3 text-right font-bold text-slate-900">' + formatSAR(h.total) + '</td>' +
+        '<td class="py-2.5 px-3 text-right">' + formatNumber(h.gross) + '</td>' +
+        '<td class="py-2.5 px-3 text-right text-rose-600">' + formatNumber(h.retention) + '</td>' +
+        '<td class="py-2.5 px-3 text-right text-rose-600">' + formatNumber(h.advance) + '</td>' +
+        '<td class="py-2.5 px-3 text-right text-rose-600">' + formatNumber(h.other) + '</td>' +
+        '<td class="py-2.5 px-3 text-right font-medium">' + formatNumber(h.net) + '</td>' +
+        '<td class="py-2.5 px-3 text-right">' + formatNumber(h.vat) + '</td>' +
+        '<td class="py-2.5 px-3 text-right text-rose-600">' + formatNumber(h.postVat || 0) + '</td>' +
+        '<td class="py-2.5 px-3 text-right font-bold text-slate-900">' + formatNumber(h.total) + '</td>' +
         '<td class="py-2.5 px-3 text-center">' + (paid
           ? '<span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-semibold">Disbursed</span>'
           : '<button data-action="hist-paid" data-idx="' + idx + '" class="px-2 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-800 font-semibold hover:bg-blue-200" title="Mark as paid">Certified · Mark Paid</button>') +
@@ -446,41 +622,55 @@
     const current = '<tr class="bg-amber-50/50 font-medium">' +
       '<td class="py-2.5 px-3 font-bold text-amber-900">' + esc(c.currentIpcNo) + ' (Active)</td>' +
       '<td class="py-2.5 px-3 text-slate-700">' + esc(shortMonth(String(c.valuationPeriod).split(' to ')[0])) + '</td>' +
-      '<td class="py-2.5 px-3 text-right">' + formatSAR(fin.grossPeriod) + '</td>' +
-      '<td class="py-2.5 px-3 text-right text-rose-600">' + formatSAR(fin.retentionPeriod) + '</td>' +
-      '<td class="py-2.5 px-3 text-right text-rose-600">' + formatSAR(fin.advRecoveredPeriod) + '</td>' +
-      '<td class="py-2.5 px-3 text-right text-rose-600">' + formatSAR(fin.otherDeductionsPeriod) + '</td>' +
-      '<td class="py-2.5 px-3 text-right font-bold text-slate-900">' + formatSAR(fin.netPeriod) + '</td>' +
-      '<td class="py-2.5 px-3 text-right">' + formatSAR(fin.vatPeriod) + '</td>' +
-      '<td class="py-2.5 px-3 text-right font-bold text-amber-900">' + formatSAR(fin.finalDuePeriod) + '</td>' +
-      '<td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ' + STATUS_META[c.approvalStatus].badge + '">' + esc(STATUS_META[c.approvalStatus].label) + '</span></td>' +
+      '<td class="py-2.5 px-3 text-right">' + formatNumber(fin.totalGrossPeriod) + '</td>' +
+      '<td class="py-2.5 px-3 text-right text-rose-600">' + formatNumber(fin.retentionPeriod) + '</td>' +
+      '<td class="py-2.5 px-3 text-right text-rose-600">' + formatNumber(fin.advRecoveredPeriod) + '</td>' +
+      '<td class="py-2.5 px-3 text-right text-rose-600">' + formatNumber(fin.ld.period + fin.otherDeductionsPeriod + fin.otherPay.period) + '</td>' +
+      '<td class="py-2.5 px-3 text-right font-bold text-slate-900">' + formatNumber(fin.dueExVat) + '</td>' +
+      '<td class="py-2.5 px-3 text-right">' + formatNumber(fin.vatPeriod) + '</td>' +
+      '<td class="py-2.5 px-3 text-right text-rose-600">' + formatNumber(fin.postVatDeduction) + '</td>' +
+      '<td class="py-2.5 px-3 text-right font-bold text-amber-900">' + formatNumber(fin.netPaymentDue) + '</td>' +
+      '<td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ' + STATUS_BADGE[c.approvalStatus] + '">' + esc(statusLabel(c)) + '</span></td>' +
       '</tr>';
     $('histTableBody').innerHTML = hist + current;
   }
 
-  function round(n) {
-    return Math.round(n * 100) / 100;
-  }
+  function renderWorkflow(proj, c) {
+    const next = nextStage(c);
+    const html = STAGES.map(function (st, i) {
+      const done = c.signoffs[st.key];
+      const isNext = next && next.key === st.key;
+      const icon = done ? '✓' : c.returned ? '!' : String(i + 2);
+      const iconCls = done ? 'bg-emerald-600 text-white' : c.returned ? 'bg-rose-600 text-white' : isNext ? 'bg-amber-500 text-white' : 'bg-slate-300 text-slate-600';
+      let signers = '';
+      if (st.key === 'consultant') {
+        signers = CONSULTANT_POSITIONS.map(function (pos, j) { return esc((proj.consultantTeam[j] || '—') + ' · ' + pos); }).join('<br>');
+      } else {
+        const o = st.key === 'siteOffice' ? state.settings.siteOffice : state.settings.homeOffice;
+        signers = o.signatories.map(function (x) { return esc((x.name || '—') + ' · ' + x.position); }).join('<br>');
+      }
+      return '<div class="flex items-start gap-3 flex-1 min-w-0">' +
+        '<div class="w-8 h-8 rounded-full ' + iconCls + ' flex items-center justify-center font-bold text-sm shrink-0">' + icon + '</div>' +
+        '<div class="min-w-0"><p class="text-xs font-bold uppercase ' + (done ? 'text-emerald-700' : 'text-slate-500') + '">Stage ' + (i + 2) + '</p>' +
+        '<h4 class="font-bold text-slate-900 text-sm">' + esc(st.label) + '</h4>' +
+        '<p class="text-[11px] text-slate-500 mt-1 leading-relaxed">' + signers + '</p>' +
+        (done ? '<span class="inline-block mt-2 text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">Signed ' + esc(done) + '</span>'
+          : isNext ? '<button data-action="sign" data-stage="' + st.key + '" class="mt-2 px-2.5 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:bg-emerald-700 transition">Sign off</button>'
+          : '<span class="inline-block mt-2 text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-500">Pending</span>') +
+        '</div></div>';
+    }).join('');
+    const finance = c.approvalStatus === 'Approved';
+    $('workflowStages').innerHTML =
+      '<div class="flex items-start gap-3 flex-1 min-w-0"><div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">✓</div>' +
+      '<div><p class="text-xs font-bold uppercase text-emerald-700">Stage 1</p><h4 class="font-bold text-slate-900 text-sm">Contractor Application</h4>' +
+      '<p class="text-[11px] text-slate-500 mt-1">' + esc(c.repName) + ' · ' + esc(c.repRole) + '</p></div></div>' + html +
+      '<div class="flex items-start gap-3 flex-1 min-w-0"><div class="w-8 h-8 rounded-full ' + (finance ? 'bg-amber-500 text-white' : 'bg-slate-300 text-slate-600') + ' flex items-center justify-center font-bold text-sm shrink-0">5</div>' +
+      '<div><p class="text-xs font-bold uppercase text-slate-500">Stage 5</p><h4 class="font-bold text-slate-900 text-sm">Finance: Tax Invoice &amp; Pay</h4>' +
+      '<span class="inline-block mt-2 text-[10px] px-2 py-0.5 rounded ' + (finance ? 'bg-amber-100 text-amber-800 font-semibold' : 'bg-slate-100 text-slate-500') + '">' + (finance ? 'Ready for payment' : 'Awaiting approval') + '</span></div></div>';
 
-  function renderWorkflow(c) {
-    const s = c.approvalStatus;
-    const icon3 = $('stage3Icon');
-    const icon4 = $('stage4Icon');
-    if (s === 'Approved') {
-      icon3.className = 'w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0';
-      icon3.textContent = '✓';
-      icon4.className = 'w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-sm shrink-0';
-      setTxt('stage4Status', 'Ready for Tax Invoice & Payment');
-    } else {
-      icon3.className = 'w-8 h-8 rounded-full ' + (s === 'Returned' ? 'bg-rose-600' : 'bg-amber-500') + ' text-white flex items-center justify-center font-bold text-sm shrink-0';
-      icon3.textContent = s === 'Returned' ? '!' : '3';
-      icon4.className = 'w-8 h-8 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center font-bold text-sm shrink-0';
-      setTxt('stage4Status', 'Awaiting Authorization');
-    }
-    setTxt('stage3Status', STATUS_META[s].label);
-    $('stage3Status').className = 'inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-semibold ' + STATUS_META[s].badge;
-    $('btnApprove').disabled = s === 'Approved';
-    $('btnReturn').disabled = s === 'Returned';
+    $('returnedNotice').hidden = !c.returned;
+    if (c.returned) setTxt('returnedReason', c.returned.reason + ' (' + c.returned.ts + ')');
+    $('btnReturn').disabled = !!c.returned || c.approvalStatus === 'Approved';
 
     $('auditTrailContainer').innerHTML = c.audit.map(function (a) {
       return '<div class="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg text-xs border border-slate-200">' +
@@ -494,7 +684,7 @@
   function renderAnalyticsSummary(fin) {
     setTxt('analyticsGrossCertified', 'SAR ' + (fin.grossCum / 1e6).toFixed(2) + 'M');
     setTxt('analyticsGrossPct', fin.progressPercent.toFixed(1) + '% of contract');
-    setTxt('analyticsDeductions', 'SAR ' + ((fin.retentionCum + fin.advRecoveredCum) / 1e6).toFixed(2) + 'M');
+    setTxt('analyticsDeductions', 'SAR ' + ((fin.retentionCum - fin.retRelease.cum + fin.advRemainingBalance) / 1e6).toFixed(2) + 'M');
     const uncertified = Math.max(0, fin.revisedContractSum - fin.grossCum);
     setTxt('analyticsUncertifiedScope', 'SAR ' + (uncertified / 1e6).toFixed(2) + 'M');
     setTxt('analyticsUncertifiedPct', fin.revisedContractSum > 0 ? ((uncertified / fin.revisedContractSum) * 100).toFixed(1) + '% remaining' : '0% remaining');
@@ -508,8 +698,8 @@
       const f = calc(c);
       committed += f.revisedContractSum;
       certified += f.grossCum;
-      retention += f.retentionCum;
-      due += f.finalDuePeriod;
+      retention += f.retentionCum - f.retRelease.cum;
+      due += f.netPaymentDue;
     });
 
     const visible = proj.contractors.filter(function (c) {
@@ -523,7 +713,8 @@
       const f = calc(c);
       const isCurrent = c.id === proj.activeContractorId;
       const badge = SECTOR_COLORS[c.sector] || 'bg-amber-100 text-amber-800 border-amber-200';
-      const st = STATUS_META[c.approvalStatus];
+      const stBadge = STATUS_BADGE[c.approvalStatus];
+      const stLabel = statusLabel(c);
       cards.push(
         '<div class="rounded-xl p-5 border transition-all duration-200 ' + (isCurrent ? 'bg-amber-50/60 border-midad-gold shadow-md ring-2 ring-midad-gold/30' : 'bg-white border-slate-200 shadow-sm hover:border-slate-300') + '">' +
         '<div class="flex justify-between items-start gap-2"><div class="min-w-0">' +
@@ -532,10 +723,10 @@
         '<h4 class="font-bold text-slate-900 text-sm mt-2">' + esc(c.companyName) + '</h4>' +
         '<p class="text-xs text-slate-600 font-medium">' + esc(c.package) + '</p>' +
         '<p class="text-[11px] text-slate-400 mt-0.5 font-mono">' + esc(c.contractRef) + '</p></div>' +
-        '<span class="text-xs px-2 py-0.5 rounded font-semibold whitespace-nowrap ' + st.badge + '">' + esc(st.label) + '</span></div>' +
+        '<span class="text-[11px] px-2 py-0.5 rounded font-semibold text-right ' + stBadge + '">' + esc(stLabel) + '</span></div>' +
         '<div class="mt-4 pt-3 border-t border-slate-200 grid grid-cols-2 gap-2 text-xs">' +
         '<div><span class="text-slate-500 block text-[10px] uppercase font-semibold">Revised Sum</span><span class="font-bold text-slate-800">' + formatSAR(f.revisedContractSum) + '</span></div>' +
-        '<div><span class="text-slate-500 block text-[10px] uppercase font-semibold">Active Cycle Due</span><span class="font-bold text-midad-gold">' + formatSAR(f.finalDuePeriod) + '</span></div></div>' +
+        '<div><span class="text-slate-500 block text-[10px] uppercase font-semibold">Net Payment Due</span><span class="font-bold text-midad-gold">' + formatSAR(f.netPaymentDue) + '</span></div></div>' +
         '<div class="mt-3"><div class="flex justify-between text-[11px] font-semibold text-slate-600 mb-1"><span>Progress: ' + f.progressPercent.toFixed(1) + '%</span><span>' + esc(c.currentIpcNo) + '</span></div>' +
         '<div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden"><div class="h-full bg-midad-gold rounded-full" style="width:' + Math.min(100, Math.max(0, f.progressPercent)) + '%"></div></div></div>' +
         '<div class="mt-4 pt-3 border-t border-slate-200 flex justify-between items-center gap-2 text-xs">' +
@@ -551,9 +742,9 @@
         '<td class="py-3 px-3 text-right font-medium text-slate-900">' + formatSAR(f.revisedContractSum) + '</td>' +
         '<td class="py-3 px-3 text-right font-bold text-slate-800">' + formatSAR(f.grossCum) + '</td>' +
         '<td class="py-3 px-2 text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ' + (f.progressPercent >= 50 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-50 text-blue-700') + '">' + f.progressPercent.toFixed(1) + '%</span></td>' +
-        '<td class="py-3 px-3 text-right text-rose-600">' + formatDeduction(f.retentionCum) + '</td>' +
-        '<td class="py-3 px-3 text-right font-bold text-midad-gold bg-amber-50/60">' + formatSAR(f.finalDuePeriod) + '</td>' +
-        '<td class="py-3 px-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ' + st.badge + '">' + esc(st.label) + '</span></td>' +
+        '<td class="py-3 px-3 text-right text-rose-600">(' + formatSAR(f.retentionCum - f.retRelease.cum) + ')</td>' +
+        '<td class="py-3 px-3 text-right font-bold text-midad-gold bg-amber-50/60">' + formatSAR(f.netPaymentDue) + '</td>' +
+        '<td class="py-3 px-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ' + stBadge + '">' + esc(stLabel) + '</span></td>' +
         '<td class="py-3 px-3 text-center no-print"><button data-action="open-ipc" data-id="' + esc(c.id) + '" class="text-xs px-2 py-1 rounded bg-slate-800 text-white hover:bg-slate-700 transition">Open IPC</button></td></tr>'
       );
     });
@@ -585,15 +776,16 @@
     const current = parseIpcNo(c.currentIpcNo);
     const planned = Math.max(1, monthsBetween(proj.commenceDate, proj.completeDate));
     const n = Math.max(planned, current);
-    const labels = [];
-    const plannedCurve = [];
-    const actualCurve = [];
+    // Work value per IPC excludes the IPC-00 advance (an advance is not progress).
+    const byNo = {};
+    c.history.forEach(function (h) { byNo[parseIpcNo(h.ipcNo)] = h; });
+    const labels = [], plannedCurve = [], actualCurve = [];
     let cum = 0;
     for (let k = 1; k <= n; k++) {
       labels.push(formatIpcNo(k) + (k === current ? ' (Now)' : ''));
       plannedCurve.push(+(fin.revisedContractSum * logisticShare(Math.min(1, k / planned)) / 1e6).toFixed(2));
-      if (k < current && c.history[k - 1]) {
-        cum += c.history[k - 1].gross;
+      if (k < current && byNo[k]) {
+        cum += byNo[k].gross;
         actualCurve.push(+(cum / 1e6).toFixed(2));
       } else if (k === current) {
         actualCurve.push(+(fin.grossCum / 1e6).toFixed(2));
@@ -609,7 +801,7 @@
         labels: labels,
         datasets: [
           { label: 'Planned baseline (indicative)', data: plannedCurve, borderColor: '#94a3b8', borderDash: [5, 5], tension: 0.35, fill: false, pointRadius: 0 },
-          { label: 'Actual certified gross', data: actualCurve, borderColor: '#c5a059', backgroundColor: 'rgba(197,160,89,0.15)', borderWidth: 3, tension: 0.3, fill: true, pointRadius: 3, pointBackgroundColor: '#0f172a' }
+          { label: 'Actual certified work value', data: actualCurve, borderColor: '#c5a059', backgroundColor: 'rgba(197,160,89,0.15)', borderWidth: 3, tension: 0.3, fill: true, pointRadius: 3, pointBackgroundColor: '#0f172a' }
         ]
       },
       options: {
@@ -623,12 +815,12 @@
     });
 
     const cfLabels = c.history.map(function (h) { return h.ipcNo; }).concat([c.currentIpcNo + ' (Now)']);
-    const cfData = c.history.map(function (h) { return +(h.total / 1e6).toFixed(2); }).concat([+(fin.finalDuePeriod / 1e6).toFixed(2)]);
+    const cfData = c.history.map(function (h) { return +(h.total / 1e6).toFixed(2); }).concat([+(fin.netPaymentDue / 1e6).toFixed(2)]);
     const cfColors = c.history.map(function (h) { return h.status === 'Disbursed' ? '#0f172a' : '#3b82f6'; }).concat(['#c5a059']);
     if (cashflowChart) cashflowChart.destroy();
     cashflowChart = new window.Chart($('cashflowChart'), {
       type: 'bar',
-      data: { labels: cfLabels, datasets: [{ label: 'Net certified incl. VAT (SAR M)', data: cfData, backgroundColor: cfColors, borderRadius: 6 }] },
+      data: { labels: cfLabels, datasets: [{ label: 'Net payment incl. VAT (SAR M)', data: cfData, backgroundColor: cfColors, borderRadius: 6 }] },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
@@ -692,6 +884,70 @@
     m.classList.remove('flex');
   }
 
+  function openDetailsModal() {
+    const c = activeContractor();
+    if (!c) return;
+    $('detailsFields').innerHTML = DETAIL_FIELDS.map(function (f) {
+      const v = f[2] === 'date' ? dmyToIso(c[f[0]]) : (c[f[0]] == null ? '' : c[f[0]]);
+      return '<label class="block"><span class="block font-semibold text-slate-700 mb-1">' + esc(f[1]) + (f[3] ? ' *' : '') + '</span>' +
+        '<input data-field="' + f[0] + '" type="' + (f[2] === 'number' ? 'number" step="0.01" min="0' : f[2]) + '" value="' + esc(v) + '"' + (f[3] ? ' required' : '') +
+        ' class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>';
+    }).join('');
+    openModal('detailsModal');
+  }
+
+  function handleSaveDetails(e) {
+    e.preventDefault();
+    const c = activeContractor();
+    $('detailsFields').querySelectorAll('input[data-field]').forEach(function (inp) {
+      const f = DETAIL_FIELDS.find(function (x) { return x[0] === inp.getAttribute('data-field'); });
+      c[f[0]] = f[2] === 'date' ? isoToDmy(inp.value) : f[2] === 'number' ? Math.max(0, num(inp.value)) : inp.value.trim();
+    });
+    addAudit(c, 'blue', 'Contract & payment details updated', 'Certificate header fields edited.');
+    closeModal('detailsModal');
+    commit();
+    showToast('Contract details saved', 'success');
+  }
+
+  function openSettingsModal() {
+    const s = state.settings;
+    const p = activeProject();
+    $('setEmployer').value = s.employerName;
+    $('setConsultantProject').textContent = p.consultant;
+    $('setConsultantTeam').innerHTML = CONSULTANT_POSITIONS.map(function (pos, i) {
+      return '<label class="block"><span class="block font-semibold text-slate-700 mb-1">' + esc(pos) + '</span>' +
+        '<input data-team="' + i + '" type="text" value="' + esc(p.consultantTeam[i] || '') + '" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>';
+    }).join('');
+    [['site', s.siteOffice], ['home', s.homeOffice]].forEach(function (t) {
+      $('set_' + t[0] + '_dept').value = t[1].department;
+      t[1].signatories.forEach(function (x, i) {
+        $('set_' + t[0] + '_name' + i).value = x.name;
+        $('set_' + t[0] + '_pos' + i).value = x.position;
+      });
+    });
+    openModal('settingsModal');
+  }
+
+  function handleSaveSettings(e) {
+    e.preventDefault();
+    const s = state.settings;
+    const p = activeProject();
+    s.employerName = $('setEmployer').value.trim() || 'ASCTO';
+    $('setConsultantTeam').querySelectorAll('input[data-team]').forEach(function (inp) {
+      p.consultantTeam[parseInt(inp.getAttribute('data-team'), 10)] = inp.value.trim();
+    });
+    [['site', s.siteOffice], ['home', s.homeOffice]].forEach(function (t) {
+      t[1].department = $('set_' + t[0] + '_dept').value.trim();
+      t[1].signatories.forEach(function (x, i) {
+        x.name = $('set_' + t[0] + '_name' + i).value.trim();
+        x.position = $('set_' + t[0] + '_pos' + i).value.trim();
+      });
+    });
+    closeModal('settingsModal');
+    commit();
+    showToast('Signatories saved', 'success');
+  }
+
   /* ================= Actions ================= */
 
   function handleSaveContractor(e) {
@@ -705,6 +961,7 @@
     const pkg = $('modalContractorPackage').value.trim();
     const company = $('modalContractorCompany').value.trim();
     const today = todayDMY();
+    const advance = Math.max(0, optionalNumber('modalContractorAdv', sum * 0.10));
 
     const c = {
       id: 'c_' + Date.now(),
@@ -716,17 +973,24 @@
       repName: $('modalContractorRepName').value.trim(),
       repRole: $('modalContractorRepRole').value.trim() || 'Commercial Project Manager',
       originalContractSum: sum,
-      advancePaymentOriginal: Math.max(0, optionalNumber('modalContractorAdv', sum * 0.10)),
+      advancePaymentOriginal: advance,
       advanceRecoveryRate: Math.max(0, optionalNumber('modalContractorAdvRate', 10)) / 100,
       retentionRate: Math.max(0, optionalNumber('modalContractorRetRate', 10)) / 100,
       retentionCapRate: Math.max(0, optionalNumber('modalContractorRetCap', 5)) / 100,
       vatRate: 0.15,
-      currentIpcNo: 'IPC-01',
+      // With an advance, the first certificate is IPC-00 (advance payment), as in the template.
+      currentIpcNo: advance > 0 ? 'IPC-00' : 'IPC-01',
+      paymentType: advance > 0 ? 'Advance Payment' : 'Interim Payment',
+      advancePaidPrev: 0,
+      advancePaidToDate: advance,
       valuationPeriod: addMonths(today, -1).replace(/^\d+/, '01') + ' to ' + today,
       issueDate: today,
-      approvalStatus: 'Under Review',
+      invoiceDate: today,
+      valuationDate: today,
       otherDeductionsToDate: 0,
       otherDeductionsPrev: 0,
+      signoffs: { consultant: null, siteOffice: null, homeOffice: null },
+      returned: null,
       boqItems: [
         { id: 1, code: '01.00', desc: 'Preliminaries, Site Engineering & Mobilization', unit: 'LS', rate: sum * 0.15, contractQty: 1, prevQty: 0, thisQty: 0 },
         { id: 2, code: '02.00', desc: 'Primary Scope Execution', unit: 'LS', rate: sum * 0.85, contractQty: 1, prevQty: 0, thisQty: 0 }
@@ -736,14 +1000,15 @@
       history: [],
       audit: []
     };
+    normalizeContractor(c);
     addAudit(c, 'blue', 'Contractor package enlisted', company + ' registered under ' + c.contractRef + '. Replace the placeholder BOQ with the priced bill.');
     proj.contractors.push(c);
     proj.activeContractorId = c.id;
     closeModal('contractorModal');
     e.target.reset();
     commit();
-    switchTab('boq');
-    showToast('Contractor package "' + company + '" registered. Placeholder BOQ created — replace it with the priced bill.', 'success');
+    switchTab(advance > 0 ? 'certificate' : 'boq');
+    showToast('Package "' + company + '" registered' + (advance > 0 ? ' — IPC-00 advance payment certificate created.' : '.'), 'success');
   }
 
   function handleSaveBoqItem(e) {
@@ -765,6 +1030,7 @@
       thisQty: num($('modalBoqThisQty').value)
     });
     addAudit(c, 'blue', 'BOQ item added: ' + code, $('modalBoqDesc').value.trim());
+    valuationChanged(c, 'BOQ');
     closeModal('boqModal');
     e.target.reset();
     commit();
@@ -791,6 +1057,7 @@
       status: status
     });
     addAudit(c, 'amber', 'Variation ' + code + ' registered (' + status + ')', $('modalVoDesc').value.trim());
+    if (status === 'Approved') valuationChanged(c, 'Variations');
     closeModal('voModal');
     e.target.reset();
     commit();
@@ -813,6 +1080,7 @@
       certPct: Math.min(100, Math.max(0, optionalNumber('modalMosPct', 75)))
     });
     addAudit(c, 'blue', 'MOS consignment ' + code + ' registered', $('modalMosDesc').value.trim());
+    valuationChanged(c, 'Materials on site');
     closeModal('mosModal');
     e.target.reset();
     commit();
@@ -830,6 +1098,7 @@
     // Negative period quantities are allowed (remeasurement corrections) but cumulative can't go below zero.
     const q = num(value);
     item.thisQty = Math.max(-num(item.prevQty), q);
+    valuationChanged(c, 'BOQ quantity ' + item.code);
     commit();
     if (item.thisQty !== q) showToast('Quantity limited so cumulative is not below zero.', 'warning');
   }
@@ -839,6 +1108,7 @@
     const vo = c && findById(c.variations, id);
     if (!vo) return;
     vo.progressPct = Math.min(100, Math.max(0, num(value)));
+    valuationChanged(c, 'Variation ' + vo.code);
     commit();
   }
 
@@ -847,14 +1117,29 @@
     const m = c && findById(c.mos, id);
     if (!m) return;
     m.qty = Math.max(0, num(value));
+    valuationChanged(c, 'MOS ' + m.code);
     commit();
   }
 
-  function onOtherDeduction(value) {
+  function onAdjustment(key, value) {
     const c = activeContractor();
     if (!c) return;
-    c.otherDeductionsToDate = num(c.otherDeductionsPrev) + num(value);
-    addAudit(c, 'red', 'Other deductions this period set to ' + formatSAR(num(value)), 'NCR withholding / safety penalty adjustment for ' + c.currentIpcNo + '.');
+    const v = round2(num(value));
+    let label;
+    if (key === 'postVatDeduction') {
+      c.postVatDeduction = v;
+      label = 'Other deduction after VAT (13.1)';
+    } else if (key === 'advancePaid') {
+      c.advancePaidToDate = Math.max(0, num(c.advancePaidPrev) + v);
+      label = 'Advance payment (04)';
+    } else {
+      const a = ADJUSTMENTS.find(function (x) { return x.key === key; });
+      if (!a) return;
+      c[key + 'ToDate'] = num(c[key + 'Prev']) + v;
+      label = a.label + ' (' + a.line + ')';
+    }
+    addAudit(c, 'amber', label + ' this period set to ' + formatSAR(v), c.currentIpcNo + ' adjustment.');
+    valuationChanged(c, label);
     commit();
   }
 
@@ -865,6 +1150,7 @@
     if (!window.confirm('Delete ' + label + ' ' + item.code + '? This cannot be undone.')) return;
     c[listName] = c[listName].filter(function (x) { return String(x.id) !== String(id); });
     addAudit(c, 'red', label + ' ' + item.code + ' deleted', item.desc || '');
+    valuationChanged(c, label + ' ' + item.code);
     commit();
     showToast(label + ' ' + item.code + ' removed', 'warning');
   }
@@ -875,6 +1161,7 @@
     if (!vo) return;
     vo.status = vo.status === 'Approved' ? 'Pending' : 'Approved';
     addAudit(c, 'amber', 'Variation ' + vo.code + ' set to ' + vo.status, vo.status === 'Approved' ? 'Now included in revised contract sum and valuation.' : 'Excluded from valuation until approved.');
+    valuationChanged(c, 'Variation ' + vo.code + ' status');
     commit();
   }
 
@@ -887,63 +1174,110 @@
     commit();
   }
 
+  function signStage(key) {
+    const c = activeContractor();
+    if (!c) return;
+    const n = nextStage(c);
+    if (!n || n.key !== key) return;
+    const fin = calc(c);
+    if (!window.confirm(n.label + ': sign ' + c.currentIpcNo + ' for net payment due ' + formatSAR(fin.netPaymentDue) + '?')) return;
+    c.signoffs[key] = todayDMY();
+    syncStatus(c);
+    addAudit(c, 'green', n.label + ' signed for ' + c.currentIpcNo, n.who + ' signed. Net payment due ' + formatSAR(fin.netPaymentDue) + '.');
+    commit();
+    showToast(n.label + ' signed' + (c.approvalStatus === 'Approved' ? ' — certificate approved for payment.' : '.'), 'success');
+  }
+
+  function returnIpc() {
+    const c = activeContractor();
+    if (!c || c.returned || c.approvalStatus === 'Approved') return;
+    const reason = window.prompt('Reason for returning ' + c.currentIpcNo + ' to the contractor:', 'Measurement clarification required');
+    if (reason === null) return;
+    c.returned = { reason: reason || 'No reason given', ts: todayDMY() };
+    c.signoffs = { consultant: null, siteOffice: null, homeOffice: null };
+    syncStatus(c);
+    addAudit(c, 'red', c.currentIpcNo + ' returned with snags', c.returned.reason);
+    commit();
+    showToast(c.currentIpcNo + ' returned to ' + c.companyName, 'warning');
+  }
+
+  function resubmitIpc() {
+    const c = activeContractor();
+    if (!c || !c.returned) return;
+    c.returned = null;
+    syncStatus(c);
+    addAudit(c, 'blue', c.currentIpcNo + ' resubmitted', 'Contractor resubmitted after addressing snags.');
+    commit();
+  }
+
   function newIpcCycle() {
     const c = activeContractor();
     if (!c) return;
     if (c.approvalStatus !== 'Approved') {
-      showToast(c.currentIpcNo + ' must be approved before opening the next cycle (Verification & Approvals tab).', 'warning');
+      showToast(c.currentIpcNo + ' needs all three sign-offs before the next cycle can open (Verification & Approvals tab).', 'warning');
       switchTab('workflow');
       return;
     }
     const fin = calc(c);
     const nextNo = formatIpcNo(parseIpcNo(c.currentIpcNo) + 1);
-    if (!window.confirm('Close ' + c.currentIpcNo + ' (net due ' + formatSAR(fin.finalDuePeriod) + ') and open ' + nextNo + '? Current quantities will be locked as "previous".')) return;
+    if (!window.confirm('Close ' + c.currentIpcNo + ' (net payment due ' + formatSAR(fin.netPaymentDue) + ') and open ' + nextNo + '? Current figures will be locked as "last period".')) return;
 
-    c.history.push({
-      ipcNo: c.currentIpcNo,
-      period: shortMonth(String(c.valuationPeriod).split(' to ')[0]),
-      gross: fin.grossPeriod,
+    c.history.push(historyRow(c.currentIpcNo, shortMonth(String(c.valuationPeriod).split(' to ')[0]), {
+      gross: fin.totalGrossPeriod,
       retention: fin.retentionPeriod,
       advance: fin.advRecoveredPeriod,
-      other: fin.otherDeductionsPeriod,
-      net: fin.netPeriod,
+      other: fin.ld.period + fin.otherDeductionsPeriod + fin.otherPay.period,
+      net: fin.dueExVat,
       vat: fin.vatPeriod,
-      total: fin.finalDuePeriod,
+      postVat: fin.postVatDeduction,
+      total: fin.netPaymentDue,
       status: 'Certified'
-    });
+    }));
     c.boqItems.forEach(function (i) { i.prevQty = num(i.prevQty) + num(i.thisQty); i.thisQty = 0; });
     c.variations.forEach(function (v) { v.prevPct = num(v.progressPct); });
     c.mos.forEach(function (m) { m.prevQty = num(m.qty); });
-    c.otherDeductionsPrev = num(c.otherDeductionsToDate);
+    ADJUSTMENTS.forEach(function (a) { c[a.key + 'Prev'] = num(c[a.key + 'ToDate']); });
+    c.advancePaidPrev = num(c.advancePaidToDate);
+    c.postVatDeduction = 0;
 
     const parts = String(c.valuationPeriod).split(' to ');
+    const wasAdvance = parseIpcNo(c.currentIpcNo) === 0;
     c.valuationPeriod = addMonths(parts[0], 1) + ' to ' + addMonths(parts[1] || parts[0], 1);
     c.issueDate = addMonths(c.issueDate, 1);
+    c.invoiceDate = c.issueDate;
+    c.valuationDate = periodEnd(c);
+    c.taxInvoiceNo = '';
+    c.paymentType = 'Interim Payment';
     c.currentIpcNo = nextNo;
-    c.approvalStatus = 'Under Review';
-    addAudit(c, 'gold', 'New valuation cycle opened: ' + nextNo, 'Previous cumulative quantities locked for ' + c.package + '. Ready for new measurements.');
+    c.signoffs = { consultant: null, siteOffice: null, homeOffice: null };
+    c.returned = null;
+    syncStatus(c);
+    addAudit(c, 'gold', 'New valuation cycle opened: ' + nextNo, 'Previous figures locked for ' + c.package + '. Ready for new measurements.');
     commit();
     switchTab('boq');
-    showToast('Opened ' + nextNo + ' for ' + c.companyName, 'success');
+    showToast('Opened ' + nextNo + ' for ' + c.companyName + (wasAdvance ? ' — first interim valuation.' : ''), 'success');
   }
 
-  function updateApprovalStatus(status) {
+  async function exportExcel() {
     const c = activeContractor();
     if (!c) return;
-    if (status === 'Returned') {
-      const reason = window.prompt('Reason for returning ' + c.currentIpcNo + ' to the contractor:', 'Measurement clarification required');
-      if (reason === null) return;
-      c.approvalStatus = 'Returned';
-      addAudit(c, 'red', c.currentIpcNo + ' returned with snags', reason || 'No reason given.');
-      commit();
-      showToast(c.currentIpcNo + ' returned to ' + c.companyName, 'warning');
-      return;
+    const btn = $('btnExcel');
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = 'Preparing…';
+    try {
+      const model = buildCertificate(state.settings, activeProject(), c, calc(c));
+      const safeRef = String(c.contractRef || c.companyName).replace(/[^A-Za-z0-9_-]+/g, '_');
+      await window.IPCExport.exportCertificate(model, model.sheetName + '_' + safeRef + '.xlsx');
+      addAudit(c, 'blue', 'Excel certificate exported', model.application.ipcNo + ' exported to the official template.');
+      saveState();
+      showToast('Excel certificate downloaded (official template).', 'success');
+    } catch (err) {
+      showToast('Excel export failed: ' + err.message, 'warning');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
     }
-    c.approvalStatus = 'Approved';
-    addAudit(c, 'green', 'Final commercial approval granted for ' + c.currentIpcNo,
-      'Approved by ' + state.approver.name + '. Net payable ' + formatSAR(calc(c).finalDuePeriod) + ' transmitted to Finance & Treasury.');
-    commit();
-    showToast(c.currentIpcNo + ' approved for ' + c.companyName, 'success');
   }
 
   function resetDemo() {
@@ -971,10 +1305,7 @@
     file.text().then(function (txt) {
       const s = JSON.parse(txt);
       if (!isValidState(s)) throw new Error('missing projects');
-      Object.values(s.projects).forEach(function (p) { (p.contractors = p.contractors || []).forEach(normalizeContractor); });
-      if (!s.projects[s.activeProjectKey]) s.activeProjectKey = Object.keys(s.projects)[0];
-      if (!s.approver) s.approver = window.IPC_SEED.approver;
-      state = s;
+      state = normalizeState(s);
       commit();
       showToast('Backup imported', 'success');
     }).catch(function () {
@@ -1021,8 +1352,7 @@
     $('projectSelector').addEventListener('change', function (e) { switchProject(e.target.value); });
     $('contractorSelector').addEventListener('change', function (e) {
       switchContractor(e.target.value);
-      const c = activeContractor();
-      showToast('Active contractor: ' + c.companyName, 'info');
+      showToast('Active contractor: ' + activeContractor().companyName, 'info');
     });
     document.querySelectorAll('.tab-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { switchTab(btn.id.replace('tab-', '')); });
@@ -1038,6 +1368,11 @@
       btnAddContractor: function () { openModal('contractorModal'); },
       btnAddContractorHub: function () { openModal('contractorModal'); },
       btnPrint: printCertificate,
+      btnPrintCert: printCertificate,
+      btnExcel: exportExcel,
+      btnEditDetails: openDetailsModal,
+      btnSettings: openSettingsModal,
+      btnSettingsWf: openSettingsModal,
       btnNewIpc: newIpcCycle,
       btnAddBoq: function () { openModal('boqModal'); },
       btnAddVo: function () { openModal('voModal'); },
@@ -1045,8 +1380,8 @@
       btnResetDemo: resetDemo,
       btnExport: exportData,
       btnImport: function () { $('importFile').click(); },
-      btnApprove: function () { updateApprovalStatus('Approved'); },
-      btnReturn: function () { updateApprovalStatus('Returned'); }
+      btnReturn: returnIpc,
+      btnResubmit: resubmitIpc
     };
     Object.keys(clicks).forEach(function (id) { $(id).addEventListener('click', clicks[id]); });
 
@@ -1055,20 +1390,23 @@
       e.target.value = '';
     });
     $('boqSearch').addEventListener('input', filterBoqTable);
-    $('othPeriodInput').addEventListener('change', function (e) { onOtherDeduction(e.target.value); });
 
     $('contractorForm').addEventListener('submit', handleSaveContractor);
     $('boqForm').addEventListener('submit', handleSaveBoqItem);
     $('voForm').addEventListener('submit', handleSaveVo);
     $('mosForm').addEventListener('submit', handleSaveMos);
+    $('detailsForm').addEventListener('submit', handleSaveDetails);
+    $('settingsForm').addEventListener('submit', handleSaveSettings);
 
     // Delegated handlers for dynamically rendered rows.
     document.addEventListener('change', function (e) {
-      const a = e.target.getAttribute && e.target.getAttribute('data-action');
-      const id = e.target.getAttribute && e.target.getAttribute('data-id');
-      if (a === 'boq-qty') onBoqQty(id, e.target.value);
-      else if (a === 'vo-pct') onVoPct(id, e.target.value);
-      else if (a === 'mos-qty') onMosQty(id, e.target.value);
+      const t = e.target;
+      const a = t.getAttribute && t.getAttribute('data-action');
+      const id = t.getAttribute && t.getAttribute('data-id');
+      if (a === 'boq-qty') onBoqQty(id, t.value);
+      else if (a === 'vo-pct') onVoPct(id, t.value);
+      else if (a === 'mos-qty') onMosQty(id, t.value);
+      else if (a === 'adj') { t.blur(); onAdjustment(t.getAttribute('data-key'), t.value); }
     });
     document.addEventListener('click', function (e) {
       const el = e.target.closest && e.target.closest('[data-action]');
@@ -1083,6 +1421,7 @@
       else if (a === 'mos-del') deleteFrom('mos', id, 'MOS consignment');
       else if (a === 'vo-status') toggleVoStatus(id);
       else if (a === 'hist-paid') markHistoryPaid(parseInt(el.getAttribute('data-idx'), 10));
+      else if (a === 'sign') signStage(el.getAttribute('data-stage'));
       else if (a === 'open-ipc') { switchContractor(id); switchTab('certificate'); }
       else if (a === 'close-modal') closeModal(el.getAttribute('data-target'));
     });

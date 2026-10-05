@@ -45,11 +45,10 @@ test('every period column equals cumulative minus previous (certificate reconcil
     ['advRecoveredCum', 'advRecoveredPrev', 'advRecoveredPeriod'],
     ['totalDedCum', 'totalDedPrev', 'totalDedPeriod'],
     ['netCum', 'netPrev', 'netPeriod'],
-    ['vatCum', 'vatPrev', 'vatPeriod'],
-    ['finalDueCum', 'finalDuePrev', 'finalDuePeriod']
+    ['totalGrossCum', 'totalGrossPrev', 'totalGrossPeriod']
   ];
   pairs.forEach(([c, p, d]) => close(f[d], f[c] - f[p], d));
-  close(f.grossPeriod - f.totalDedPeriod, f.netPeriod, 'A - B = C (period)');
+  close(f.totalGrossPeriod - f.totalDedPeriod, f.netPeriod, 'A - B (period)');
   assert.ok(f.mosPeriodTotal < 0, 'MOS drawdown is negative, not clamped');
 });
 
@@ -82,7 +81,7 @@ test('zero rates are respected, not replaced by defaults', () => {
   const f = IPC.calculateContractorFinancials(contractor({ retentionRate: 0, advanceRecoveryRate: 0, vatRate: 0 }));
   close(f.retentionCum, 0, 'retention');
   close(f.advRecoveredCum, 0, 'advance');
-  close(f.vatCum, 0, 'vat');
+  close(f.vatPeriod, 0, 'vat');
 });
 
 test('amount in words', () => {
@@ -104,4 +103,56 @@ test('IPC numbering and date helpers', () => {
   assert.equal(IPC.monthsBetween('15 Jan 2025', '15 Jul 2027'), 30);
   assert.equal(IPC.formatDeduction(100), '(SAR 100.00)');
   assert.equal(IPC.formatDeduction(-100), 'SAR 100.00');
+});
+
+/* ---------- Official template payment chain (A − B − C + VAT − 13.1) ---------- */
+
+test('due this period = (A − B) − C, VAT on it, then post-VAT deduction', () => {
+  const f = IPC.calculateContractorFinancials(contractor({ postVatDeduction: 1000 }));
+  // Advance paid via IPC-00 (in both last and cumulative) cancels out of this period's due.
+  close(f.advPaid.cum, 100000, 'line 04 cumulative');
+  close(f.totalGrossCum, 150000 + 100000, 'A');
+  close(f.previousIpcPayments, f.netPrev, 'line 10 = previous net certified');
+  close(f.dueExVat, f.netPeriod, 'due ex-VAT');
+  close(f.vatPeriod, f.dueExVat * 0.15, 'VAT on due');
+  close(f.paymentDue, f.dueExVat * 1.15, 'payment due');
+  close(f.netPaymentDue, f.paymentDue - 1000, 'net payment due after 13.1');
+});
+
+test('IPC-00 advance certificate pays the advance plus VAT', () => {
+  const f = IPC.calculateContractorFinancials(contractor({
+    boqItems: [{ rate: 1000, contractQty: 1000, prevQty: 0, thisQty: 0 }],
+    advancePaidPrev: 0, advancePaidToDate: 100000
+  }));
+  close(f.totalGrossPeriod, 100000, 'gross = advance');
+  close(f.advRecoveredCum, 0, 'nothing to recover yet');
+  close(f.netPaymentDue, 115000, 'advance + VAT');
+});
+
+test('advance recovery is capped at the advance actually paid', () => {
+  const f = IPC.calculateContractorFinancials(contractor({ advancePaidPrev: 0, advancePaidToDate: 5000 }));
+  close(f.advRecoveredCum, 5000, 'capped at paid');
+});
+
+test('other payments made outside IPCs reduce what is due', () => {
+  const f = IPC.calculateContractorFinancials(contractor({ otherPaymentsPrev: 2000, otherPaymentsToDate: 7000 }));
+  close(f.totalPaymentsToDate, f.previousIpcPayments + 7000, 'C');
+  close(f.dueExVat, f.netPeriod - 5000, 'only this period\'s other payments reduce the due');
+});
+
+test('VAT adjustment is paid but not taxed again', () => {
+  const base = IPC.calculateContractorFinancials(contractor());
+  const f = IPC.calculateContractorFinancials(contractor({ vatAdjustmentPrev: 0, vatAdjustmentToDate: 300 }));
+  close(f.dueExVat, base.dueExVat + 300, 'adjustment included in due');
+  close(f.vatPeriod, base.vatPeriod, 'no VAT on the VAT adjustment');
+});
+
+test('retention release, reimbursables and liquidated damages flow through A and B', () => {
+  const base = IPC.calculateContractorFinancials(contractor());
+  const f = IPC.calculateContractorFinancials(contractor({
+    retentionReleasedToDate: 4000, reimbursablesToDate: 1000, liquidatedDamagesToDate: 2500
+  }));
+  close(f.totalGrossPeriod, base.totalGrossPeriod + 5000, 'A');
+  close(f.totalDedPeriod, base.totalDedPeriod + 2500, 'B');
+  close(f.dueExVat, base.dueExVat + 2500, 'due');
 });
