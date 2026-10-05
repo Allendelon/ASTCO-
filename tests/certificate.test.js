@@ -28,6 +28,7 @@ test('certificate lines follow the template rows and reconcile', () => {
   for (const l of m.lines) if (l.last != null && l.this != null) assert.ok(Math.abs(l.last + l.this - l.cum) < 0.005, 'row ' + l.row);
   assert.ok(Math.abs(byRow[31].cum - byRow[36].cum - byRow[39].cum - fin.dueExVat) < 0.005, 'A − B − C = due ex-VAT');
   assert.equal(m.application.ipcNo, 'IPC 07');
+  assert.equal(m.contract.scope, 'Test Project – Civil Works', 'project name carried in Contract Name/Scope');
   assert.equal(m.application.periodOfValuation, 'September-2026');
   assert.equal(m.signatures.consultant[3].name, 'Eng. D');
   assert.equal(m.signatures.consultant[0].date, '29 Sep 2026');

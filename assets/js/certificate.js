@@ -106,7 +106,8 @@
       contract: {
         contractorName: c.companyName,
         contractNumber: c.contractRef,
-        scope: c.package,
+        // The template has no project-name field; "Contract Name/Scope" carries both.
+        scope: project.name ? project.name + ' – ' + c.package : c.package,
         contractType: c.contractType || '',
         originalSum: num(c.originalContractSum),
         approvedVOs: fin.voApprovedTotal,

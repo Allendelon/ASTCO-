@@ -102,7 +102,7 @@ assets/js/export-xlsx.js  fills the Excel template (ExcelJS)
 assets/templates/     cleaned official template (.xlsx) + base64 copy used by the browser
 assets/vendor/        ExcelJS 4.4.0 browser build
 tools/                template cleaning / embedding scripts
-assets/js/data.js     demo seed data (5 projects, 10 contractor packages)
+assets/js/data.js     demo seed data (5 projects incl. Crystal Gallery Mall, the default; 10 contractor packages)
 assets/js/app.js      state, persistence, rendering, actions
 tests/                node:test unit tests (calc, certificate, Excel export)
 ```

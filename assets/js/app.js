@@ -255,8 +255,18 @@
     p.contractors.forEach(normalizeContractor);
   }
 
+  // Seed project names retired in later releases: saved data is renamed once and opened on that project.
+  const RENAMED_PROJECTS = { p4: { from: 'ASCTO Riyadh Avenue Mega Mall & FEC - Riyadh', to: 'Crystal Gallery Mall' } };
+
   function normalizeState(s) {
     s.version = 2;
+    Object.keys(RENAMED_PROJECTS).forEach(function (key) {
+      const r = RENAMED_PROJECTS[key];
+      if (s.projects[key] && s.projects[key].name === r.from) {
+        s.projects[key].name = r.to;
+        s.activeProjectKey = key;
+      }
+    });
     const d = defaultSettings();
     s.settings = s.settings || {};
     s.settings.employerName = s.settings.employerName || d.employerName;
@@ -270,7 +280,8 @@
 
   function freshState() {
     const seed = JSON.parse(JSON.stringify(window.IPC_SEED));
-    return normalizeState({ projects: seed.projects, activeProjectKey: Object.keys(seed.projects)[0] });
+    const first = seed.projects[seed.defaultProject] ? seed.defaultProject : Object.keys(seed.projects)[0];
+    return normalizeState({ projects: seed.projects, activeProjectKey: first });
   }
 
   function isValidState(s) {

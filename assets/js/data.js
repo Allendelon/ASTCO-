@@ -5,6 +5,8 @@
  * that the ledger always sums to the "Previous Certified" column.
  */
 window.IPC_SEED = {
+  // Project the app opens on for a new viewer (and after Reset Demo).
+  defaultProject: 'p4',
   approver: { name: 'Eng. Abdullah Al-Otaibi', role: 'Director of Commercial Operations' },
   projects: {
     p1: {
@@ -247,7 +249,7 @@ window.IPC_SEED = {
     },
     p4: {
       id: 'p4',
-      name: 'ASCTO Riyadh Avenue Mega Mall & FEC - Riyadh',
+      name: 'Crystal Gallery Mall',
       sector: 'Malls & Retail',
       client: 'ASCTO Commercial & Retail REIT',
       consultant: 'CallisonRTKL Architects & Engineers',
