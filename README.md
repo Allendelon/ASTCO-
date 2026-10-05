@@ -12,7 +12,8 @@ The earlier project-controls modules (Control Tower, MTO, TBE/CBE, Expediting, L
 ## Requirements
 
 - Node.js **22.13 or newer** (uses the built-in `node:sqlite`, `node:http`, `node:crypto` and `node:test` modules).
-- **No npm dependencies.** The browser pages load Tailwind (Play CDN), Phosphor Icons, Google Fonts and Chart.js from public CDNs.
+- **No runtime npm dependencies.** Tailwind CSS, Phosphor Icons and Chart.js are pre-built into `public/vendor/` and committed, so the server does not depend on CDNs. Google Fonts is the only external request; if it fails, the pages fall back to system fonts.
+- If you change Tailwind classes in `public/`, rebuild the assets: `npm install && npm run build:assets` (dev dependencies: tailwindcss 3.4.19, @phosphor-icons/web 2.1.1, chart.js 4.5.1).
 
 ## Quick start
 
@@ -36,7 +37,37 @@ npm run seed-demo     # prints demo logins (manager, staff, 4 vendors)
 | `PORT` | `3000` | HTTP port |
 | `HOST` | `0.0.0.0` | Bind address |
 | `DB_FILE` | `data/astco.db` | SQLite database file |
-| `COOKIE_SECURE` | unset | Set to `1` when served over HTTPS (required in production) |
+| `COOKIE_SECURE` | unset | Set to `1` when served over HTTPS (required in production). Also enables HSTS |
+| `TRUST_PROXY` | unset | Set to `1` behind a reverse proxy or PaaS, so rate limits use the real client IP from `X-Forwarded-For` |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | unset | Creates the first administrator on startup, but only while the database has no users. Remove `ADMIN_PASSWORD` afterwards |
+| `DROP_PRIVILEGES_TO` | unset (`node` in Docker) | If started as root, hand the data directory to the app user and switch to it before opening the database |
+
+## Deployment
+
+The app is one Node process plus one SQLite file. It needs a host that can run a container **with a persistent disk**. Without one, every redeploy wipes all vendors, RFQs and quotes.
+
+### Docker (any VPS or container host)
+
+```bash
+docker build -t astco-procurement .
+docker run -d --name astco -p 3000:3000 -v astco-data:/data \
+  -e ADMIN_EMAIL=you@astco.com -e ADMIN_PASSWORD='choose-a-strong-one-123' \
+  astco-procurement
+```
+
+The image already sets `COOKIE_SECURE=1`, `TRUST_PROXY=1` and `DB_FILE=/data/astco.db`, so it **must be served over HTTPS**: put it behind a TLS-terminating proxy such as Caddy, nginx or the platform's load balancer. Over plain HTTP, browsers will not keep the session cookie and login will appear to do nothing. The container starts as root only long enough to fix ownership of `/data`, then runs as the unprivileged `node` user. Health check: `GET /healthz`.
+
+### Render (Blueprint included)
+
+1. In Render: **New → Blueprint**, then connect this GitHub repository. Render reads `render.yaml`.
+2. When prompted, set `ADMIN_EMAIL`, `ADMIN_PASSWORD` (at least 10 characters, with letters and numbers) and optionally `ADMIN_NAME`.
+3. After the first successful deploy, sign in, then delete `ADMIN_PASSWORD` from the service's environment.
+
+The blueprint uses the `starter` plan because persistent disks are not available on Render's free tier.
+
+### Backups
+
+Copy `/data/astco.db` together with its `-wal` and `-shm` files while the app is stopped, or use `sqlite3 astco.db ".backup backup.db"` while it is running.
 
 ## How vendor matching works
 
@@ -74,8 +105,7 @@ A vendor "supplies" a category if it declared it, or if it lists an active produ
 
 ## Before going to production
 
-- **Serve over HTTPS** and set `COOKIE_SECURE=1`.
-- **Replace the Tailwind Play CDN** with a compiled stylesheet. Tailwind does not support the Play CDN for production, and if the CDN is unreachable the pages render unstyled.
+- **Serve over HTTPS** and set `COOKIE_SECURE=1` (the Docker image sets it already).
 - **Add email delivery** for invitations and RFQ notifications. Today, links are copied by hand and vendors see new RFQs when they sign in.
 - `node:sqlite` is still flagged experimental in Node 22. Back up `data/astco.db`; WAL mode is enabled.
 

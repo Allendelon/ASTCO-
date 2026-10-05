@@ -1,5 +1,7 @@
-// Tailwind CDN theme shared by every page (loaded right after cdn.tailwindcss.com).
-if (window.tailwind) tailwind.config = {
+// Tailwind v3 build config. Compiled output is committed to public/vendor/tailwind.css,
+// so the server needs no build step at runtime. Rebuild with: npm run build:assets
+module.exports = {
+  content: ['./public/**/*.html', './public/js/**/*.js'],
   darkMode: 'class',
   theme: {
     extend: {

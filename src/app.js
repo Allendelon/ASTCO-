@@ -22,6 +22,8 @@ const MIME = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.json': 'application/json',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
 };
 
 class HttpError extends Error {
@@ -133,6 +135,17 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'no-referrer',
   'Cross-Origin-Opener-Policy': 'same-origin',
 };
+
+// Behind a reverse proxy (Render, Fly, nginx...) every request arrives from the proxy's IP.
+// With TRUST_PROXY=1 the client IP is taken from the first X-Forwarded-For entry instead.
+// That value is client-supplied, so it only feeds rate limiting, never authorisation.
+function clientIp(req, trustProxy) {
+  if (trustProxy) {
+    const xff = req.headers['x-forwarded-for'];
+    if (typeof xff === 'string' && xff.trim()) return xff.split(',')[0].trim();
+  }
+  return req.socket.remoteAddress || 'unknown';
+}
 
 function sendJson(res, status, data, extraHeaders = {}) {
   const body = JSON.stringify(data);
@@ -247,6 +260,7 @@ function quotesVisible(rfq) {
 // ---------- routes ----------
 function buildRoutes(db, opts) {
   const loginLimiter = new auth.RateLimiter(10, 15 * 60 * 1000);
+  const registerLimiter = new auth.RateLimiter(20, 15 * 60 * 1000);
   const routes = [];
   const add = (method, pattern, roles, handler) => {
     const keys = [];
@@ -254,11 +268,16 @@ function buildRoutes(db, opts) {
     routes.push({ method, re, keys, roles, handler });
   };
 
+  add('GET', '/healthz', null, () => {
+    db.prepare('SELECT 1').get();
+    return { ok: true };
+  });
+
   // ----- auth -----
   add('POST', '/api/auth/login', null, async ({ body, req, res }) => {
     const em = email(body, 'email');
     const pw = str(body, 'password', { required: true, max: 200 });
-    const key = `${req.socket.remoteAddress}|${em}`;
+    const key = `${clientIp(req, opts.trustProxy)}|${em}`;
     if (!loginLimiter.hit(key)) throw new HttpError(429, 'Too many login attempts. Try again in 15 minutes.');
     const user = db.prepare(`SELECT u.*, v.status AS vendor_status FROM users u LEFT JOIN vendors v ON v.id = u.vendor_id
                              WHERE u.email = ?`).get(em);
@@ -286,7 +305,7 @@ function buildRoutes(db, opts) {
   });
 
   add('POST', '/api/auth/register', null, async ({ body, req, res }) => {
-    if (!loginLimiter.hit(`register|${req.socket.remoteAddress}`)) throw new HttpError(429, 'Too many attempts.');
+    if (!registerLimiter.hit(clientIp(req, opts.trustProxy))) throw new HttpError(429, 'Too many attempts. Try again later.');
     const inv = findUsableInvite(db, str(body, 'token', { required: true, max: 100 }));
     const fullName = str(body, 'full_name', { required: true, max: 120 });
     const pw = str(body, 'password', { required: true, max: 200 });
@@ -727,13 +746,14 @@ function vendorRfqStatus(r) {
 
 // ---------- app factory ----------
 function createApp(db, opts = {}) {
-  const routes = buildRoutes(db, { secureCookies: !!opts.secureCookies });
+  const routes = buildRoutes(db, { secureCookies: !!opts.secureCookies, trustProxy: !!opts.trustProxy });
+  if (opts.secureCookies) SECURITY_HEADERS['Strict-Transport-Security'] = 'max-age=31536000';
 
   return async function handler(req, res) {
     const url = new URL(req.url, 'http://localhost');
     const pathname = url.pathname;
     try {
-      if (!pathname.startsWith('/api/')) {
+      if (!pathname.startsWith('/api/') && pathname !== '/healthz') {
         if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Method not allowed.');
         return serveStatic(req, res, pathname);
       }

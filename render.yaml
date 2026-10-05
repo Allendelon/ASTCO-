@@ -1,0 +1,20 @@
+# Render Blueprint: New → Blueprint → select this repo.
+# A persistent disk requires a paid instance type; without it the SQLite database
+# is wiped on every deploy/restart.
+services:
+  - type: web
+    name: astco-procurement
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: astco-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        sync: false

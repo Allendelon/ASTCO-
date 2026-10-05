@@ -11,6 +11,12 @@
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
     "create-admin": "node --disable-warning=ExperimentalWarning scripts/create-admin.js",
     "seed-demo": "node --disable-warning=ExperimentalWarning scripts/seed-demo.js",
-    "test": "node --disable-warning=ExperimentalWarning --test"
+    "test": "node --disable-warning=ExperimentalWarning --test",
+    "build:assets": "node scripts/build-assets.js"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.19",
+    "@phosphor-icons/web": "2.1.1",
+    "chart.js": "4.5.1"
   }
 }

@@ -188,3 +188,9 @@ test('static files cannot escape the public directory', async () => {
     assert.equal(status, 404, p);
   }
 });
+
+test('health check responds without authentication', async () => {
+  const res = await new Client().get('/healthz');
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.data, { ok: true });
+});
