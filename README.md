@@ -13,6 +13,17 @@ npm test             # node:test, no dependencies (Node 18+)
 
 Opening `index.html` from disk also works. External requests: Chart.js **4.4.0** UMD from jsDelivr and Google Fonts. If Chart.js cannot load, the page says so and every figure and table still renders.
 
+## Hosted page
+
+Published at https://claude.ai/artifact/JtLDcv4Fh3SKYc69kU3zCv (private until shared from the page's Share menu).
+
+`node tools/build-artifact.js` writes `dist/midad-executive-suite.html`, a single file in the Artifact format (CSS and scripts inlined, Chart.js from jsDelivr). Differences from the local build, because the viewer's sandbox blocks them:
+
+- No Print / Save PDF buttons (`window.print()` does nothing there). The board report is read on screen; print from a local copy.
+- CSV and JSON exports go through the viewer's save prompt (`downloads` capability).
+- Confirmations are in-page (click twice), since `confirm()` is suppressed.
+- Imports, recorded commitments and app URLs stay in each viewer's own browser. They are not shared between viewers.
+
 ## Views
 
 | View | For | What it answers |

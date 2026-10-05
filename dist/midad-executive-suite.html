@@ -1,0 +1,2374 @@
+<title>Midad Executive Suite</title>
+<style>
+/* Midad Executive Suite — design tokens + layout. No build step. */
+:root {
+  color-scheme: light;
+  --page: #f6f7f9; --surface: #ffffff; --surface-2: #f3f4f6; --border: #e3e5e8; --border-strong: #c9cdd3;
+  --ink: #0f172a; --ink-2: #475569; --muted: #7b8494;
+  --accent: #0369a1; --accent-ink: #ffffff; --accent-soft: #e0f2fe;
+  --grid: #e8e8e4; --axis: #c3c2b7;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s-base: #898781;
+  --good: #0ca30c; --warn: #fab219; --crit: #d03b3b; --good-ink: #006300; --crit-ink: #b42323; --warn-ink: #8a5a00;
+  --good-soft: #e8f6e8; --warn-soft: #fff4dc; --crit-soft: #fbe9e9;
+  --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 1px 1px rgba(15, 23, 42, .03);
+  --radius: 14px;
+  --sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0b0d10; --surface: #16181b; --surface-2: #1d2024; --border: #2a2d32; --border-strong: #3a3e45;
+    --ink: #f4f5f7; --ink-2: #c3c7cf; --muted: #8b919b;
+    --accent: #38bdf8; --accent-ink: #082f49; --accent-soft: #0c2a3d;
+    --grid: #2c2c2a; --axis: #383835;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s-base: #8b8a85;
+    --good-ink: #3ccf3c; --crit-ink: #f07a7a; --warn-ink: #fab219;
+    --good-soft: #10261a; --warn-soft: #2a2110; --crit-soft: #2c1414;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0b0d10; --surface: #16181b; --surface-2: #1d2024; --border: #2a2d32; --border-strong: #3a3e45;
+  --ink: #f4f5f7; --ink-2: #c3c7cf; --muted: #8b919b;
+  --accent: #38bdf8; --accent-ink: #082f49; --accent-soft: #0c2a3d;
+  --grid: #2c2c2a; --axis: #383835;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s-base: #8b8a85;
+  --good-ink: #3ccf3c; --crit-ink: #f07a7a; --warn-ink: #fab219;
+  --good-soft: #10261a; --warn-soft: #2a2110; --crit-soft: #2c1414;
+  --shadow: none;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--ink); font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); } .ink2 { color: var(--ink-2); }
+.hidden { display: none !important; }
+
+/* Header */
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+.topbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #075985, #0284c7 55%, #22d3ee); display: grid; place-items: center; color: #fff; }
+.brand-name { font-weight: 800; letter-spacing: -.01em; }
+.brand-name span { color: var(--accent); }
+.brand-sub { font: 600 10px/1 var(--mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-top: 3px; }
+.actions { display: flex; align-items: center; gap: 8px; }
+.period { font: 600 12px var(--mono); padding: 6px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); white-space: nowrap; }
+.btn { text-decoration: none; border: 1px solid var(--border); background: var(--surface); padding: 7px 12px; border-radius: 9px; font-weight: 600; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { background: var(--surface-2); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
+.btn-icon { padding: 7px; }
+.btn:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.tab { border: 0; background: none; padding: 11px 12px; font-weight: 600; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+
+main { padding: 24px 0 48px; }
+.view { display: grid; gap: 20px; }
+.view-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+h1 { font-size: 22px; line-height: 1.2; margin: 0; letter-spacing: -.02em; }
+h2 { font-size: 15px; margin: 0; letter-spacing: -.01em; }
+h3 { font-size: 13px; margin: 0; }
+.lede { margin: 4px 0 0; color: var(--ink-2); font-size: 13px; max-width: 72ch; }
+
+/* Cards & grids */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; min-width: 0; }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.card-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.card.flush { padding: 0; overflow: hidden; }
+.card.flush .card-head { padding: 16px 18px 0; }
+.grid { display: grid; gap: 16px; }
+.g-kpi { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.g-2-1 { grid-template-columns: 2fr 1fr; }
+.g-1-1 { grid-template-columns: 1fr 1fr; }
+.g-3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 980px) { .g-2-1, .g-1-1, .g-3 { grid-template-columns: 1fr; } }
+
+/* KPI tiles */
+.kpi .label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.kpi .value { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin-top: 6px; line-height: 1.1; }
+.kpi .foot { font-size: 12px; color: var(--ink-2); margin-top: 8px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.delta-good { color: var(--good-ink); font-weight: 700; }
+.delta-bad { color: var(--crit-ink); font-weight: 700; }
+.delta-warn { color: var(--warn-ink); font-weight: 700; }
+
+/* RAG chips: colour + glyph + word, never colour alone */
+.rag { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+.rag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.rag-G { color: var(--good-ink); background: var(--good-soft); }
+.rag-G::before { background: var(--good); }
+.rag-A { color: var(--warn-ink); background: var(--warn-soft); }
+.rag-A::before { background: var(--warn); border-radius: 2px; transform: rotate(45deg); }
+.rag-R { color: var(--crit-ink); background: var(--crit-soft); }
+.rag-R::before { background: var(--crit); border-radius: 1px; }
+.pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border); white-space: nowrap; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface-2); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+tfoot td { font-weight: 800; background: var(--surface-2); border-top: 1px solid var(--border-strong); border-bottom: 0; }
+td.r, th.r { text-align: right; } td.c, th.c { text-align: center; }
+td.num, td .num { white-space: nowrap; }
+tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--surface-2); }
+.link { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Decision list */
+.decisions { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+@media (max-width: 640px) { .decisions { grid-template-columns: 1fr; } }
+.decision { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.decision .what { font-weight: 700; font-size: 13px; }
+.decision .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.decision .ask { font-size: 12px; margin-top: 4px; color: var(--ink-2); }
+.decision .ask b { color: var(--ink); }
+
+/* Charts */
+.chart { position: relative; height: 300px; }
+.chart.sm { height: 220px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--ink-2); margin-top: 10px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend i.dash { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px) !important; height: 2px; }
+.legend i.box { width: 10px; height: 10px; border-radius: 3px; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 2px; }
+.seg button { border: 0; background: none; padding: 5px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+
+/* Meter (contingency) */
+.meter { height: 14px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border); display: flex; overflow: hidden; gap: 2px; }
+.meter > span { display: block; height: 100%; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 13px; margin-top: 14px; }
+.kv .total { font-weight: 800; padding-top: 6px; border-top: 1px solid var(--border); }
+
+/* Forms / controls */
+.field label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 5px; color: var(--ink-2); }
+.field input, .field select, .select, .search { width: 100%; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); }
+.select { width: auto; font-weight: 600; }
+.search { width: 260px; max-width: 100%; }
+.slider { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.slider-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; }
+.slider input { width: 100%; margin-top: 10px; accent-color: var(--accent); }
+.slider p { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-grid .full { grid-column: 1 / -1; }
+.error { color: var(--crit-ink); font-size: 12px; margin-top: 4px; min-height: 1em; }
+.hint { font-size: 12px; color: var(--muted); }
+
+/* Callouts */
+.note { font-size: 12px; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.note.warn { background: var(--warn-soft); border-color: transparent; }
+.note.ok { background: var(--good-soft); border-color: transparent; }
+details.method summary { cursor: pointer; font-weight: 700; font-size: 13px; }
+details.method ul { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--ink-2); }
+details.method li { margin: 4px 0; }
+
+/* Modal */
+.modal { position: fixed; inset: 0; z-index: 50; background: rgba(2, 6, 23, .55); display: grid; place-items: center; padding: 16px; }
+.modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 560px; max-height: calc(100vh - 32px); overflow: auto; }
+.modal-head, .modal-foot { padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--surface-2); }
+.modal-head { border-bottom: 1px solid var(--border); } .modal-foot { border-top: 1px solid var(--border); justify-content: flex-end; }
+.modal-body { padding: 18px; }
+
+/* Toast */
+.toasts { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: grid; gap: 8px; }
+.toast { background: #0f172a; color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.25); transition: opacity .25s; max-width: 360px; }
+
+/* Board report */
+.report { max-width: 900px; margin: 0 auto; width: 100%; }
+.report h1 { font-size: 24px; }
+.report section { margin-top: 22px; }
+.report p { margin: 6px 0; color: var(--ink-2); }
+.report .proj { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px; }
+
+@media (max-width: 640px) {
+  .period, .hide-sm { display: none; }
+  .kpi .value { font-size: 20px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .search { width: 100%; }
+}
+
+@media print {
+  @page { size: A4; margin: 14mm; }
+  :root { color-scheme: light; }
+  body { background: #fff; color: #000; font-size: 11px; }
+  .topbar, .toasts, .no-print, .modal { display: none !important; }
+  main { padding: 0; }
+  .card { box-shadow: none; break-inside: avoid; }
+  .report .proj { break-inside: avoid; }
+  body.print-modal > *:not(#statement-modal) { display: none !important; }
+  body.print-modal #statement-modal { display: block !important; position: static; background: none; padding: 0; }
+  body.print-modal .modal-foot { display: none; }
+}
+
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    // Apply the saved theme before first paint to avoid a flash.
+    try { const t = localStorage.getItem('midad-exec/theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  </script>
+<script>window.MIDAD_HOSTED = true;</script>
+<header class="topbar">
+    <div class="wrap">
+      <div class="topbar-row">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 20V13M10 20V8M16 20V4M22 20H2"/></svg>
+          </div>
+          <div>
+            <div class="brand-name">Midad <span>Executive Suite</span></div>
+            <div class="brand-sub">Capital portfolio · senior management</div>
+          </div>
+        </div>
+        <div class="actions">
+          <span class="period" id="period-label">Period —</span>
+          <button class="btn btn-icon" id="theme-btn" type="button" title="Switch light / dark" aria-label="Switch light or dark theme">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 15A9.75 9.75 0 019 2.25 9.75 9.75 0 1021.75 15z"/></svg>
+          </button>
+          <button class="btn btn-primary" id="boardpack-btn" type="button">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V3h12v6M6 18H4a1 1 0 01-1-1v-6a2 2 0 012-2h14a2 2 0 012 2v6a1 1 0 01-1 1h-2M7 14h10v7H7z"/></svg>
+            <span class="hide-sm">Board pack</span>
+          </button>
+        </div>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Views">
+        <button class="tab" role="tab" data-view="portfolio" aria-selected="true">Portfolio</button>
+        <button class="tab" role="tab" data-view="project" aria-selected="false">Project review</button>
+        <button class="tab" role="tab" data-view="risk" aria-selected="false">Risk &amp; scenarios</button>
+        <button class="tab" role="tab" data-view="apps" aria-selected="false">Connected apps</button>
+        <button class="tab" role="tab" data-view="report" aria-selected="false">Board report</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="view-portfolio" class="view" aria-label="Portfolio"></section>
+    <section id="view-project" class="view hidden" aria-label="Project review"></section>
+    <section id="view-risk" class="view hidden" aria-label="Risk and scenarios"></section>
+    <section id="view-apps" class="view hidden" aria-label="Connected apps"></section>
+    <section id="view-report" class="view hidden" aria-label="Board report"></section>
+  </main>
+
+  <!-- Record commitment -->
+  <div id="commit-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="commit-title">
+    <form class="modal-box" id="commit-form" novalidate>
+      <div class="modal-head">
+        <div><h2 id="commit-title">Record commitment</h2><div class="card-sub" id="commit-sub"></div></div>
+        <button class="btn btn-icon" type="button" data-close="commit-modal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body form-grid">
+        <div class="field full"><label for="f-title">Contract title</label><input id="f-title" required maxlength="120" placeholder="e.g. Structural steel supply"></div>
+        <div class="field"><label for="f-vendor">Contractor / vendor</label><input id="f-vendor" required maxlength="80"></div>
+        <div class="field"><label for="f-pkg">Cost package</label><select id="f-pkg"></select></div>
+        <div class="field"><label for="f-value">Contract value (SAR)</label><input id="f-value" type="number" min="1" step="1000" required inputmode="numeric"></div>
+        <div class="field"><label for="f-cert">Certified to date (SAR)</label><input id="f-cert" type="number" min="0" step="1000" value="0" inputmode="numeric"></div>
+        <div class="field"><label for="f-status">Status</label>
+          <select id="f-status"><option>Active</option><option>Under Review</option></select></div>
+        <div class="full hint" id="f-impact"></div>
+        <div class="full error" id="f-error" role="alert"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close="commit-modal">Cancel</button>
+        <button class="btn btn-primary" type="submit">Save commitment</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Commitment statement -->
+  <div id="statement-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="statement-title">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div><h2 id="statement-title">Commitment statement</h2><div class="card-sub">Generated from the cost ledger</div></div>
+        <button class="btn btn-icon" type="button" data-close="statement-modal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body" id="statement-body"></div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close="statement-modal">Close</button>
+        <button class="btn btn-primary" type="button" id="statement-print">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script>
+/*
+ * Midad Executive Suite — portfolio dataset.
+ * All money values are SAR millions. Illustrative data for demonstration.
+ *
+ * Model rules (enforced by engine.integrityChecks):
+ *   Σ package.budget + (contingency.original − contingency.drawn) = bac
+ *   Σ monthlyBaseline = bac
+ *   Σ monthlyActual   = Σ commitment.certified   (gross certified cost to date)
+ *   package.budget is the *current* budget: original allocation plus approved
+ *   transfers from contingency (contingency.drawn).
+ *   package.pct / planPct are physical % complete (actual / planned at data date).
+ *   Risk impacts are unmitigated and NOT included in package EAC.
+ */
+(function (root) {
+  const DATA = {
+    reportingPeriod: '2026-09',
+    retentionRate: 0.05,
+    projects: [
+      {
+        id: 'p1', code: 'JWT', name: 'Jeddah Waterfront Towers', sector: 'Mixed-use real estate',
+        sponsor: 'Real Estate Development', pm: 'PMO — Western Region',
+        bac: 142.5, start: '2026-04', debtShare: 0.6, prelimPerMonth: 0.32,
+        contingency: { original: 10.0, drawn: 3.6 },
+        packages: [
+          { code: 'SUB', name: 'Substructure & Foundations', budget: 25.0, eac: 25.0, pct: 0.98, planPct: 1.00 },
+          { code: 'SUP', name: 'Superstructure Frame', budget: 49.2, eac: 49.9, pct: 0.50, planPct: 0.55 },
+          { code: 'MEP', name: 'MEP Infrastructure', budget: 33.2, eac: 34.1, pct: 0.16, planPct: 0.20 },
+          { code: 'FAC', name: 'Facade & Curtain Wall', budget: 19.5, eac: 19.62, pct: 0.20, planPct: 0.22 },
+          { code: 'PMO', name: 'Consultants & PMO', budget: 9.2, eac: 9.4, pct: 0.62, planPct: 0.60 }
+        ],
+        commitments: [
+          { id: 'C-101', title: 'Deep Piling & Dewatering Works', vendor: 'Bauer Foundations', pkg: 'SUB', original: 24.5, variations: 0.45, certified: 24.1, status: 'Active' },
+          { id: 'C-102', title: 'Core & Slab Reinforced Concrete', vendor: 'Arabian Construction Co', pkg: 'SUP', original: 48.0, variations: 0.9, certified: 22.4, status: 'Active' },
+          { id: 'C-103', title: 'HVAC & High Voltage Package', vendor: 'Drake & Scull Tech', pkg: 'MEP', original: 21.5, variations: 0.12, certified: 4.8, status: 'Under Review' },
+          { id: 'C-104', title: 'Double-Glazed Facade Cladding', vendor: 'Schüco Gulf Solutions', pkg: 'FAC', original: 14.24, variations: 0, certified: 3.52, status: 'Active' },
+          { id: 'C-105', title: 'Engineer & PMO Services', vendor: 'Gulf PMO Consultants', pkg: 'PMO', original: 9.0, variations: 0, certified: 5.4, status: 'Active' }
+        ],
+        risks: [
+          { id: 'R-14', title: 'Piling obstruction & geotechnical variance (CO #14)', owner: 'Package Manager — Civil', p: 0.60, min: 0.5, ml: 0.85, max: 1.4, delayWeeks: 2, mitigation: 'Pre-drilling probe programme; agree rate with Bauer before mobilisation' },
+          { id: 'R-09', title: 'Curtain wall unit supply-chain delay', owner: 'Procurement Lead', p: 0.35, min: 0.3, ml: 0.8, max: 1.8, delayWeeks: 6, mitigation: 'Second-source glass; expedite shop drawings' },
+          { id: 'R-11', title: 'MEP balance tender escalation (SAR 11.7M uncommitted)', owner: 'Commercial Manager', p: 0.50, min: 0.4, ml: 1.0, max: 2.2, delayWeeks: 0, mitigation: 'Award before Q1-27 copper price review' }
+        ],
+        monthlyBaseline: [2.4, 4.6, 7.3, 10.9, 14.1, 15.6, 15.1, 13.6, 12.2, 10.7, 9.3, 7.8, 6.3, 4.4, 3.4, 2.0, 1.6, 1.2],
+        monthlyActual: [2.6, 5.0, 8.6, 12.6, 15.2, 16.22]
+      },
+      {
+        id: 'p2', code: 'ANL', name: 'Al-Narjis Logistics Park', sector: 'Industrial & logistics',
+        sponsor: 'Logistics Ventures', pm: 'PMO — Central Region',
+        bac: 68.0, start: '2026-05', debtShare: 0.6, prelimPerMonth: 0.15,
+        contingency: { original: 5.0, drawn: 1.2 },
+        packages: [
+          { code: 'GRD', name: 'Grading & Heavy Paving', budget: 18.2, eac: 18.2, pct: 0.95, planPct: 0.95 },
+          { code: 'STL', name: 'Pre-Engineered Steel Frames', budget: 26.4, eac: 26.8, pct: 0.48, planPct: 0.52 },
+          { code: 'CLD', name: 'Cold Storage & MEP', budget: 15.6, eac: 16.4, pct: 0.22, planPct: 0.30 },
+          { code: 'EXT', name: 'External Works & Utilities', budget: 4.0, eac: 4.0, pct: 0.05, planPct: 0.10 }
+        ],
+        commitments: [
+          { id: 'L-201', title: 'Industrial Flooring & Civil Works', vendor: 'Al-Latifia Trading & Contracting', pkg: 'GRD', original: 18.0, variations: 0.2, certified: 17.2, status: 'Active' },
+          { id: 'L-202', title: 'Structural Steel Portals & Roofing', vendor: 'Zamil Steel Structures', pkg: 'STL', original: 26.0, variations: 0.4, certified: 12.4, status: 'Active' },
+          { id: 'L-203', title: 'Cold Store Refrigeration & MEP', vendor: 'Arctic Gulf MEP', pkg: 'CLD', original: 11.0, variations: 0, certified: 3.4, status: 'Under Review' }
+        ],
+        risks: [
+          { id: 'R-03', title: 'Refrigeration plant lead time', owner: 'Package Manager — MEP', p: 0.45, min: 0.3, ml: 0.6, max: 1.2, delayWeeks: 4, mitigation: 'Release long-lead order ahead of full design freeze' },
+          { id: 'R-05', title: 'Utility (power) connection delay', owner: 'Authorities Liaison', p: 0.40, min: 0.1, ml: 0.3, max: 0.6, delayWeeks: 8, mitigation: 'Temporary generation option priced as fallback' }
+        ],
+        monthlyBaseline: [4.0, 6.5, 9.0, 10.5, 9.5, 8.0, 6.5, 5.0, 4.0, 2.5, 1.5, 1.0],
+        monthlyActual: [3.9, 6.4, 8.6, 7.6, 6.5]
+      },
+      {
+        id: 'p3', code: 'MRH', name: 'Metropolitan Residential Hub', sector: 'Residential',
+        sponsor: 'Residential Communities', pm: 'PMO — Central Region',
+        bac: 85.0, start: '2026-06', debtShare: 0.6, prelimPerMonth: 0.20,
+        contingency: { original: 6.0, drawn: 0.8 },
+        packages: [
+          { code: 'ENB', name: 'Enabling & Shoring', budget: 12.3, eac: 12.3, pct: 1.00, planPct: 1.00 },
+          { code: 'TWR', name: 'Main Tower Structure', budget: 42.5, eac: 43.9, pct: 0.30, planPct: 0.26 },
+          { code: 'FIT', name: 'Interior Architectural Fit-out', budget: 25.0, eac: 26.8, pct: 0.04, planPct: 0.06 }
+        ],
+        commitments: [
+          { id: 'M-301', title: 'Secant Piles & Shoring Anchors', vendor: 'Keller Ground Engineering', pkg: 'ENB', original: 12.0, variations: 0.3, certified: 12.3, status: 'Complete' },
+          { id: 'M-302', title: 'Tower Reinforced Cast Concrete', vendor: 'Nesma & Partners', pkg: 'TWR', original: 38.0, variations: 0.25, certified: 11.6, status: 'Active' },
+          { id: 'M-303', title: 'Fit-out Early Works (Show Units)', vendor: 'Riyadh Interiors Co', pkg: 'FIT', original: 12.0, variations: 0, certified: 0.9, status: 'Active' }
+        ],
+        risks: [
+          { id: 'R-21', title: 'Fit-out balance tender escalation (SAR 14.8M uncommitted)', owner: 'Commercial Manager', p: 0.65, min: 0.8, ml: 1.6, max: 3.0, delayWeeks: 0, mitigation: 'Split package; frame agreement for finishes' },
+          { id: 'R-22', title: 'Tower crane availability / wind downtime', owner: 'Construction Manager', p: 0.25, min: 0.2, ml: 0.5, max: 1.0, delayWeeks: 3, mitigation: 'Second crane option held' }
+        ],
+        monthlyBaseline: [3.0, 5.5, 8.0, 9.5, 11.0, 10.0, 8.5, 7.5, 6.5, 5.5, 4.0, 3.0, 2.0, 1.0],
+        monthlyActual: [3.1, 5.6, 7.6, 8.5]
+      },
+      {
+        id: 'p4', code: 'NGS', name: 'NEOM Green Energy Grid Substation', sector: 'Energy & utilities',
+        sponsor: 'Energy Infrastructure', pm: 'PMO — Northern Region',
+        bac: 210.0, start: '2026-04', debtShare: 0.6, prelimPerMonth: 0.45,
+        contingency: { original: 18.0, drawn: 4.2 },
+        packages: [
+          { code: 'CIV', name: 'Site Levelling & Heavy Civil', budget: 35.5, eac: 35.5, pct: 0.93, planPct: 0.95 },
+          { code: 'GIS', name: 'GIS Switchgear & Transformers', budget: 97.0, eac: 101.8, pct: 0.42, planPct: 0.50 },
+          { code: 'SCA', name: 'Control Systems & SCADA', budget: 42.7, eac: 45.9, pct: 0.18, planPct: 0.30 },
+          { code: 'OHL', name: 'Overhead Transmission Lines', budget: 21.0, eac: 22.4, pct: 0.10, planPct: 0.20 }
+        ],
+        commitments: [
+          { id: 'N-401', title: 'Civil Foundations for Substations', vendor: 'Al-Bawani Group', pkg: 'CIV', original: 35.0, variations: 0.5, certified: 33.0, status: 'Active' },
+          { id: 'N-402', title: 'Gas Insulated Switchgear 380kV', vendor: 'Hitachi Energy Gulf', pkg: 'GIS', original: 95.0, variations: 1.8, certified: 44.0, status: 'Active' },
+          { id: 'N-403', title: 'SCADA & Protection Systems', vendor: 'Gulf Automation Systems', pkg: 'SCA', original: 31.0, variations: 0, certified: 8.6, status: 'Under Review' },
+          { id: 'N-404', title: '380kV Overhead Line Stringing', vendor: 'Desert Line Transmission', pkg: 'OHL', original: 18.0, variations: 0, certified: 2.4, status: 'Active' }
+        ],
+        risks: [
+          { id: 'R-31', title: 'Transformer factory acceptance test failure / re-test', owner: 'Package Manager — Electrical', p: 0.30, min: 1.0, ml: 2.5, max: 5.0, delayWeeks: 10, mitigation: 'Witness pre-FAT; hold slot for re-test' },
+          { id: 'R-32', title: 'SCADA integration scope gap with grid operator', owner: 'Systems Integration Lead', p: 0.55, min: 1.0, ml: 2.0, max: 4.0, delayWeeks: 6, mitigation: 'Joint interface workshop; freeze ICD by Nov-26' },
+          { id: 'R-33', title: 'Extreme-heat productivity loss (summer works)', owner: 'Construction Manager', p: 0.70, min: 0.4, ml: 0.9, max: 1.6, delayWeeks: 4, mitigation: 'Night-shift programme for OHL stringing' }
+        ],
+        monthlyBaseline: [4.0, 8.0, 14.0, 18.0, 22.0, 24.0, 23.0, 21.0, 18.0, 15.0, 12.0, 10.0, 8.0, 6.0, 4.0, 3.0],
+        monthlyActual: [4.1, 7.9, 14.0, 17.6, 20.8, 23.6]
+      }
+    ],
+    /*
+     * Projects built at load time from another ASTCO app's data feed (see assets/adapters.js).
+     * Only management metadata lives here; prices, phasing and contingency come from the feed.
+     */
+    /*
+     * The other ASTCO apps. Branches live in this repository; URLs are the published pages.
+     * Viewers can override a URL in the Connected apps view (stored in their own browser only).
+     */
+    apps: [
+      { id: 'planner', name: 'ASTCO 4D Planner', role: 'Schedule, CPM & cost-loaded baseline', branch: 'claude/fervent-euler-lqew8l',
+        url: 'https://claude.ai/artifact/5MM7PA32R4MZBHjaPx4NX7',
+        feeds: 'Monthly cash-flow CSV (Data → Monthly cash flow) → replaces a project\'s baseline profile', mode: 'File import' },
+      { id: 'takeoff', name: 'Crystal Gallery 4D/5D Take-off', role: 'Quantities, priced BoQ & scope-gap register', branch: 'claude/stoic-hypatia-456ykd',
+        url: 'https://claude.ai/artifact/2tqcb27PQu8xh6TrKJ5qNM',
+        feeds: 'Priced bill → Crystal Gallery budget, phasing & contingency (via the shared costing feed); scope gaps → risk register', mode: 'Linked feed' },
+      { id: 'ipc', name: 'ASCTO IPC System', role: 'Interim payment certificates (FIDIC)', branch: 'claude/ascto-ipc-system-app-73nzq4',
+        url: 'https://claude.ai/artifact/9x6PnPDCARyRj4NcPCYHmq',
+        feeds: 'Consumes the same costing feed (contract sum SAR 326,769,832). Certified-to-date figures → commitments via midad-feed/1 JSON', mode: 'Shared feed + JSON' },
+      { id: 'procurement', name: 'ASTCO Procurement & Logistics', role: 'RFQs, vendor quotes & awards', branch: 'claude/procurement-logistics-app-96m7s3',
+        url: '',
+        feeds: 'Awarded RFQs → commitments. Not automated: the server has no export endpoint yet; use midad-feed/1 JSON', mode: 'Self-hosted server' }
+    ],
+    linkedProjects: [
+      {
+        feed: 'crystal-gallery-costing',
+        meta: {
+          id: 'p5', code: 'CGJ', name: 'Crystal Gallery Mall, Jeddah', sector: 'Retail & leisure',
+          sponsor: 'Retail Development', pm: 'PMO — Western Region', stage: 'Pre-construction (NTP Mar-27)',
+          debtShare: 0.6,
+          prelimPerMonth: 0.6, // ASSUMPTION: time-related preliminaries per month of delay; confirm with QS
+          risks: [
+            // Figures from the take-off scope-gap register (branch claude/stoic-hypatia-456ykd, commit f0222a5).
+            // The priced bill (and therefore BAC) excludes them. Probabilities and ranges are assumptions.
+            { id: 'G-01', title: 'Fire & life-safety MEP scope not in priced bill (QS to confirm)', owner: 'Cost Manager / QS', p: 0.50, min: 12.0, ml: 16.4, max: 20.0, delayWeeks: 0, mitigation: 'Confirm FLS scope against MEP rough-in lines before tender' },
+            { id: 'G-02', title: 'Cinema equipment supply — operator lease undecided', owner: 'Leasing Director', p: 0.50, min: 19.6, ml: 20.6, max: 21.6, delayWeeks: 0, mitigation: 'Settle operator-supply clause in cinema lease heads of terms' },
+            { id: 'G-03', title: 'Common-area FF&E and signage allowances', owner: 'Design Manager', p: 0.90, min: 4.0, ml: 5.0, max: 6.0, delayWeeks: 0, mitigation: 'Carry as provisional sums in tender' }
+          ]
+        }
+      }
+    ]
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = DATA;
+  else root.MIDAD_DATA = DATA;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+  <script>
+/* GENERATED by tools/sync_costing.py — do not edit by hand.
+ * Priced bill of the Crystal Gallery cost model (crystal-gallery-takeoff.html). The IPC app builds the
+ * Crystal Gallery main-contract BoQ and contract sum from this file, so the two stay linked.
+ * Re-run the script whenever the cost model changes; tests fail while they disagree. */
+(function (root) {
+  const data = {
+ "source": {
+  "file": "crystal-gallery-takeoff.html",
+  "ref": "claude/stoic-hypatia-456ykd",
+  "commit": "f0222a546b278ee8f265245f87f36f6fddd9b81c",
+  "title": "Crystal Gallery 4D/5D (take-off & 5D cost model)",
+  "artifact": "https://claude.ai/artifact/2tqcb27PQu8xh6TrKJ5qNM"
+ },
+ "constructionStart": "2027-03-01",
+ "durationDays": 528,
+ "contingencyPct": 5.0,
+ "vatPct": 15.0,
+ "lines": [
+  {
+   "code": "CG-1010",
+   "desc": "Mobilisation, site set-up & enabling works",
+   "qty": 1,
+   "unit": "LS",
+   "baseRate": 4000000,
+   "esc": 1.0603952363791178,
+   "baseAmt": 4000000,
+   "amt": 4241581,
+   "src": "ALW",
+   "source": "Lump sum (assumed)",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 0,
+   "finishDay": 30
+  },
+  {
+   "code": "CG-1020",
+   "desc": "Secant pile shoring & dewatering",
+   "qty": 5400,
+   "unit": "m²",
+   "baseRate": 1650,
+   "esc": 1.0630899627053816,
+   "baseAmt": 8910000,
+   "amt": 9472132,
+   "src": "DER",
+   "source": "Derived: basement perimeter ≈450 m (B1/B2 plans) × 12 m retained depth",
+   "rateBasis": "Basements calibrated to SAR 3,600–4,600/m² benchmark",
+   "startDay": 14,
+   "finishDay": 54
+  },
+  {
+   "code": "CG-1030",
+   "desc": "Bulk excavation & disposal (2 basements)",
+   "qty": 112500,
+   "unit": "m³",
+   "baseRate": 48,
+   "esc": 1.06593391514171,
+   "baseAmt": 5400000,
+   "amt": 5756043,
+   "src": "DER",
+   "source": "Derived: 12,500 m² basement (Sheet 17) × 9.0 m (2 × 3.6 m + raft/blinding)",
+   "rateBasis": "Excavation SAR 48/m³ (Turner & Townsend KSAMI 2025)",
+   "startDay": 34,
+   "finishDay": 75
+  },
+  {
+   "code": "CG-1040",
+   "desc": "Raft foundation & below-grade waterproofing",
+   "qty": 12500,
+   "unit": "m²",
+   "baseRate": 1200,
+   "esc": 1.0707861057065566,
+   "baseAmt": 15000000,
+   "amt": 16061792,
+   "src": "DRW",
+   "source": "Sheet 17: B2 gross area 12,500 m²",
+   "rateBasis": "Basements calibrated to SAR 3,600–4,600/m² benchmark",
+   "startDay": 75,
+   "finishDay": 102
+  },
+  {
+   "code": "CG-2000",
+   "desc": "RC frame & slab — B2",
+   "qty": 12500,
+   "unit": "m²",
+   "baseRate": 2000,
+   "esc": 1.0792585613788566,
+   "baseAmt": 25000000,
+   "amt": 26981464,
+   "src": "DRW",
+   "source": "Sheet 17: B2 gross area 12,500 m²; height 3.6 m (assumed)",
+   "rateBasis": "Basements calibrated to SAR 3,600–4,600/m² benchmark",
+   "startDay": 102,
+   "finishDay": 192
+  },
+  {
+   "code": "CG-2010",
+   "desc": "RC frame & slab — B1",
+   "qty": 12500,
+   "unit": "m²",
+   "baseRate": 2000,
+   "esc": 1.0828687752622104,
+   "baseAmt": 25000000,
+   "amt": 27071719,
+   "src": "DRW",
+   "source": "Sheet 17: B1 gross area 12,500 m²; height 3.6 m (assumed)",
+   "rateBasis": "Basements calibrated to SAR 3,600–4,600/m² benchmark",
+   "startDay": 127,
+   "finishDay": 217
+  },
+  {
+   "code": "CG-2020",
+   "desc": "RC frame & slab — GF",
+   "qty": 7503,
+   "unit": "m²",
+   "baseRate": 1750,
+   "esc": 1.0864910656254272,
+   "baseAmt": 13130250,
+   "amt": 14265899,
+   "src": "DRW",
+   "source": "Sheet 17: GF gross area 7,503 m²; height 7 m",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 170,
+   "finishDay": 224
+  },
+  {
+   "code": "CG-2030",
+   "desc": "RC frame & slab — L1",
+   "qty": 5622,
+   "unit": "m²",
+   "baseRate": 1650,
+   "esc": 1.0893976201236666,
+   "baseAmt": 9276300,
+   "amt": 10105579,
+   "src": "DRW",
+   "source": "Sheet 17: L1 gross area 5,622 m²; height 6 m",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 190,
+   "finishDay": 244
+  },
+  {
+   "code": "CG-2040",
+   "desc": "RC frame & slab — L2 (incl. cinema long-span roof)",
+   "qty": 5825,
+   "unit": "m²",
+   "baseRate": 2300,
+   "esc": 1.0940642891031829,
+   "baseAmt": 13397500,
+   "amt": 14657726,
+   "src": "DRW",
+   "source": "Sheet 17: L2 gross area 5,825 m²; height 5.5 m",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 210,
+   "finishDay": 288
+  },
+  {
+   "code": "CG-2050",
+   "desc": "RC frame & slab — L3",
+   "qty": 1902,
+   "unit": "m²",
+   "baseRate": 1650,
+   "esc": 1.0987509487628346,
+   "baseAmt": 3138300,
+   "amt": 3448210,
+   "src": "DRW",
+   "source": "Sheet 17: L3 gross area 1,902 m²; height 5.5 m",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 267,
+   "finishDay": 295
+  },
+  {
+   "code": "CG-2060",
+   "desc": "RC frame & slab — L4",
+   "qty": 246,
+   "unit": "m²",
+   "baseRate": 1650,
+   "esc": 1.1012488970556398,
+   "baseAmt": 405900,
+   "amt": 446997,
+   "src": "DRW",
+   "source": "Sheet 17: L4 gross area 246 m² (Sheet 17 gives net 246 m² only); height 3.5 m",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 294,
+   "finishDay": 302
+  },
+  {
+   "code": "CG-3010",
+   "desc": "Curtain wall & shopfront glazing — GF–L1",
+   "qty": 3100,
+   "unit": "m²",
+   "baseRate": 2600,
+   "esc": 1.097577405044786,
+   "baseAmt": 8060000,
+   "amt": 8846474,
+   "src": "DER",
+   "source": "Derived: podium perimeter ≈400 m × 13 m (GF 7.0 + L1 6.0) × 60% glazed",
+   "rateBasis": "Curtain wall within Samman Group 2026 range",
+   "startDay": 258,
+   "finishDay": 288
+  },
+  {
+   "code": "CG-3020",
+   "desc": "Parametric perforated screen — L2–L3 blocks",
+   "qty": 4500,
+   "unit": "m²",
+   "baseRate": 3000,
+   "esc": 1.108628766541512,
+   "baseAmt": 13500000,
+   "amt": 14966488,
+   "src": "DER",
+   "source": "Derived: two screen blocks ≈410 m perimeter × 11 m (L2 5.5 + L3 5.5)",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 318,
+   "finishDay": 378
+  },
+  {
+   "code": "CG-3030",
+   "desc": "Fluted metal cladding & cinema box enclosure",
+   "qty": 3600,
+   "unit": "m²",
+   "baseRate": 750,
+   "esc": 1.1040474426288904,
+   "baseAmt": 2700000,
+   "amt": 2980928,
+   "src": "DER",
+   "source": "Derived: service/cinema façades on Elevations C & D ≈160 m × 22 m",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 302,
+   "finishDay": 332
+  },
+  {
+   "code": "CG-3040",
+   "desc": "Roofing, waterproofing & shading pergolas",
+   "qty": 6500,
+   "unit": "m²",
+   "baseRate": 450,
+   "esc": 1.1028682418808196,
+   "baseAmt": 2925000,
+   "amt": 3225890,
+   "src": "DER",
+   "source": "Derived: L2/L3/L4 roof areas + pergolas from plans & sections",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 302,
+   "finishDay": 317
+  },
+  {
+   "code": "CG-4000",
+   "desc": "MEP rough-in — B2 (ventilation, fire, drainage)",
+   "qty": 12500,
+   "unit": "m²",
+   "baseRate": 750,
+   "esc": 1.0882340664220813,
+   "baseAmt": 9375000,
+   "amt": 10202194,
+   "src": "DRW",
+   "source": "Sheet 17: B2 gross area; MEP/service rooms 660 m²",
+   "rateBasis": "Basements calibrated to SAR 3,600–4,600/m² benchmark",
+   "startDay": 147,
+   "finishDay": 272
+  },
+  {
+   "code": "CG-4010",
+   "desc": "MEP rough-in — B1 (ventilation, fire, drainage)",
+   "qty": 12500,
+   "unit": "m²",
+   "baseRate": 750,
+   "esc": 1.0918743041515055,
+   "baseAmt": 9375000,
+   "amt": 10236322,
+   "src": "DRW",
+   "source": "Sheet 17: B1 gross area; MEP/service rooms 802 m²",
+   "rateBasis": "Basements calibrated to SAR 3,600–4,600/m² benchmark",
+   "startDay": 172,
+   "finishDay": 297
+  },
+  {
+   "code": "CG-4020",
+   "desc": "MEP rough-in — GF",
+   "qty": 7503,
+   "unit": "m²",
+   "baseRate": 1400,
+   "esc": 1.0937720375140887,
+   "baseAmt": 10504200,
+   "amt": 11489200,
+   "src": "DRW",
+   "source": "Sheet 17: GF gross area; MEP/service rooms 923 m²",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 197,
+   "finishDay": 298
+  },
+  {
+   "code": "CG-4030",
+   "desc": "MEP rough-in — L1",
+   "qty": 5622,
+   "unit": "m²",
+   "baseRate": 1400,
+   "esc": 1.0947952597586432,
+   "baseAmt": 7870800,
+   "amt": 8616915,
+   "src": "DRW",
+   "source": "Sheet 17: L1 gross area; MEP/service rooms 273 m²",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 217,
+   "finishDay": 292
+  },
+  {
+   "code": "CG-4040",
+   "desc": "MEP rough-in — L2",
+   "qty": 5825,
+   "unit": "m²",
+   "baseRate": 1700,
+   "esc": 1.09977882877205,
+   "baseAmt": 9902500,
+   "amt": 10890560,
+   "src": "DRW",
+   "source": "Sheet 17: L2 gross area; MEP/service rooms 146 m²",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 249,
+   "finishDay": 327
+  },
+  {
+   "code": "CG-4050",
+   "desc": "MEP rough-in — L3",
+   "qty": 1902,
+   "unit": "m²",
+   "baseRate": 1400,
+   "esc": 1.1015431464322138,
+   "baseAmt": 2662800,
+   "amt": 2933189,
+   "src": "DRW",
+   "source": "Sheet 17: L3 gross area; MEP/service rooms 157 m²",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 281,
+   "finishDay": 320
+  },
+  {
+   "code": "CG-4060",
+   "desc": "MEP rough-in — L4",
+   "qty": 246,
+   "unit": "m²",
+   "baseRate": 1400,
+   "esc": 1.1031629239399656,
+   "baseAmt": 344400,
+   "amt": 379929,
+   "src": "DRW",
+   "source": "Sheet 17: L4 gross area; MEP/service rooms 0 m²",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 306,
+   "finishDay": 316
+  },
+  {
+   "code": "CG-4500",
+   "desc": "Central plant: chillers, AHUs, pumps & tanks",
+   "qty": 1,
+   "unit": "LS",
+   "baseRate": 14000000,
+   "esc": 1.1072967498264126,
+   "baseAmt": 14000000,
+   "amt": 15502154,
+   "src": "ALW",
+   "source": "Lump sum (assumed); plant rooms on B1/B2 plans and roof",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 302,
+   "finishDay": 377
+  },
+  {
+   "code": "CG-4600",
+   "desc": "Utilities: SCECO substation, LPG tank, generator & fuel",
+   "qty": 1,
+   "unit": "LS",
+   "baseRate": 7500000,
+   "esc": 1.0991913510799152,
+   "baseAmt": 7500000,
+   "amt": 8243935,
+   "src": "ALW",
+   "source": "Lump sum (assumed); SCECO 54 m², LPG 68 m², generator 78 m² on GF plan",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 254,
+   "finishDay": 314
+  },
+  {
+   "code": "CG-4700",
+   "desc": "Escalators, retail passenger & service lifts",
+   "qty": 18,
+   "unit": "no.",
+   "baseRate": 600000,
+   "esc": 1.1090731280941613,
+   "baseAmt": 10800000,
+   "amt": 11977990,
+   "src": "DER",
+   "source": "Derived: ≈10 escalators + 8 lifts counted from plans — verify",
+   "rateBasis": "Lifts/escalators ≈USD 20k–200k per unit (Saudi market reports)",
+   "startDay": 295,
+   "finishDay": 408
+  },
+  {
+   "code": "CG-5010",
+   "desc": "Car park finishes, coatings & line marking — B2 (237 bays)",
+   "qty": 11730,
+   "unit": "m²",
+   "baseRate": 180,
+   "esc": 1.0964051147544225,
+   "baseAmt": 2111400,
+   "amt": 2314950,
+   "src": "DRW",
+   "source": "Sheet 17: B2 parking/driveway 11,730 m², 237 cars",
+   "rateBasis": "Basements calibrated to SAR 3,600–4,600/m² benchmark",
+   "startDay": 252,
+   "finishDay": 279
+  },
+  {
+   "code": "CG-5110",
+   "desc": "Car park finishes, coatings & line marking — B1 (202 bays)",
+   "qty": 11564,
+   "unit": "m²",
+   "baseRate": 180,
+   "esc": 1.1002196430848956,
+   "baseAmt": 2081520,
+   "amt": 2290129,
+   "src": "DRW",
+   "source": "Sheet 17: B1 parking/driveway 11,564 m², 202 cars",
+   "rateBasis": "Basements calibrated to SAR 3,600–4,600/m² benchmark",
+   "startDay": 278,
+   "finishDay": 304
+  },
+  {
+   "code": "CG-5220",
+   "desc": "Public circulation & WC finishes — GF",
+   "qty": 1803,
+   "unit": "m²",
+   "baseRate": 2000,
+   "esc": 1.1038999736121133,
+   "baseAmt": 3606000,
+   "amt": 3980663,
+   "src": "DRW",
+   "source": "Sheet 17: GF public circulation & WC 1,803 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 278,
+   "finishDay": 354
+  },
+  {
+   "code": "CG-5230",
+   "desc": "Tenant shell & core handover — GF (F&B + retail)",
+   "qty": 3192,
+   "unit": "m²",
+   "baseRate": 600,
+   "esc": 1.1022791138920653,
+   "baseAmt": 1915200,
+   "amt": 2111085,
+   "src": "DRW",
+   "source": "Sheet 17: GF F&B 2,522 m² + retail 670 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 278,
+   "finishDay": 332
+  },
+  {
+   "code": "CG-5240",
+   "desc": "Terraces & outdoor seating — GF",
+   "qty": 1150,
+   "unit": "m²",
+   "baseRate": 1100,
+   "esc": 1.1033102944949318,
+   "baseAmt": 1265000,
+   "amt": 1395688,
+   "src": "DRW",
+   "source": "Sheet 17: GF terrace 1,150 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 288,
+   "finishDay": 336
+  },
+  {
+   "code": "CG-5260",
+   "desc": "Event plaza & fountain — GF",
+   "qty": 435,
+   "unit": "m²",
+   "baseRate": 4500,
+   "esc": 1.1000726853521572,
+   "baseAmt": 1957500,
+   "amt": 2153392,
+   "src": "DRW",
+   "source": "Sheet 17: event plaza 435 m² (fountain per GF Landscape Plan)",
+   "rateBasis": "Assumed (no public benchmark)",
+   "startDay": 254,
+   "finishDay": 327
+  },
+  {
+   "code": "CG-5320",
+   "desc": "Public circulation & WC finishes — L1",
+   "qty": 946,
+   "unit": "m²",
+   "baseRate": 2000,
+   "esc": 1.1027209303713814,
+   "baseAmt": 1892000,
+   "amt": 2086348,
+   "src": "DRW",
+   "source": "Sheet 17: L1 public circulation & WC 946 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 278,
+   "finishDay": 338
+  },
+  {
+   "code": "CG-5330",
+   "desc": "Tenant shell & core handover — L1 (F&B + retail)",
+   "qty": 3463,
+   "unit": "m²",
+   "baseRate": 600,
+   "esc": 1.1025736385385285,
+   "baseAmt": 2077800,
+   "amt": 2290928,
+   "src": "DRW",
+   "source": "Sheet 17: L1 F&B 3,463 m² + retail 0 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 278,
+   "finishDay": 336
+  },
+  {
+   "code": "CG-5340",
+   "desc": "Terraces & outdoor seating — L1",
+   "qty": 940,
+   "unit": "m²",
+   "baseRate": 1100,
+   "esc": 1.1055232167450364,
+   "baseAmt": 1034000,
+   "amt": 1143111,
+   "src": "DRW",
+   "source": "Sheet 17: L1 terrace 940 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 288,
+   "finishDay": 367
+  },
+  {
+   "code": "CG-5420",
+   "desc": "Public circulation & WC finishes — L2",
+   "qty": 489,
+   "unit": "m²",
+   "baseRate": 2000,
+   "esc": 1.1117430402068238,
+   "baseAmt": 978000,
+   "amt": 1087285,
+   "src": "DRW",
+   "source": "Sheet 17: L2 public circulation & WC 489 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 338,
+   "finishDay": 400
+  },
+  {
+   "code": "CG-5430",
+   "desc": "Tenant shell & core handover — L2 (F&B + retail)",
+   "qty": 1446,
+   "unit": "m²",
+   "baseRate": 600,
+   "esc": 1.1107039781549666,
+   "baseAmt": 867600,
+   "amt": 963647,
+   "src": "DRW",
+   "source": "Sheet 17: L2 F&B 1,446 m² + retail 0 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 338,
+   "finishDay": 387
+  },
+  {
+   "code": "CG-5440",
+   "desc": "Terraces & outdoor seating — L2",
+   "qty": 770,
+   "unit": "m²",
+   "baseRate": 1100,
+   "esc": 1.117848524847107,
+   "baseAmt": 847000,
+   "amt": 946818,
+   "src": "DRW",
+   "source": "Sheet 17: L2 terrace 770 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 378,
+   "finishDay": 443
+  },
+  {
+   "code": "CG-5450",
+   "desc": "Cinema fit-out — L2 (1,075 seats)",
+   "qty": 2974,
+   "unit": "m²",
+   "baseRate": 12600,
+   "esc": 1.1185953863222977,
+   "baseAmt": 37472400,
+   "amt": 41916454,
+   "src": "DRW",
+   "source": "Sheet 17: cinema 2,974 m², 1,075 seats (≈USD 9.3k/seat)",
+   "rateBasis": "Cinema ≈USD 9.3k/seat (Empire Cinemas KSA)",
+   "startDay": 332,
+   "finishDay": 498
+  },
+  {
+   "code": "CG-5520",
+   "desc": "Public circulation & WC finishes — L3",
+   "qty": 63,
+   "unit": "m²",
+   "baseRate": 2000,
+   "esc": 1.1077405774789562,
+   "baseAmt": 126000,
+   "amt": 139575,
+   "src": "DRW",
+   "source": "Sheet 17: L3 public circulation & WC 63 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 338,
+   "finishDay": 346
+  },
+  {
+   "code": "CG-5530",
+   "desc": "Tenant shell & core handover — L3 (F&B + retail)",
+   "qty": 1110,
+   "unit": "m²",
+   "baseRate": 600,
+   "esc": 1.1098141265157997,
+   "baseAmt": 666000,
+   "amt": 739136,
+   "src": "DRW",
+   "source": "Sheet 17: L3 F&B 623 m² + retail 487 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 338,
+   "finishDay": 375
+  },
+  {
+   "code": "CG-5540",
+   "desc": "Terraces & outdoor seating — L3",
+   "qty": 572,
+   "unit": "m²",
+   "baseRate": 1100,
+   "esc": 1.1166545835672006,
+   "baseAmt": 629200,
+   "amt": 702599,
+   "src": "DRW",
+   "source": "Sheet 17: L3 terrace 572 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 378,
+   "finishDay": 426
+  },
+  {
+   "code": "CG-5630",
+   "desc": "Tenant shell & core handover — L4 (F&B + retail)",
+   "qty": 246,
+   "unit": "m²",
+   "baseRate": 600,
+   "esc": 1.1059663335284977,
+   "baseAmt": 147600,
+   "amt": 163241,
+   "src": "DRW",
+   "source": "Sheet 17: L4 F&B 0 m² + retail 246 m²",
+   "rateBasis": "Landlord fit-out within Exceptional PM 2026 range",
+   "startDay": 326,
+   "finishDay": 335
+  },
+  {
+   "code": "CG-5900",
+   "desc": "External works: roads, drop-off, parking & planting",
+   "qty": 8000,
+   "unit": "m²",
+   "baseRate": 450,
+   "esc": 1.1016903006025418,
+   "baseAmt": 3600000,
+   "amt": 3966085,
+   "src": "DER",
+   "source": "Derived: site outside building footprint ≈8,000 m² from GF Landscape Plan",
+   "rateBasis": "Assumed (no public benchmark)",
+   "startDay": 284,
+   "finishDay": 318
+  },
+  {
+   "code": "CG-6010",
+   "desc": "Testing & commissioning — all MEP systems",
+   "qty": 1,
+   "unit": "LS",
+   "baseRate": 2500000,
+   "esc": 1.1242878647184877,
+   "baseAmt": 2500000,
+   "amt": 2810720,
+   "src": "ALW",
+   "source": "Lump sum (assumed)",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 408,
+   "finishDay": 498
+  },
+  {
+   "code": "CG-6020",
+   "desc": "Civil Defense & authority inspections",
+   "qty": 1,
+   "unit": "LS",
+   "baseRate": 500000,
+   "esc": 1.1333350270909706,
+   "baseAmt": 500000,
+   "amt": 566668,
+   "src": "ALW",
+   "source": "Lump sum (assumed)",
+   "rateBasis": "Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)",
+   "startDay": 498,
+   "finishDay": 528
+  }
+ ],
+ "totals": {
+  "base": 298452170,
+  "outturn": 326769832,
+  "contingency": 16338491.6,
+  "withContingency": 343108323.6
+ }
+};
+  if (typeof module !== 'undefined' && module.exports) module.exports = data;
+  else root.CG_COSTING = data;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+  <script>
+/*
+ * Midad Executive Suite — calculation engine.
+ * Pure functions, no DOM. Loaded in the browser as window.MidadEngine and in
+ * Node (tests) via require(). All money values are SAR millions.
+ */
+(function (root) {
+  const EPS = 1e-9;
+  const sum = (arr, f) => arr.reduce((s, x) => s + (f ? f(x) : x), 0);
+  const round = (x, d = 2) => Math.round(x * 10 ** d) / 10 ** d;
+
+  /* ---------- Deterministic random numbers (reproducible board figures) ---------- */
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Inverse-CDF sample of a triangular(min, mode, max) distribution.
+  function triangular(u, a, m, b) {
+    if (b - a < EPS) return m;
+    const fc = (m - a) / (b - a);
+    return u < fc
+      ? a + Math.sqrt(u * (b - a) * (m - a))
+      : b - Math.sqrt((1 - u) * (b - a) * (b - m));
+  }
+
+  function percentile(sorted, q) {
+    if (!sorted.length) return 0;
+    const idx = (sorted.length - 1) * q;
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  }
+
+  /* ---------- Calendar ---------- */
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function monthIndex(ym) { const [y, m] = ym.split('-').map(Number); return y * 12 + (m - 1); }
+  function monthKey(idx) { return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`; }
+  function monthLabel(idx) { return `${MONTHS[idx % 12]}-${String(Math.floor(idx / 12)).slice(2)}`; }
+
+  /* ---------- Project roll-up ---------- */
+  function packageRollup(p) {
+    return p.packages.map(pk => {
+      const cs = p.commitments.filter(c => c.pkg === pk.code);
+      const committed = sum(cs, c => c.original + c.variations);
+      const certified = sum(cs, c => c.certified);
+      // A forecast can never sit below what is already contractually committed.
+      const eac = Math.max(pk.eac, committed);
+      const ev = pk.budget * pk.pct;
+      const pv = pk.budget * pk.planPct;
+      return {
+        ...pk, eac, eacRaised: eac > pk.eac + EPS, committed, certified,
+        uncommitted: Math.max(0, eac - committed),
+        variance: eac - pk.budget,
+        ev, pv, ac: certified,
+        cpi: certified > EPS ? ev / certified : null,
+        spi: pv > EPS ? ev / pv : null
+      };
+    });
+  }
+
+  function projectMetrics(p, opts = {}) {
+    const pkgs = packageRollup(p);
+    const budget = sum(pkgs, k => k.budget);
+    const eac = sum(pkgs, k => k.eac);
+    const committed = sum(pkgs, k => k.committed);
+    const certified = sum(pkgs, k => k.certified);
+    const uncommitted = sum(pkgs, k => k.uncommitted);
+    const ev = sum(pkgs, k => k.ev), pv = sum(pkgs, k => k.pv), ac = certified;
+    const cpi = ac > EPS ? ev / ac : 1;
+    const spi = pv > EPS ? ev / pv : 1;
+    const contRemaining = p.contingency.original - p.contingency.drawn;
+    const overrunPressure = sum(pkgs, k => Math.max(0, k.variance));
+    const headroom = p.bac - eac; // what is left of BAC after the bottom-up forecast
+    const retention = certified * (opts.retentionRate ?? 0.05);
+    const duration = p.monthlyBaseline.length;
+    const elapsed = p.monthlyActual.length;
+    // Independent, performance-based EAC (PMI): AC + (BAC_pmb − EV) / CPI.
+    const eacCpi = ac + (budget - ev) / (cpi || 1);
+    // Indicative schedule forecast: planned duration / SPI (crude early-stage estimate).
+    const forecastDelay = spi < 1 ? Math.max(0, Math.round(duration / spi - duration)) : 0;
+    return {
+      pkgs, budget, eac, committed, certified, uncommitted, ev, pv, ac, cpi, spi,
+      cv: ev - ac, sv: ev - pv, tcpi: (budget - ev) / Math.max(EPS, budget - ac),
+      contRemaining, overrunPressure, headroom, retention, eacCpi,
+      duration, elapsed, forecastDelay,
+      startIdx: monthIndex(p.start),
+      committedPct: committed / p.bac,
+      pctComplete: budget > EPS ? ev / budget : 0
+    };
+  }
+
+  /* ---------- Cash flow ---------- */
+  // Spreads the remaining forecast over the remaining baseline shape, stretched by delay.
+  function cashflow(p, m, extraDelay = 0, totalOverride) {
+    const base = p.monthlyBaseline.slice();
+    const act = p.monthlyActual.slice();
+    const n = act.length, L = base.length;
+    const delay = m.forecastDelay + extraDelay;
+    const remainingLen = Math.max(1, L - n + delay);
+    const tail = base.slice(n);
+    const weights = [];
+    for (let j = 0; j < remainingLen; j++) {
+      const srcIdx = tail.length ? Math.min(tail.length - 1, Math.floor((j * tail.length) / remainingLen)) : 0;
+      weights.push(tail.length ? tail[srcIdx] : 1);
+    }
+    const wSum = sum(weights) || 1;
+    const total = totalOverride ?? m.eac;
+    const remaining = Math.max(0, total - sum(act));
+    const forecast = act.concat(weights.map(w => (w / wSum) * remaining));
+    const len = Math.max(L, forecast.length);
+    const cum = arr => { let s = 0; return arr.map(v => (s += v)); };
+    return {
+      startIdx: m.startIdx, len, elapsed: n,
+      baseline: base, actual: act, forecast,
+      cumBaseline: cum(base), cumActual: cum(act), cumForecast: cum(forecast)
+    };
+  }
+
+  function portfolioCashflow(projects, metricsById) {
+    const flows = projects.map(p => ({ p, cf: cashflow(p, metricsById[p.id]) }));
+    const start = Math.min(...flows.map(f => f.cf.startIdx));
+    const end = Math.max(...flows.map(f => f.cf.startIdx + f.cf.len));
+    const months = [];
+    for (let i = start; i < end; i++) months.push(i);
+    const pick = (arr, f) => months.map(mi => {
+      const k = mi - f.cf.startIdx; return k >= 0 && k < arr.length ? arr[k] : 0;
+    });
+    const byProject = flows.map(f => ({ id: f.p.id, name: f.p.name, baseline: pick(f.cf.baseline, f), actual: pick(f.cf.actual, f), forecast: pick(f.cf.forecast, f) }));
+    const tot = key => months.map((_, i) => sum(byProject, b => b[key][i]));
+    return { months, byProject, baseline: tot('baseline'), actual: tot('actual'), forecast: tot('forecast') };
+  }
+
+  /* ---------- Scenario & Monte Carlo ---------- */
+  const DEFAULT_SCENARIO = Object.freeze({ delayMonths: 0, escalationPct: 0, aprPct: 6.5 });
+
+  // Deterministic what-if (no risk events): forecast + escalation + delay + financing carry.
+  function scenarioCost(p, m, s) {
+    const escalation = m.uncommitted * (s.escalationPct / 100);
+    const prelims = s.delayMonths * p.prelimPerMonth;
+    const subtotal = m.eac + escalation + prelims;
+    const financing = subtotal * p.debtShare * (s.aprPct / 100) * (s.delayMonths / 12);
+    return { escalation, prelims, financing, total: subtotal + financing };
+  }
+
+  function monteCarlo(p, m, s = DEFAULT_SCENARIO, iterations = 5000, seed = 20260930) {
+    const rand = mulberry32(seed ^ hash(p.id));
+    const totals = new Float64Array(iterations);
+    const delays = new Float64Array(iterations);
+    const riskHits = p.risks.map(() => 0);
+    for (let i = 0; i < iterations; i++) {
+      let total = 0;
+      for (const k of m.pkgs) {
+        const remaining = Math.max(0, k.eac - k.certified);
+        const exposure = remaining > EPS ? k.uncommitted / remaining : 0;
+        const f = triangular(rand(), 0.97, 1.0, 1.03 + 0.12 * exposure);
+        total += k.certified + remaining * f;
+      }
+      total += m.uncommitted * (s.escalationPct / 100);
+      let riskDelayWeeks = 0;
+      p.risks.forEach((r, ri) => {
+        const hit = rand() < r.p;
+        const impact = triangular(rand(), r.min, r.ml, r.max);
+        if (hit) { total += impact; riskDelayWeeks = Math.max(riskDelayWeeks, r.delayWeeks); riskHits[ri]++; }
+      });
+      const delayM = s.delayMonths + riskDelayWeeks / 4.345;
+      total += delayM * p.prelimPerMonth;
+      total += total * p.debtShare * (s.aprPct / 100) * (delayM / 12);
+      totals[i] = total; delays[i] = delayM;
+    }
+    return summarise(Array.from(totals), p.bac, Array.from(delays));
+  }
+
+  function summarise(values, bac, delays) {
+    const sorted = values.slice().sort((a, b) => a - b);
+    const within = sorted.filter(v => v <= bac).length / Math.max(1, sorted.length);
+    return {
+      values, sorted, iterations: sorted.length,
+      p10: percentile(sorted, 0.10), p50: percentile(sorted, 0.50),
+      p80: percentile(sorted, 0.80), p90: percentile(sorted, 0.90),
+      mean: sum(sorted) / Math.max(1, sorted.length),
+      min: sorted[0], max: sorted[sorted.length - 1],
+      probWithinBac: within,
+      meanDelay: delays ? sum(delays) / Math.max(1, delays.length) : 0
+    };
+  }
+
+  // Portfolio distribution: per-iteration sum across projects (independence assumed).
+  function portfolioMonteCarlo(projectsMc, bac) {
+    const n = Math.min(...projectsMc.map(r => r.values.length));
+    const values = new Array(n).fill(0);
+    projectsMc.forEach(r => { for (let i = 0; i < n; i++) values[i] += r.values[i]; });
+    return summarise(values, bac);
+  }
+
+  function histogram(sorted, bins = 24) {
+    const lo = sorted[0], hi = sorted[sorted.length - 1];
+    const width = (hi - lo) / bins || 1;
+    const counts = new Array(bins).fill(0);
+    sorted.forEach(v => { counts[Math.min(bins - 1, Math.floor((v - lo) / width))]++; });
+    return { lo, width, counts, edges: counts.map((_, i) => lo + i * width), share: counts.map(c => c / sorted.length) };
+  }
+
+  function riskExposure(p) {
+    return p.risks.map(r => ({ ...r, mean: (r.min + r.ml + r.max) / 3, expected: r.p * (r.min + r.ml + r.max) / 3 }))
+      .sort((a, b) => b.expected - a.expected);
+  }
+
+  /* ---------- RAG (thresholds are deliberately explicit) ---------- */
+  const THRESHOLDS = Object.freeze({
+    spiAmber: 0.95, spiRed: 0.90, cpiAmber: 0.97, cpiRed: 0.93,
+    confidenceGreen: 0.80, confidenceRed: 0.50
+  });
+  const RANK = { G: 0, A: 1, R: 2 };
+  const worst = (...r) => r.reduce((a, b) => (RANK[b] > RANK[a] ? b : a), 'G');
+
+  function rag(m, mc) {
+    const T = THRESHOLDS;
+    const cost = m.headroom < 0 || mc.probWithinBac < T.confidenceRed || m.cpi < T.cpiRed ? 'R'
+      : mc.probWithinBac < T.confidenceGreen || m.cpi < T.cpiAmber ? 'A' : 'G';
+    const schedule = m.spi < T.spiRed ? 'R' : m.spi < T.spiAmber ? 'A' : 'G';
+    return { cost, schedule, overall: worst(cost, schedule) };
+  }
+
+  /* ---------- Exceptions requiring a management decision ---------- */
+  function exceptions(p, m, mc) {
+    const out = [];
+    const T = THRESHOLDS;
+    if (m.headroom < 0) out.push({ sev: 'R', kind: 'Budget', title: `Forecast exceeds approved budget by SAR ${round(-m.headroom, 1)}M`, ask: 'Approve budget increase or de-scope', value: -m.headroom });
+    if (mc.probWithinBac < T.confidenceGreen) {
+      const gap = mc.p80 - p.bac;
+      out.push({ sev: mc.probWithinBac < T.confidenceRed ? 'R' : 'A', kind: 'Contingency',
+        title: `Only ${Math.round(mc.probWithinBac * 100)}% confidence of finishing within BAC` + (gap > 0 ? `; P80 is SAR ${round(gap, 1)}M over` : ''),
+        ask: 'Decide contingency top-up or risk-mitigation spend', value: Math.max(0, gap) });
+    }
+    if (m.spi < T.spiAmber) out.push({ sev: m.spi < T.spiRed ? 'R' : 'A', kind: 'Schedule',
+      title: `SPI ${m.spi.toFixed(2)} — indicative finish +${m.forecastDelay} month(s)`, ask: 'Require recovery programme from contractor', value: m.forecastDelay * p.prelimPerMonth });
+    if (m.cpi < T.cpiAmber) out.push({ sev: m.cpi < T.cpiRed ? 'R' : 'A', kind: 'Cost efficiency',
+      title: `CPI ${m.cpi.toFixed(2)} — performance-based EAC SAR ${round(m.eacCpi, 1)}M vs bottom-up SAR ${round(m.eac, 1)}M`, ask: 'Challenge the bottom-up forecast', value: Math.max(0, m.eacCpi - m.eac) });
+    p.commitments.filter(c => c.status === 'Under Review').forEach(c => out.push({ sev: 'A', kind: 'Approval',
+      title: `${c.id} ${c.title} (SAR ${round(c.original + c.variations)}M) awaiting approval`, ask: 'Approve / reject commitment', value: c.original + c.variations }));
+    m.pkgs.filter(k => k.variance > 0.03 * k.budget).forEach(k => out.push({ sev: k.variance > 0.06 * k.budget ? 'R' : 'A', kind: 'Package overrun',
+      title: `${k.name} forecast +SAR ${round(k.variance)}M (${(100 * k.variance / k.budget).toFixed(1)}%) over budget`, ask: 'Approve contingency transfer', value: k.variance }));
+    if (m.uncommitted > 0.15 * p.bac) out.push({ sev: 'A', kind: 'Procurement',
+      title: `SAR ${round(m.uncommitted, 1)}M (${Math.round(100 * m.uncommitted / p.bac)}% of BAC) still uncommitted — escalation exposure`, ask: 'Accelerate award to lock prices', value: m.uncommitted * 0.05 });
+    return out.map(e => ({ ...e, project: p.name, projectId: p.id }));
+  }
+
+  /* ---------- Data integrity (so a reader can trust the numbers) ---------- */
+  function integrityChecks(p, m, tol = 0.05) {
+    const issues = [];
+    const contRem = p.contingency.original - p.contingency.drawn;
+    const budgetGap = m.budget + contRem - p.bac;
+    if (Math.abs(budgetGap) > tol) issues.push(`Package budgets + remaining contingency differ from BAC by SAR ${round(budgetGap)}M`);
+    const baseGap = sum(p.monthlyBaseline) - p.bac;
+    if (Math.abs(baseGap) > tol) issues.push(`Cash-flow baseline differs from BAC by SAR ${round(baseGap)}M`);
+    const actGap = sum(p.monthlyActual) - m.certified;
+    if (Math.abs(actGap) > tol) issues.push(`Monthly actuals differ from certified ledger by SAR ${round(actGap)}M`);
+    p.commitments.forEach(c => {
+      if (c.certified > c.original + c.variations + tol) issues.push(`${c.id}: certified exceeds contract value`);
+      if (!p.packages.some(k => k.code === c.pkg)) issues.push(`${c.id}: unknown package ${c.pkg}`);
+    });
+    m.pkgs.filter(k => k.eacRaised).forEach(k => issues.push(`${k.name}: EAC raised to committed value (SAR ${round(k.committed)}M)`));
+    return issues;
+  }
+
+  function hash(str) { let h = 2166136261; for (const ch of str) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+  const api = {
+    mulberry32, triangular, percentile, monthIndex, monthKey, monthLabel,
+    packageRollup, projectMetrics, cashflow, portfolioCashflow,
+    DEFAULT_SCENARIO, scenarioCost, monteCarlo, portfolioMonteCarlo, histogram, riskExposure,
+    THRESHOLDS, rag, exceptions, integrityChecks, round, sum
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.MidadEngine = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+  <script>
+/*
+ * Midad Executive Suite — connectors to the other ASTCO apps.
+ *
+ *  • Crystal Gallery cost model feed  (assets/feeds/crystal-gallery-costing.js)
+ *      Same generated file the IPC System consumes, so both apps price CG-JED identically.
+ *  • ASTCO 4D Planner "Monthly cash flow (.csv)" export  → replaces a project's baseline profile.
+ *  • midad-feed/1 JSON                                     → adds or replaces a whole project.
+ *
+ * Pure functions, no DOM. Browser: window.MidadAdapters; Node: require().
+ */
+(function (root) {
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const M = 1e6;
+
+  const COSTING_GROUPS = [
+    { digit: '1', code: 'SUB', name: 'Enabling, Shoring & Substructure' },
+    { digit: '2', code: 'FRM', name: 'RC Frame & Slabs' },
+    { digit: '3', code: 'ENV', name: 'Envelope, Facade & Roofing' },
+    { digit: '4', code: 'MEP', name: 'MEP, Central Plant & Vertical Transport' },
+    { digit: '5', code: 'FIN', name: 'Finishes, Fit-out & External Works' },
+    { digit: '6', code: 'TCH', name: 'Testing, Commissioning & Handover' }
+  ];
+
+  // Linear cost loading of each priced line over its working days, bucketed into calendar months.
+  function costingToMonthly(costing) {
+    const start = new Date(costing.constructionStart + 'T00:00:00Z');
+    const dayToMonth = d => {
+      const dt = new Date(start.getTime() + d * 86400000);
+      return (dt.getUTCFullYear() - start.getUTCFullYear()) * 12 + (dt.getUTCMonth() - start.getUTCMonth());
+    };
+    const nMonths = dayToMonth(costing.durationDays - 1) + 1;
+    const out = new Array(nMonths).fill(0);
+    costing.lines.forEach(l => {
+      const s = l.startDay, e = Math.max(l.finishDay, l.startDay + 1);
+      for (let d = s; d < e; d++) out[Math.min(nMonths - 1, dayToMonth(d))] += l.amt / (e - s);
+    });
+    return out;
+  }
+
+  /*
+   * Builds a portfolio project from the cost-model feed.
+   * Contract value = out-turn priced bill; contingency = the model's reserve; BAC = with contingency.
+   * Scope-gap exposures are passed in as risks because the priced bill excludes them.
+   */
+  function projectFromCosting(costing, meta) {
+    const groups = COSTING_GROUPS.map(g => {
+      const lines = costing.lines.filter(l => l.code.replace('CG-', '').charAt(0) === g.digit);
+      const amt = lines.reduce((s, l) => s + l.amt, 0) / M;
+      return { code: g.code, name: g.name, budget: amt, eac: amt, pct: 0, planPct: 0, lines: lines.length };
+    }).filter(g => g.lines > 0);
+    const outturn = costing.totals.outturn / M;
+    const contingency = costing.totals.contingency / M;
+    const baseline = costingToMonthly(costing).map(v => v / M);
+    // Contingency is held at the end of the cash profile scaled pro-rata (as the planner does).
+    const scale = (outturn + contingency) / outturn;
+    return {
+      ...meta,
+      bac: outturn + contingency,
+      start: costing.constructionStart.slice(0, 7),
+      contingency: { original: contingency, drawn: 0 },
+      packages: groups.map(({ lines, ...g }) => g),
+      commitments: [],
+      monthlyBaseline: baseline.map(v => v * scale),
+      monthlyActual: [],
+      feed: {
+        kind: 'cost-model', title: costing.source.title, ref: costing.source.ref,
+        commit: costing.source.commit, artifact: costing.source.artifact,
+        lines: costing.lines.length, outturn, contingency, base: costing.totals.base / M
+      }
+    };
+  }
+
+  /* ---------- 4D Planner monthly cash-flow CSV ---------- */
+  function parseCsv(text) {
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) {
+        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (ch === '"') q = false;
+        else cell += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell); rows.push(row); row = []; cell = '';
+      } else cell += ch;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(r => r.some(c => c.trim() !== ''));
+  }
+
+  // Planner labels are en-GB short dates, e.g. "Mar 27" or "Sept 27".
+  function plannerMonth(label) {
+    const m = String(label).trim().match(/^([A-Za-z]{3})[A-Za-z]*\.?\s+'?(\d{2,4})$/);
+    if (!m) return null;
+    const mi = MONTHS.findIndex(x => x.toLowerCase() === m[1].toLowerCase());
+    if (mi < 0) return null;
+    const y = m[2].length === 2 ? 2000 + Number(m[2]) : Number(m[2]);
+    return `${y}-${String(mi + 1).padStart(2, '0')}`;
+  }
+
+  function parsePlannerCashflow(text) {
+    const rows = parseCsv(text);
+    if (rows.length < 2) throw new Error('CSV has no data rows');
+    const head = rows[0].map(h => h.trim().toLowerCase());
+    const col = name => head.findIndex(h => h === name || h.startsWith(name + '_'));
+    const iMonth = col('month'), iBase = col('baseline'), iFcst = head.indexOf('forecast'), iCur = col('currency');
+    if (iMonth < 0 || iBase < 0 || iFcst < 0) throw new Error('Not a 4D Planner cash-flow export (needs month, baseline_*, forecast columns)');
+    const data = rows.slice(1);
+    const start = plannerMonth(data[0][iMonth]);
+    if (!start) throw new Error(`Unrecognised month label "${data[0][iMonth]}"`);
+    const currency = iCur >= 0 ? (data[0][iCur] || '').trim() : '';
+    const toM = v => (Number(String(v).replace(/[^0-9.\-]/g, '')) || 0) / M;
+    return {
+      start, currency,
+      baseline: data.map(r => toM(r[iBase])),
+      forecast: data.map(r => toM(r[iFcst])),
+      months: data.length
+    };
+  }
+
+  // Applies a planner export to a project: baseline profile is rescaled to BAC so the
+  // cash plan still reconciles; the scale factor is reported so the gap is visible.
+  function applyPlannerCashflow(project, parsed) {
+    const total = parsed.baseline.reduce((s, v) => s + v, 0);
+    if (total <= 0) throw new Error('Planner baseline column sums to zero');
+    const factor = project.bac / total;
+    return {
+      project: { ...project, start: parsed.start, monthlyBaseline: parsed.baseline.map(v => v * factor),
+        feed: { ...(project.feed || {}), planner: { months: parsed.months, total, factor, currency: parsed.currency, start: parsed.start } } },
+      plannerTotal: total, factor
+    };
+  }
+
+  /* ---------- midad-feed/1 ---------- */
+  const REQUIRED = ['id', 'name', 'bac', 'start', 'contingency', 'packages', 'commitments', 'risks', 'monthlyBaseline', 'monthlyActual'];
+  function parseFeed(text) {
+    let obj;
+    try { obj = JSON.parse(text); } catch (e) { throw new Error('File is not valid JSON'); }
+    if (obj.schema !== 'midad-feed/1') throw new Error('Expected "schema": "midad-feed/1"');
+    const p = obj.project;
+    if (!p || typeof p !== 'object') throw new Error('Missing "project" object');
+    const missing = REQUIRED.filter(k => !(k in p));
+    if (missing.length) throw new Error('Project is missing: ' + missing.join(', '));
+    if (!/^\d{4}-\d{2}$/.test(p.start)) throw new Error('"start" must be YYYY-MM');
+    ['debtShare', 'prelimPerMonth'].forEach(k => { if (typeof p[k] !== 'number') p[k] = k === 'debtShare' ? 0.6 : 0; });
+    p.code = p.code || String(p.id).toUpperCase().slice(0, 4);
+    return p;
+  }
+
+  const api = { COSTING_GROUPS, costingToMonthly, projectFromCosting, parseCsv, plannerMonth, parsePlannerCashflow, applyPlannerCashflow, parseFeed };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.MidadAdapters = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+  <script>
+/*
+ * Midad Executive Suite — UI controller.
+ * Depends on: Chart.js 4.4.0 (window.Chart), MIDAD_DATA, CG_COSTING, MidadEngine, MidadAdapters.
+ */
+(function () {
+  'use strict';
+  const E = window.MidadEngine;
+  const A = window.MidadAdapters;
+  const STORE_KEY = 'midad-exec/v1';
+  const THEME_KEY = 'midad-exec/theme';
+  const FEEDS = { 'crystal-gallery-costing': window.CG_COSTING };
+
+  /* ---------------- Utilities ---------------- */
+  const $ = id => document.getElementById(id);
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const nf = (d) => new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const NF = [nf(0), nf(1), nf(2)];
+  const sarM = (x, d = 1) => `SAR ${NF[d].format(x)}M`;
+  const signedM = (x, d = 1) => `${x > 0 ? '+' : x < 0 ? '−' : ''}SAR ${NF[d].format(Math.abs(x))}M`;
+  const sar = x => `SAR ${NF[0].format(Math.round(x * 1e6))}`;
+  const pct = (x, d = 0) => `${NF[d].format(x * 100)}%`;
+  const idx = x => (x == null ? '—' : x.toFixed(2));
+  const RAG_WORD = { G: 'On track', A: 'At risk', R: 'Off track' };
+  const ragChip = (r, label) => `<span class="rag rag-${r}" title="${RAG_WORD[r]}">${esc(label || RAG_WORD[r])}</span>`;
+  const deltaClass = x => (x > 0.005 ? 'delta-bad' : x < -0.005 ? 'delta-good' : 'muted');
+
+  function loadStore() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveStore() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { /* storage unavailable: keep in memory */ }
+  }
+
+  function toast(msg) {
+    const el = document.createElement('div');
+    el.className = 'toast'; el.textContent = msg;
+    $('toasts').appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 260); }, 3200);
+  }
+
+  // Hosted (claude.ai) build: the viewer blocks print dialogs and direct downloads.
+  const HOSTED = window.MIDAD_HOSTED === true;
+  let downloadsApi;
+  async function download(name, text, type) {
+    if (HOSTED) {
+      if (downloadsApi === undefined) {
+        downloadsApi = window.claude && typeof window.claude.use === 'function' ? await window.claude.use('downloads') : null;
+      }
+      if (!downloadsApi) { toast('File downloads are not available in this view.'); return false; }
+      try { await downloadsApi.save({ filename: name, data: text }); return true; }
+      catch (e) {
+        if (e && e.code === 'declined') return false;
+        toast(e && e.code === 'rate_limited' ? 'A save prompt is already open.' : 'The file could not be saved here.');
+        return false;
+      }
+    }
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+  }
+  const csvCell = v => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+
+  /* ---------------- State ---------------- */
+  let store = loadStore();
+  const state = {
+    view: 'portfolio', projectId: 'p1', riskScope: 'portfolio', chartMode: 'cumulative', search: '',
+    scenario: { ...E.DEFAULT_SCENARIO },
+    projects: [], byId: {}, m: {}, mc: {}, rag: {}, exc: {}, issues: {}, portfolio: null
+  };
+  const charts = {};
+
+  function buildProjects() {
+    const D = window.MIDAD_DATA;
+    const list = JSON.parse(JSON.stringify(D.projects));
+    D.linkedProjects.forEach(l => {
+      const feed = FEEDS[l.feed];
+      if (feed) list.push(A.projectFromCosting(feed, JSON.parse(JSON.stringify(l.meta))));
+    });
+    // Viewer-imported feeds (midad-feed/1) replace or add projects.
+    Object.values(store.feeds || {}).forEach(fp => {
+      const i = list.findIndex(p => p.id === fp.id);
+      if (i >= 0) list[i] = JSON.parse(JSON.stringify(fp)); else list.push(JSON.parse(JSON.stringify(fp)));
+    });
+    list.forEach(p => {
+      const ov = (store.overrides || {})[p.id];
+      if (ov) Object.assign(p, JSON.parse(JSON.stringify(ov)));
+      (store.added?.[p.id] || []).forEach(c => p.commitments.push({ ...c }));
+      const extra = store.actualAdds?.[p.id] || 0;
+      if (extra) {
+        if (!p.monthlyActual.length) p.monthlyActual.push(0);
+        p.monthlyActual[p.monthlyActual.length - 1] += extra;
+      }
+      p.stage = p.stage || 'Construction';
+    });
+    state.projects = list;
+    state.byId = Object.fromEntries(list.map(p => [p.id, p]));
+    if (!state.byId[state.projectId]) state.projectId = list[0].id;
+  }
+
+  function compute() {
+    const rr = window.MIDAD_DATA.retentionRate;
+    state.projects.forEach(p => {
+      const m = E.projectMetrics(p, { retentionRate: rr });
+      const mc = E.monteCarlo(p, m, E.DEFAULT_SCENARIO);
+      state.m[p.id] = m; state.mc[p.id] = mc;
+      state.rag[p.id] = E.rag(m, mc);
+      state.exc[p.id] = E.exceptions(p, m, mc);
+      state.issues[p.id] = E.integrityChecks(p, m);
+    });
+    const P = state.projects, M = state.m;
+    const tot = k => E.sum(P, p => M[p.id][k]);
+    const bac = E.sum(P, p => p.bac);
+    const pmc = E.portfolioMonteCarlo(P.map(p => state.mc[p.id]), bac);
+    const cf = E.portfolioCashflow(P, M);
+    const spiW = E.sum(P, p => M[p.id].ev) / Math.max(1e-9, E.sum(P, p => M[p.id].pv));
+    const cpiW = E.sum(P, p => M[p.id].ev) / Math.max(1e-9, E.sum(P, p => M[p.id].ac));
+    state.portfolio = {
+      bac, eac: tot('eac'), committed: tot('committed'), certified: tot('certified'), retention: tot('retention'),
+      contRemaining: tot('contRemaining'), overrunPressure: tot('overrunPressure'), headroom: bac - tot('eac'),
+      uncommitted: tot('uncommitted'), mc: pmc, cf, spi: spiW, cpi: cpiW,
+      exceptions: P.flatMap(p => state.exc[p.id]).sort((a, b) => (b.sev === 'R') - (a.sev === 'R') || b.value - a.value)
+    };
+  }
+
+  /* ---------------- Charts ---------------- */
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function palette() {
+    return {
+      series: [css('--s1'), css('--s2'), css('--s3'), css('--s4'), css('--s5')],
+      base: css('--s-base'), actual: css('--s1'), forecast: css('--s2'),
+      grid: css('--grid'), axis: css('--axis'), muted: css('--muted'), ink: css('--ink'), surface: css('--surface'),
+      crit: css('--crit'), warn: css('--warn'), good: css('--good')
+    };
+  }
+  function baseOptions(c, yFmt = v => `${v}`) {
+    return {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { padding: 10, boxPadding: 4 } },
+      scales: {
+        x: { grid: { display: false }, border: { color: c.axis }, ticks: { color: c.muted, maxRotation: 0, autoSkipPadding: 12 } },
+        y: { grid: { color: c.grid }, border: { display: false }, ticks: { color: c.muted, callback: yFmt } }
+      }
+    };
+  }
+  function draw(key, canvasId, config) {
+    if (charts[key]) charts[key].destroy();
+    const el = $(canvasId);
+    if (!el || typeof Chart === 'undefined') return;
+    charts[key] = new Chart(el.getContext('2d'), config);
+  }
+  const chartUnavailable = () => (typeof Chart === 'undefined'
+    ? '<div class="note warn">Charts could not load (Chart.js CDN unreachable). Figures and tables below are unaffected.</div>' : '');
+
+  /* ---------------- Views ---------------- */
+  function kpi(label, value, foot, valueClass = '') {
+    return `<div class="card kpi"><div class="label">${label}</div><div class="value num ${valueClass}">${value}</div><div class="foot">${foot}</div></div>`;
+  }
+
+  function renderPortfolio() {
+    const P = state.portfolio;
+    const head = `
+      <div class="view-head">
+        <div><h1>Portfolio overview</h1>
+          <p class="lede">${state.projects.length} capital projects · ${sarM(P.bac)} approved. Figures reconcile to the cost ledger; RAG thresholds are stated under Risk &amp; scenarios.</p></div>
+        <div class="actions no-print"><button class="btn" id="csv-portfolio" type="button">Export CSV</button></div>
+      </div>`;
+    const kpis = `<div class="grid g-kpi">
+      ${kpi('Approved budget (BAC)', sarM(P.bac), `<span>${state.projects.length} projects</span><span class="muted">incl. contingency</span>`)}
+      ${kpi('Forecast final cost', sarM(P.eac), `<span class="${P.headroom < 0 ? 'delta-bad' : 'delta-good'}">${signedM(-P.headroom)} vs BAC</span><span class="muted">bottom-up EAC</span>`)}
+      ${kpi('Confidence within BAC', pct(P.mc.probWithinBac), `<span>P80 ${sarM(P.mc.p80)}</span><span class="muted">risk-adjusted</span>`, P.mc.probWithinBac < 0.5 ? 'delta-bad' : P.mc.probWithinBac < 0.8 ? 'delta-warn' : 'delta-good')}
+      ${kpi('Committed', pct(P.committed / P.bac), `<span>${sarM(P.committed)}</span><span class="muted">${sarM(P.uncommitted)} uncommitted</span>`)}
+      ${kpi('Certified to date', sarM(P.certified), `<span>CPI ${idx(P.cpi)} · SPI ${idx(P.spi)}</span><span class="muted">retention ${sarM(P.retention)}</span>`)}
+      ${kpi('Contingency remaining', sarM(P.contRemaining), `<span class="${P.overrunPressure > P.contRemaining ? 'delta-bad' : ''}">${sarM(P.overrunPressure)} already forecast to draw</span>`)}
+    </div>`;
+
+    const rows = state.projects.map(p => {
+      const m = state.m[p.id], mc = state.mc[p.id], r = state.rag[p.id];
+      return `<tr class="clickable" data-open-project="${p.id}" tabindex="0">
+        <td style="min-width:200px"><div style="font-weight:700">${esc(p.name)}</div><div class="muted" style="font-size:12px">${esc(p.sector)} · ${esc(p.stage)}</div></td>
+        <td class="r num">${sarM(p.bac)}</td>
+        <td class="r num">${sarM(m.eac)}</td>
+        <td class="r num ${m.headroom < 0 ? 'delta-bad' : ''}">${sarM(m.headroom)}</td>
+        <td class="r num">${pct(m.pctComplete)}</td>
+        <td class="r num">${m.ac > 0 ? idx(m.cpi) : '—'}</td>
+        <td class="r num">${m.pv > 0 ? idx(m.spi) : '—'}</td>
+        <td class="r num">${pct(mc.probWithinBac)}</td>
+        <td class="c">${ragChip(r.cost, RAG_WORD[r.cost])}</td>
+        <td class="c">${ragChip(r.schedule, RAG_WORD[r.schedule])}</td>
+        <td class="c">${ragChip(r.overall)}</td>
+      </tr>`;
+    }).join('');
+    const table = `<div class="card flush">
+      <div class="card-head"><div><h2>Project health</h2><div class="card-sub">Select a project to review. SAR millions.</div></div></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Project</th><th class="r">BAC</th><th class="r">Forecast</th><th class="r">Headroom</th><th class="r">Complete</th><th class="r">CPI</th><th class="r">SPI</th><th class="r">P(≤BAC)</th><th class="c">Cost</th><th class="c">Schedule</th><th class="c">Overall</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td>Portfolio</td><td class="r num">${sarM(P.bac)}</td><td class="r num">${sarM(P.eac)}</td><td class="r num">${sarM(P.headroom)}</td><td></td><td class="r num">${idx(P.cpi)}</td><td class="r num">${idx(P.spi)}</td><td class="r num">${pct(P.mc.probWithinBac)}</td><td colspan="3"></td></tr></tfoot>
+      </table></div></div>`;
+
+    const decisions = P.exceptions.slice(0, 8).map(e => `
+      <li class="decision">${ragChip(e.sev, e.sev === 'R' ? 'Urgent' : 'Review')}
+        <div><div class="what">${esc(e.title)}</div>
+          <div class="meta">${esc(e.project)} · ${esc(e.kind)}</div>
+          <div class="ask"><b>Ask:</b> ${esc(e.ask)}</div></div></li>`).join('');
+    const decisionCard = `<div class="card"><div class="card-head"><div><h2>Decisions required</h2>
+      <div class="card-sub">${P.exceptions.length} exceptions raised by rule; top ${Math.min(8, P.exceptions.length)} shown, urgent first</div></div></div>
+      <ul class="decisions">${decisions || '<li class="note ok">No exceptions against current thresholds.</li>'}</ul></div>`;
+
+    // Next-12-month funding requirement
+    const cf = P.cf;
+    const now = E.monthIndex(window.MIDAD_DATA.reportingPeriod);
+    const fwd = cf.months.map((mi, i) => ({ mi, i })).filter(x => x.mi > now && x.mi <= now + 12);
+    const next3 = E.sum(fwd.slice(0, 3), x => E.sum(cf.byProject, b => b.forecast[x.i]));
+    const next12 = E.sum(fwd, x => E.sum(cf.byProject, b => b.forecast[x.i]));
+
+    const c = palette();
+    const legendProjects = state.projects.map((p, i) => `<span><i class="box" style="background:${c.series[i % c.series.length]}"></i>${esc(p.name)}</span>`).join('');
+    const charts1 = `<div class="grid g-1-1">
+      <div class="card"><div class="card-head"><div><h2>Portfolio cash flow (cumulative)</h2><div class="card-sub">Baseline plan vs certified vs forecast · SAR millions</div></div></div>
+        ${chartUnavailable()}<div class="chart"><canvas id="ch-port-s"></canvas></div>
+        <div class="legend"><span><i style="background:${c.base}"></i>Baseline</span><span><i style="background:${c.actual}"></i>Certified</span><span><i class="dash" style="color:${c.forecast}"></i>Forecast</span></div></div>
+      <div class="card"><div class="card-head"><div><h2>Funding requirement — next 12 months</h2><div class="card-sub">Forecast monthly capital calls by project · SAR millions</div></div>
+        <div style="text-align:right"><div class="num" style="font-weight:800;font-size:18px">${sarM(next3)}</div><div class="card-sub">next 3 months · ${sarM(next12)} in 12</div></div></div>
+        <div class="chart"><canvas id="ch-port-fund"></canvas></div><div class="legend">${legendProjects}</div></div>
+    </div>`;
+
+    $('view-portfolio').innerHTML = head + kpis + table + decisionCard + charts1 + integrityBanner();
+
+    // S-curve
+    const labels = cf.months.map(E.monthLabel);
+    const cum = arr => { let s = 0; return arr.map(v => (s += v)); };
+    const lastActual = cf.months.findIndex(mi => mi > now);
+    const cumAct = cum(cf.actual).map((v, i) => (cf.months[i] <= now ? v : null));
+    const cumFc = cum(cf.forecast).map((v, i) => (cf.months[i] >= now ? v : null));
+    const o = baseOptions(c, v => v);
+    o.plugins.tooltip.callbacks = { label: ctx => ctx.parsed.y == null ? null : `${ctx.dataset.label}: ${sarM(ctx.parsed.y)}` };
+    draw('portS', 'ch-port-s', { type: 'line', data: { labels, datasets: [
+      { label: 'Baseline', data: cum(cf.baseline), borderColor: c.base, borderWidth: 2, pointRadius: 0, tension: 0.3 },
+      { label: 'Certified', data: cumAct, borderColor: c.actual, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.3 },
+      { label: 'Forecast', data: cumFc, borderColor: c.forecast, borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: 0.3 }
+    ] }, options: o });
+    void lastActual;
+
+    const of = baseOptions(c, v => v);
+    of.scales.x.stacked = true; of.scales.y.stacked = true;
+    of.plugins.tooltip.callbacks = { label: ctx => `${ctx.dataset.label}: ${sarM(ctx.parsed.y)}`, footer: items => `Total: ${sarM(E.sum(items, it => it.parsed.y))}` };
+    draw('portFund', 'ch-port-fund', { type: 'bar', data: { labels: fwd.map(x => E.monthLabel(x.mi)), datasets: cf.byProject.map((b, i) => ({
+      label: b.name, data: fwd.map(x => b.forecast[x.i]), backgroundColor: c.series[i % c.series.length],
+      borderColor: c.surface, borderWidth: 1, borderRadius: 3, borderSkipped: false
+    })) }, options: of });
+
+    document.querySelectorAll('[data-open-project]').forEach(tr => {
+      const go = () => { state.projectId = tr.dataset.openProject; navigate('project'); };
+      tr.addEventListener('click', go);
+      tr.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    });
+    $('csv-portfolio').addEventListener('click', exportPortfolioCsv);
+  }
+
+  function integrityBanner(ids) {
+    const list = (ids || state.projects.map(p => p.id)).flatMap(id => state.issues[id].map(i => `${state.byId[id].name}: ${i}`));
+    return list.length
+      ? `<div class="note warn"><b>Data integrity — ${list.length} item(s) to reconcile:</b><ul style="margin:6px 0 0;padding-left:18px">${list.map(i => `<li>${esc(i)}</li>`).join('')}</ul></div>`
+      : `<div class="note ok"><b>Data integrity:</b> budgets, cash-flow baselines and certified actuals reconcile for ${ids ? 'this project' : 'all projects'}.</div>`;
+  }
+
+  function projectSelect(id, value, includePortfolio) {
+    return `<select class="select" id="${id}" aria-label="Project">
+      ${includePortfolio ? `<option value="portfolio" ${value === 'portfolio' ? 'selected' : ''}>Whole portfolio</option>` : ''}
+      ${state.projects.map(p => `<option value="${p.id}" ${p.id === value ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`;
+  }
+
+  function renderProject() {
+    const p = state.byId[state.projectId], m = state.m[p.id], mc = state.mc[p.id], r = state.rag[p.id];
+    const c = palette();
+    const pre = m.ac === 0 && m.pv === 0;
+    const head = `<div class="view-head">
+      <div><h1>${esc(p.name)} ${ragChip(r.overall)}</h1>
+        <p class="lede">${esc(p.sector)} · ${esc(p.stage)} · Sponsor: ${esc(p.sponsor)} · ${esc(p.pm)}${p.feed ? ` · <span class="pill">Linked: ${esc(p.feed.title || p.feed.kind)}</span>` : ''}</p></div>
+      <div class="actions no-print">${projectSelect('proj-select', p.id)}<button class="btn" id="csv-project" type="button">Export CSV</button></div></div>`;
+    const kpis = `<div class="grid g-kpi">
+      ${kpi('Approved budget (BAC)', sarM(p.bac), `<span>${m.duration} month programme</span><span class="muted">from ${E.monthLabel(m.startIdx)}</span>`)}
+      ${kpi('Forecast final cost', sarM(m.eac), `<span class="${m.headroom < 0 ? 'delta-bad' : 'delta-good'}">${sarM(m.headroom)} headroom</span>` + (pre ? '' : `<span class="muted">CPI-based ${sarM(m.eacCpi)}</span>`))}
+      ${kpi('Risk-adjusted cost', `P80 ${sarM(mc.p80)}`, `<span>P50 ${sarM(mc.p50)}</span><span class="${mc.probWithinBac < 0.8 ? 'delta-bad' : 'delta-good'}">${pct(mc.probWithinBac)} ≤ BAC</span>`)}
+      ${kpi('Committed', pct(m.committedPct), `<span>${sarM(m.committed)}</span><span class="muted">${sarM(m.uncommitted)} to let</span>`)}
+      ${kpi('Certified to date', sarM(m.certified), `<span>retention ${sarM(m.retention, 2)}</span><span class="muted">net paid ${sarM(m.certified - m.retention)}</span>`)}
+      ${kpi('Performance', pre ? 'Not started' : `CPI ${idx(m.cpi)} · SPI ${idx(m.spi)}`, pre ? '<span class="muted">EVM begins at NTP</span>' : `<span>${pct(m.pctComplete)} complete</span><span class="${m.forecastDelay ? 'delta-bad' : 'muted'}">${m.forecastDelay ? `+${m.forecastDelay} mo indicative` : 'on programme'}</span>`)}
+    </div>`;
+
+    const cf = E.cashflow(p, m);
+    const contBase = Math.max(1e-9, p.contingency.original);
+    const contUsedPct = Math.min(1, p.contingency.drawn / contBase);
+    const pressPct = Math.max(0, Math.min(1 - contUsedPct, m.overrunPressure / contBase));
+    const free = m.contRemaining - m.overrunPressure;
+    const sCard = `<div class="card"><div class="card-head"><div><h2>Cash flow S-curve</h2><div class="card-sub">Baseline vs certified vs forecast (forecast spreads EAC over the remaining baseline shape${m.forecastDelay ? `, stretched +${m.forecastDelay} mo` : ''})</div></div>
+      <div class="seg no-print" role="group" aria-label="Chart mode"><button type="button" data-mode="cumulative" aria-pressed="${state.chartMode === 'cumulative'}">Cumulative</button><button type="button" data-mode="monthly" aria-pressed="${state.chartMode === 'monthly'}">Monthly</button></div></div>
+      ${chartUnavailable()}<div class="chart"><canvas id="ch-proj-s"></canvas></div>
+      <div class="legend"><span><i style="background:${c.base}"></i>Baseline</span><span><i style="background:${c.actual}"></i>Certified</span><span><i class="dash" style="color:${c.forecast}"></i>Forecast</span></div></div>`;
+    const contCard = `<div class="card"><div class="card-head"><div><h2>Contingency</h2><div class="card-sub">Drawn, forecast to draw, and genuinely free</div></div>${ragChip(free < 0 ? 'R' : free < 0.25 * p.contingency.original ? 'A' : 'G', free < 0 ? 'Exhausted' : free < 0.25 * p.contingency.original ? 'Thin' : 'Adequate')}</div>
+      <div class="meter" role="img" aria-label="Contingency usage">
+        <span style="width:${(contUsedPct * 100).toFixed(1)}%;background:${c.base}" title="Drawn"></span>
+        <span style="width:${(pressPct * 100).toFixed(1)}%;background:${c.forecast}" title="Forecast to draw"></span></div>
+      <div class="legend"><span><i class="box" style="background:${c.base}"></i>Drawn</span><span><i class="box" style="background:${c.forecast}"></i>Forecast overruns</span><span><i class="box" style="background:var(--surface-2);border:1px solid var(--border)"></i>Free</span></div>
+      <div class="kv">
+        <span>Original contingency</span><span class="num">${sarM(p.contingency.original, 2)}</span>
+        <span>Drawn (transferred to packages)</span><span class="num">−${sarM(p.contingency.drawn, 2)}</span>
+        <span>Package overruns not yet transferred</span><span class="num">−${sarM(m.overrunPressure, 2)}</span>
+        <span class="total">Free contingency</span><span class="total num ${free < 0 ? 'delta-bad' : 'delta-good'}">${sarM(free, 2)}</span>
+        <span>Unmitigated risk (P80 − forecast)</span><span class="num ${mc.p80 - m.eac > m.headroom ? 'delta-bad' : ''}">${sarM(mc.p80 - m.eac, 2)}</span>
+      </div>
+      <p class="hint" style="margin:10px 0 0">Free contingency equals headroom to BAC. ${mc.p80 - m.eac > m.headroom ? '<b>It does not cover the P80 risk exposure.</b>' : 'It covers the P80 risk exposure.'}</p></div>`;
+
+    const cbsRows = m.pkgs.map(k => `<tr>
+      <td><span class="mono muted">${esc(k.code)}</span> ${esc(k.name)}${k.eacRaised ? ' <span class="pill" title="EAC raised to committed value">EAC↑</span>' : ''}</td>
+      <td class="r num">${NF[2].format(k.budget)}</td><td class="r num">${NF[2].format(k.committed)}</td>
+      <td class="r num">${NF[2].format(k.certified)}</td><td class="r num">${NF[2].format(k.eac)}</td>
+      <td class="r num ${deltaClass(k.variance)}">${k.variance > 0 ? '+' : ''}${NF[2].format(k.variance)}</td>
+      <td class="r num">${pct(k.pct)} <span class="muted">/ ${pct(k.planPct)}</span></td>
+      <td class="r num">${k.cpi == null ? '—' : idx(k.cpi)}</td><td class="r num">${k.spi == null ? '—' : idx(k.spi)}</td></tr>`).join('');
+    const cbs = `<div class="card flush"><div class="card-head"><div><h2>Cost breakdown</h2><div class="card-sub">Current budgets include approved contingency transfers · SAR millions · variance = EAC − budget</div></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Package</th><th class="r">Budget</th><th class="r">Committed</th><th class="r">Certified</th><th class="r">EAC</th><th class="r">Variance</th><th class="r">Done / plan</th><th class="r">CPI</th><th class="r">SPI</th></tr></thead>
+      <tbody>${cbsRows}</tbody>
+      <tfoot><tr><td>Total packages</td><td class="r num">${NF[2].format(m.budget)}</td><td class="r num">${NF[2].format(m.committed)}</td><td class="r num">${NF[2].format(m.certified)}</td><td class="r num">${NF[2].format(m.eac)}</td><td class="r num ${deltaClass(m.eac - m.budget)}">${NF[2].format(m.eac - m.budget)}</td><td class="r num">${pct(m.pctComplete)}</td><td class="r num">${pre ? '—' : idx(m.cpi)}</td><td class="r num">${pre ? '—' : idx(m.spi)}</td></tr></tfoot></table></div></div>`;
+
+    const q = state.search.trim().toLowerCase();
+    const cs = p.commitments.filter(x => !q || [x.id, x.title, x.vendor, x.pkg].some(v => String(v).toLowerCase().includes(q)));
+    const commitRows = cs.map(x => `<tr>
+      <td><span class="mono" style="color:var(--accent);font-weight:700">${esc(x.id)}</span> ${esc(x.title)}</td>
+      <td>${esc(x.vendor)}</td><td class="mono">${esc(x.pkg)}</td>
+      <td class="r num">${NF[2].format(x.original)}</td><td class="r num">${x.variations ? '+' + NF[2].format(x.variations) : '—'}</td>
+      <td class="r num">${NF[2].format(x.certified)}</td><td class="r num">${pct(x.certified / Math.max(1e-9, x.original + x.variations))}</td>
+      <td class="c"><span class="pill">${esc(x.status)}</span></td>
+      <td class="r"><button class="link" type="button" data-statement="${esc(x.id)}">Statement</button></td></tr>`).join('');
+    const commits = `<div class="card flush"><div class="card-head"><div><h2>Contract commitments</h2><div class="card-sub">${p.commitments.length} contracts · SAR millions</div></div>
+      <div class="actions no-print"><input class="search" id="commit-search" type="search" placeholder="Search ID, vendor, package" value="${esc(state.search)}" aria-label="Search commitments"><button class="btn btn-primary" type="button" id="commit-add">Record commitment</button></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Contract</th><th>Vendor</th><th>Pkg</th><th class="r">Original</th><th class="r">Variations</th><th class="r">Certified</th><th class="r">% cert.</th><th class="c">Status</th><th></th></tr></thead>
+      <tbody>${commitRows || `<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">${p.commitments.length ? 'No contracts match the search.' : 'No contracts awarded yet. Awards from the Procurement app can be loaded under Connected apps.'}</td></tr>`}</tbody></table></div></div>`;
+
+    const hasLocal = (store.added?.[p.id] || []).length || store.overrides?.[p.id] || store.feeds?.[p.id];
+    $('view-project').innerHTML = head + kpis + `<div class="grid g-2-1">${sCard}${contCard}</div>` + cbs + commits + riskTable([p]) + integrityBanner([p.id]) +
+      (hasLocal ? `<div class="no-print"><button class="btn" type="button" id="reset-project">Discard local changes to this project</button></div>` : '');
+
+    // Chart
+    const labels = Array.from({ length: cf.len }, (_, i) => E.monthLabel(cf.startIdx + i));
+    const cum = state.chartMode === 'cumulative';
+    const pick = (arr, cumArr) => (cum ? cumArr : arr);
+    const n = cf.elapsed;
+    const actual = pick(cf.actual, cf.cumActual);
+    const fc = pick(cf.forecast, cf.cumForecast).map((v, i) => (i >= Math.max(0, n - 1) ? v : null));
+    if (!cum && n > 0) fc[n - 1] = null;
+    const o = baseOptions(c, v => v);
+    o.plugins.tooltip.callbacks = { label: ctx => ctx.parsed.y == null ? null : `${ctx.dataset.label}: ${sarM(ctx.parsed.y, 2)}` };
+    draw('projS', 'ch-proj-s', { type: 'line', data: { labels, datasets: [
+      { label: 'Baseline', data: pick(cf.baseline, cf.cumBaseline), borderColor: c.base, borderWidth: 2, pointRadius: 0, tension: 0.3 },
+      { label: 'Certified', data: actual, borderColor: c.actual, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.3 },
+      { label: 'Forecast', data: fc, borderColor: c.forecast, borderDash: [6, 4], borderWidth: 2, pointRadius: 0, tension: 0.3 }
+    ] }, options: o });
+
+    $('proj-select').addEventListener('change', e => { state.projectId = e.target.value; state.search = ''; renderProject(); });
+    $('csv-project').addEventListener('click', () => exportProjectCsv(p));
+    document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { state.chartMode = b.dataset.mode; renderProject(); }));
+    const s = $('commit-search');
+    s.addEventListener('input', () => { state.search = s.value; renderProject(); const ns = $('commit-search'); ns.focus(); ns.setSelectionRange(ns.value.length, ns.value.length); });
+    $('commit-add').addEventListener('click', openCommitModal);
+    document.querySelectorAll('[data-statement]').forEach(b => b.addEventListener('click', () => openStatement(b.dataset.statement)));
+    const rs = $('reset-project');
+    if (rs) rs.addEventListener('click', () => {
+      // Two-step confirmation in the page (the hosted viewer suppresses confirm()).
+      if (rs.dataset.armed !== '1') {
+        rs.dataset.armed = '1'; rs.textContent = `Click again to discard local changes to ${p.name}`; rs.classList.add('btn-primary');
+        setTimeout(() => { if (rs.isConnected) { rs.dataset.armed = ''; rs.textContent = 'Discard local changes to this project'; rs.classList.remove('btn-primary'); } }, 5000);
+        return;
+      }
+      ['added', 'actualAdds', 'overrides', 'feeds'].forEach(k => { if (store[k]) delete store[k][p.id]; });
+      saveStore(); refresh(); toast('Local changes discarded.');
+    });
+  }
+
+  function riskTable(projects) {
+    const rows = projects.flatMap(p => E.riskExposure(p).map(r => ({ ...r, project: p.name })))
+      .sort((a, b) => b.expected - a.expected);
+    const multi = projects.length > 1;
+    return `<div class="card flush"><div class="card-head"><div><h2>Risk register</h2><div class="card-sub">Unmitigated, excluded from EAC · ranked by expected value (probability × mean impact) · SAR millions</div></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Risk</th>${multi ? '<th>Project</th>' : ''}<th>Owner</th><th class="r">Prob.</th><th class="r">Impact (min / likely / max)</th><th class="r">Expected</th><th class="r">Delay</th><th>Mitigation</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td><span class="mono muted">${esc(r.id)}</span> ${esc(r.title)}</td>${multi ? `<td>${esc(r.project)}</td>` : ''}<td>${esc(r.owner)}</td>
+        <td class="r num">${pct(r.p)}</td><td class="r num">${NF[1].format(r.min)} / ${NF[1].format(r.ml)} / ${NF[1].format(r.max)}</td>
+        <td class="r num" style="font-weight:700">${NF[2].format(r.expected)}</td><td class="r num">${r.delayWeeks ? r.delayWeeks + ' wk' : '—'}</td><td class="ink2" style="font-size:12px">${esc(r.mitigation)}</td></tr>`).join('') ||
+        '<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No risks registered.</td></tr>'}</tbody></table></div></div>`;
+  }
+
+  function scenarioRun() {
+    const s = state.scenario;
+    const scope = state.riskScope;
+    const projects = scope === 'portfolio' ? state.projects : [state.byId[scope]];
+    const runs = projects.map(p => E.monteCarlo(p, state.m[p.id], s));
+    const bac = E.sum(projects, p => p.bac);
+    const eac = E.sum(projects, p => state.m[p.id].eac);
+    const mc = runs.length === 1 ? runs[0] : E.portfolioMonteCarlo(runs, bac);
+    const det = E.sum(projects, p => E.scenarioCost(p, state.m[p.id], s).total);
+    const fin = E.sum(projects, p => E.scenarioCost(p, state.m[p.id], s).financing);
+    return { projects, mc, bac, eac, det, fin };
+  }
+
+  function renderRisk() {
+    const s = state.scenario;
+    const T = E.THRESHOLDS;
+    $('view-risk').innerHTML = `<div class="view-head">
+        <div><h1>Risk &amp; scenarios</h1><p class="lede">Monte Carlo of final cost (5,000 iterations, fixed seed so figures are reproducible between board meetings). Sliders stress the forecast; the risk register drives the spread.</p></div>
+        <div class="actions no-print">${projectSelect('risk-scope', state.riskScope, true)}</div></div>
+      <div class="grid g-3 no-print">
+        <div class="slider"><div class="slider-top"><label for="sl-delay">Schedule slippage</label><span class="num" id="sl-delay-v"></span></div>
+          <input type="range" id="sl-delay" min="0" max="12" step="1" value="${s.delayMonths}"><p>Adds time-related preliminaries and financing carry for each month.</p></div>
+        <div class="slider"><div class="slider-top"><label for="sl-esc">Escalation on uncommitted scope</label><span class="num" id="sl-esc-v"></span></div>
+          <input type="range" id="sl-esc" min="0" max="20" step="0.5" value="${s.escalationPct}"><p>Applied only to forecast value not yet under contract.</p></div>
+        <div class="slider"><div class="slider-top"><label for="sl-apr">Debt financing rate</label><span class="num" id="sl-apr-v"></span></div>
+          <input type="range" id="sl-apr" min="3" max="12" step="0.25" value="${s.aprPct}"><p>Interest during construction on the debt share, for the delay period.</p></div>
+      </div>
+      <div class="grid g-kpi" id="risk-kpis"></div>
+      <div class="card"><div class="card-head"><div><h2>Distribution of final cost</h2><div class="card-sub" id="risk-hist-sub"></div></div>
+        <button class="btn no-print" type="button" id="risk-reset">Reset scenario</button></div>
+        ${chartUnavailable()}<div class="chart sm"><canvas id="ch-hist"></canvas></div>
+        <div class="legend" id="risk-legend"></div></div>
+      <div id="risk-register"></div>
+      <div class="card"><details class="method" open><summary>Method, thresholds &amp; assumptions</summary><ul>
+        <li><b>Forecast (EAC)</b> is bottom-up per package and never below committed value. <b>Headroom</b> = BAC − EAC, which equals free contingency.</li>
+        <li><b>EVM:</b> EV = Σ budget × physical % complete; PV = Σ budget × planned %; AC = gross certified. Performance-based EAC = AC + (Σ budget − EV) / CPI is shown as an independent check.</li>
+        <li><b>Monte Carlo:</b> remaining cost per package × triangular(0.97, 1.00, 1.03 + 0.12 × uncommitted share); each register risk fires with its probability and a triangular impact; risk delays take the longest that fired (not summed). Projects are treated as independent, which understates portfolio tail risk if risks are correlated.</li>
+        <li><b>Financing</b> = cost × debt share × rate × delay months / 12. A simplification, not a drawdown-weighted IDC model.</li>
+        <li><b>Indicative finish</b> = planned duration / SPI. Early in a project this overstates delay; use the planner's CPM dates for commitments to the board.</li>
+        <li><b>RAG:</b> Cost red if headroom &lt; 0, P(≤BAC) &lt; ${pct(T.confidenceRed)} or CPI &lt; ${T.cpiRed}; amber if P(≤BAC) &lt; ${pct(T.confidenceGreen)} or CPI &lt; ${T.cpiAmber}. Schedule red if SPI &lt; ${T.spiRed}; amber if SPI &lt; ${T.spiAmber}. Overall = worse of the two. RAG always uses the unstressed scenario.</li>
+        <li>Project data in this build is illustrative except Crystal Gallery, which is priced from the shared cost-model feed.</li>
+      </ul></details></div>`;
+
+    const update = () => {
+      s.delayMonths = Number($('sl-delay').value); s.escalationPct = Number($('sl-esc').value); s.aprPct = Number($('sl-apr').value);
+      $('sl-delay-v').textContent = `+${s.delayMonths} mo`; $('sl-esc-v').textContent = `+${s.escalationPct.toFixed(1)}%`; $('sl-apr-v').textContent = `${s.aprPct.toFixed(2)}%`;
+      const r = scenarioRun();
+      const contNeedP80 = r.mc.p80 - r.eac;
+      const headroom = r.bac - r.eac;
+      $('risk-kpis').innerHTML =
+        kpi('Stressed forecast (no risk events)', sarM(r.det), `<span class="${deltaClass(r.det - r.bac)}">${signedM(r.det - r.bac)} vs BAC</span><span class="muted">financing ${sarM(r.fin, 2)}</span>`) +
+        kpi('P50 / P80 / P90', `${NF[1].format(r.mc.p50)} / ${NF[1].format(r.mc.p80)}`, `<span>P90 ${sarM(r.mc.p90)}</span><span class="muted">SAR millions</span>`) +
+        kpi('Confidence within BAC', pct(r.mc.probWithinBac), `<span>BAC ${sarM(r.bac)}</span>`, r.mc.probWithinBac < T.confidenceRed ? 'delta-bad' : r.mc.probWithinBac < T.confidenceGreen ? 'delta-warn' : 'delta-good') +
+        kpi('Contingency adequacy at P80', signedM(headroom - contNeedP80), `<span>needs ${sarM(contNeedP80)}</span><span class="muted">has ${sarM(headroom)}</span>`, headroom - contNeedP80 < 0 ? 'delta-bad' : 'delta-good');
+      const h = E.histogram(r.mc.sorted, 28);
+      const c = palette();
+      const centers = h.edges.map(e => e + h.width / 2);
+      $('risk-hist-sub').textContent = `${r.mc.iterations.toLocaleString('en-US')} simulated outcomes · ${r.projects.length === 1 ? r.projects[0].name : 'whole portfolio'} · SAR millions`;
+      $('risk-legend').innerHTML = `<span><i class="box" style="background:${c.actual}"></i>Outcomes within BAC</span><span><i class="box" style="background:${c.forecast}"></i>Outcomes over BAC</span><span><i style="background:${c.ink}"></i>BAC</span><span><i class="dash" style="color:${c.muted}"></i>P50 · P80 · P90</span>`;
+      const markers = [
+        { v: r.bac, label: 'BAC', color: c.ink, dash: [] },
+        { v: r.mc.p50, label: 'P50', color: c.muted, dash: [4, 3] },
+        { v: r.mc.p80, label: 'P80', color: c.muted, dash: [4, 3] },
+        { v: r.mc.p90, label: 'P90', color: c.muted, dash: [4, 3] }
+      ];
+      const markerPlugin = {
+        id: 'markers',
+        afterDatasetsDraw(chart) {
+          const x = chart.scales.x, area = chart.chartArea, ctx = chart.ctx;
+          if (x.ticks.length < 2) return;
+          const p0 = x.getPixelForValue(0), p1 = x.getPixelForValue(1);
+          ctx.save();
+          ctx.font = '600 11px "JetBrains Mono", monospace';
+          markers.forEach((mk, i) => {
+            const f = (mk.v - h.lo) / h.width - 0.5;
+            const px = p0 + f * (p1 - p0);
+            if (px < area.left - 1 || px > area.right + 1) return;
+            ctx.strokeStyle = mk.color; ctx.fillStyle = mk.color; ctx.lineWidth = 1.5; ctx.setLineDash(mk.dash);
+            ctx.beginPath(); ctx.moveTo(px, area.top - 4); ctx.lineTo(px, area.bottom); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.textAlign = px > area.right - 40 ? 'right' : 'left';
+            ctx.fillText(mk.label, px + (ctx.textAlign === 'left' ? 4 : -4), area.top - 20 + (i % 2) * 12);
+          });
+          ctx.restore();
+        }
+      };
+      const o = baseOptions(c, v => `${v}%`);
+      o.interaction = { mode: 'nearest', intersect: false, axis: 'x' };
+      o.layout = { padding: { top: 30 } };
+      o.scales.x.ticks.callback = function (v, i) { return i % 4 === 0 ? NF[0].format(centers[i]) : ''; };
+      o.plugins.tooltip.callbacks = {
+        title: items => `SAR ${NF[1].format(h.edges[items[0].dataIndex])}–${NF[1].format(h.edges[items[0].dataIndex] + h.width)}M`,
+        label: ctx => `${ctx.parsed.y.toFixed(1)}% of outcomes`
+      };
+      draw('hist', 'ch-hist', { type: 'bar', data: { labels: centers.map(v => v.toFixed(1)), datasets: [{
+        label: 'Share of outcomes', data: h.share.map(v => v * 100),
+        backgroundColor: centers.map(v => (v <= r.bac ? c.actual : c.forecast)),
+        borderColor: c.surface, borderWidth: 1, borderRadius: 3, barPercentage: 1, categoryPercentage: 1
+      }] }, options: o, plugins: [markerPlugin] });
+      $('risk-register').innerHTML = riskTable(r.projects);
+    };
+    let pending = false;
+    const schedule = () => { if (pending) return; pending = true; requestAnimationFrame(() => { pending = false; update(); }); };
+    ['sl-delay', 'sl-esc', 'sl-apr'].forEach(id => $(id).addEventListener('input', schedule));
+    $('risk-scope').addEventListener('change', e => { state.riskScope = e.target.value; update(); });
+    $('risk-reset').addEventListener('click', () => {
+      Object.assign(state.scenario, E.DEFAULT_SCENARIO);
+      $('sl-delay').value = s.delayMonths; $('sl-esc').value = s.escalationPct; $('sl-apr').value = s.aprPct;
+      update(); toast('Scenario reset to baseline.');
+    });
+    update();
+  }
+
+  function renderApps() {
+    const D = window.MIDAD_DATA;
+    const urls = store.appUrls || {};
+    const cg = state.projects.find(p => p.feed && p.feed.kind === 'cost-model');
+    const cards = D.apps.map(a => {
+      const url = urls[a.id] ?? a.url;
+      const safe = /^https:\/\//i.test(url) ? url : '';
+      return `<div class="card"><div class="card-head"><div><h2>${esc(a.name)}</h2><div class="card-sub">${esc(a.role)}</div></div><span class="pill">${esc(a.mode)}</span></div>
+        <p class="ink2" style="margin:0 0 10px;font-size:13px">${esc(a.feeds)}</p>
+        <div class="hint">Branch <span class="mono">${esc(a.branch)}</span></div>
+        <div class="actions no-print" style="margin-top:12px;flex-wrap:wrap">
+          ${safe ? `<a class="btn btn-primary" href="${esc(safe)}" target="_blank" rel="noopener">Open app ↗</a>` : '<span class="pill">No URL set</span>'}
+          <input class="search" style="flex:1;min-width:180px" type="url" placeholder="https://… (where this app is hosted)" value="${esc(url)}" data-app-url="${esc(a.id)}" aria-label="${esc(a.name)} URL">
+        </div></div>`;
+    }).join('');
+    const feedCard = cg ? `<div class="card"><div class="card-head"><div><h2>Live link: Crystal Gallery cost model</h2><div class="card-sub">The IPC System reads the same generated file, so the two apps cannot price the project differently</div></div>${ragChip('G', 'Linked')}</div>
+      <div class="kv">
+        <span>Source</span><span class="mono">${esc(cg.feed.ref)} @ ${esc(String(cg.feed.commit).slice(0, 7))}</span>
+        <span>Priced lines</span><span class="num">${cg.feed.lines}</span>
+        <span>Base cost (rate base date)</span><span class="num">${sarM(cg.feed.base, 2)}</span>
+        <span>Out-turn priced bill = contract sum</span><span class="num">${sarM(cg.feed.outturn, 2)}</span>
+        <span>Contingency reserve</span><span class="num">${sarM(cg.feed.contingency, 2)}</span>
+        <span class="total">Budget basis (BAC)</span><span class="total num">${sarM(cg.bac, 2)}</span>
+        <span>Scope gaps excluded from BAC (expected value)</span><span class="num delta-bad">${sarM(E.sum(E.riskExposure(cg), r => r.expected), 2)}</span>
+      </div>
+      ${cg.feed.planner ? `<p class="hint">Baseline phasing replaced by a 4D Planner export (${cg.feed.planner.months} months from ${esc(cg.feed.planner.start)}, scaled ×${cg.feed.planner.factor.toFixed(3)} to BAC).</p>` : '<p class="hint">Phasing: each priced line spread linearly over its planned working days (same method as the planner).</p>'}
+      <p class="hint">To refresh after the cost model changes: run <span class="mono">tools/sync_costing.py</span> in the IPC System branch, then copy <span class="mono">assets/js/crystal-gallery-costing.js</span> to <span class="mono">assets/feeds/</span> here.</p></div>` : '';
+
+    $('view-apps').innerHTML = `<div class="view-head"><div><h1>Connected apps</h1>
+        <p class="lede">The executive suite sits on top of the operational apps. Each owns its data; this page shows what flows up and how.</p></div></div>
+      <div class="note warn"><b>No live sync between apps.</b> Three apps keep their data in each viewer's browser or the page's own store, and the procurement app is a separate server with no export API. Links below are either a shared generated file (cost model) or a file you export from one app and import here.</div>
+      <div class="card"><h2 style="margin-bottom:10px">Data flow</h2>
+        <div class="flow mono" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px">
+          <span class="pill">Take-off &amp; BoQ</span><span>→ priced bill →</span><span class="pill">4D Planner</span><span>→ cost-loaded schedule →</span><span class="pill">IPC System</span><span>→ certified to date →</span><span class="pill" style="background:var(--accent-soft);color:var(--ink)">Executive Suite</span>
+          <span style="flex-basis:100%;height:0"></span>
+          <span class="pill">Procurement</span><span>→ awards →</span><span class="pill" style="background:var(--accent-soft);color:var(--ink)">Executive Suite</span></div></div>
+      ${feedCard}
+      <div class="grid g-1-1">${cards}</div>
+      <div class="grid g-1-1 no-print">
+        <div class="card"><h2>Import 4D Planner cash flow</h2>
+          <p class="hint">In the planner: Data → <b>Monthly cash flow (.csv)</b>. The baseline column becomes this project's cash plan, rescaled to its BAC.</p>
+          <div class="form-grid" style="margin-top:10px"><div class="field"><label for="imp-plan-proj">Apply to</label>${projectSelect('imp-plan-proj', cg ? cg.id : state.projectId)}</div>
+            <div class="field"><label for="imp-plan-file">CSV file</label><input type="file" id="imp-plan-file" accept=".csv,text/csv"></div></div>
+          <div class="error" id="imp-plan-err" role="alert"></div></div>
+        <div class="card"><h2>Import project feed (midad-feed/1)</h2>
+          <p class="hint">A JSON file with <span class="mono">{"schema":"midad-feed/1","project":{…}}</span>. Use it to bring in certified totals from the IPC System or awards from Procurement. Same project id replaces; new id adds.</p>
+          <div class="form-grid" style="margin-top:10px"><div class="field full"><label for="imp-feed-file">JSON file</label><input type="file" id="imp-feed-file" accept=".json,application/json"></div></div>
+          <div class="actions" style="margin-top:10px"><button class="btn" type="button" id="feed-template">Download template from current project</button></div>
+          <div class="error" id="imp-feed-err" role="alert"></div></div>
+      </div>`;
+
+    document.querySelectorAll('[data-app-url]').forEach(inp => inp.addEventListener('change', () => {
+      const v = inp.value.trim();
+      if (v && !/^https:\/\//i.test(v)) { toast('Use an https:// address.'); return; }
+      store.appUrls = { ...(store.appUrls || {}), [inp.dataset.appUrl]: v }; saveStore(); renderApps(); toast('App link saved in this browser.');
+    }));
+    $('imp-plan-file').addEventListener('change', async e => {
+      const f = e.target.files[0]; if (!f) return;
+      const err = $('imp-plan-err'); err.textContent = '';
+      try {
+        const parsed = A.parsePlannerCashflow(await f.text());
+        const pid = $('imp-plan-proj').value, p = state.byId[pid];
+        const res = A.applyPlannerCashflow(p, parsed);
+        if (parsed.currency && parsed.currency.toUpperCase() !== 'SAR') throw new Error(`Export is in ${parsed.currency}; set the planner currency to SAR first`);
+        if (p.monthlyActual.length && parsed.start !== p.start) throw new Error(`Planner starts ${parsed.start} but ${p.name} has actuals from ${p.start}; re-baseline in the planner first`);
+        store.overrides = { ...(store.overrides || {}), [pid]: { start: res.project.start, monthlyBaseline: res.project.monthlyBaseline, feed: res.project.feed } };
+        saveStore(); refresh();
+        toast(`Planner baseline applied to ${p.name} (${parsed.months} months, planner total ${sarM(res.plannerTotal)}).`);
+      } catch (ex) { err.textContent = ex.message; }
+      e.target.value = '';
+    });
+    $('imp-feed-file').addEventListener('change', async e => {
+      const f = e.target.files[0]; if (!f) return;
+      const err = $('imp-feed-err'); err.textContent = '';
+      try {
+        const p = A.parseFeed(await f.text());
+        const issues = E.integrityChecks(p, E.projectMetrics(p));
+        store.feeds = { ...(store.feeds || {}), [p.id]: p };
+        saveStore(); refresh();
+        toast(`Feed loaded: ${p.name}${issues.length ? ` — ${issues.length} integrity item(s) flagged` : ''}.`);
+      } catch (ex) { err.textContent = ex.message; }
+      e.target.value = '';
+    });
+    $('feed-template').addEventListener('click', () => {
+      const p = state.byId[state.projectId];
+      download(`midad-feed_${p.code}.json`, JSON.stringify({ schema: 'midad-feed/1', exportedAt: new Date().toISOString(), project: p }, null, 2), 'application/json');
+    });
+  }
+
+  function narrative(p) {
+    const m = state.m[p.id], mc = state.mc[p.id], r = state.rag[p.id];
+    const pre = m.ac === 0 && m.pv === 0;
+    const parts = [];
+    parts.push(`${p.name} is <b>${RAG_WORD[r.overall].toLowerCase()}</b> (cost ${RAG_WORD[r.cost].toLowerCase()}, schedule ${RAG_WORD[r.schedule].toLowerCase()}).`);
+    parts.push(`Forecast final cost is ${sarM(m.eac)} against a budget of ${sarM(p.bac)}, leaving ${sarM(m.headroom)} of headroom; there is a ${pct(mc.probWithinBac)} chance of finishing within budget (P80 ${sarM(mc.p80)}).`);
+    if (pre) parts.push(`The project is at stage “${esc(p.stage)}”; no cost has been certified and nothing is yet under contract.`);
+    else parts.push(`Work is ${pct(m.pctComplete)} complete with CPI ${idx(m.cpi)} and SPI ${idx(m.spi)}${m.forecastDelay ? `, indicating roughly ${m.forecastDelay} month(s) of delay` : ''}. ${pct(m.committedPct)} of the budget is committed.`);
+    const top = E.riskExposure(p)[0];
+    if (top) parts.push(`Largest risk: ${esc(top.title)} (expected ${sarM(top.expected, 2)}).`);
+    return parts.join(' ');
+  }
+
+  function renderReport() {
+    const P = state.portfolio;
+    const period = E.monthLabel(E.monthIndex(window.MIDAD_DATA.reportingPeriod));
+    const reds = state.projects.filter(p => state.rag[p.id].overall === 'R');
+    $('view-report').innerHTML = `<div class="report card">
+      <div class="view-head"><div><div class="brand-sub">Board report · period ${period}</div><h1 style="margin-top:6px">Capital portfolio — executive summary</h1></div>
+        <div class="actions no-print"><button class="btn" type="button" id="rep-csv">Export CSV</button>${HOSTED ? '' : '<button class="btn btn-primary" type="button" id="rep-print">Print / save PDF</button>'}</div></div>
+      <section><h2>Headline</h2>
+        <p>The portfolio of ${state.projects.length} projects carries an approved budget of <b>${sarM(P.bac)}</b>. Bottom-up forecasts total <b>${sarM(P.eac)}</b> (${signedM(P.eac - P.bac)} against budget). On a risk-adjusted basis the portfolio has a <b>${pct(P.mc.probWithinBac)}</b> chance of completing within budget; the P80 outcome is ${sarM(P.mc.p80)}.</p>
+        <p>${reds.length ? `<b>${reds.length} project(s) are off track:</b> ${reds.map(p => esc(p.name)).join(', ')}.` : 'No project is off track.'} ${pct(P.committed / P.bac)} of budget is committed and ${sarM(P.certified)} has been certified to date.</p></section>
+      <section><h2>Project status</h2><div class="table-wrap"><table><thead><tr><th>Project</th><th class="r">BAC</th><th class="r">Forecast</th><th class="r">P(≤BAC)</th><th class="c">Cost</th><th class="c">Schedule</th><th class="c">Overall</th></tr></thead><tbody>
+        ${state.projects.map(p => { const r = state.rag[p.id]; return `<tr><td>${esc(p.name)}</td><td class="r num">${sarM(p.bac)}</td><td class="r num">${sarM(state.m[p.id].eac)}</td><td class="r num">${pct(state.mc[p.id].probWithinBac)}</td><td class="c">${ragChip(r.cost)}</td><td class="c">${ragChip(r.schedule)}</td><td class="c">${ragChip(r.overall)}</td></tr>`; }).join('')}
+      </tbody></table></div></section>
+      <section><h2>Decisions requested of the board</h2><ol style="padding-left:18px">
+        ${P.exceptions.filter(e => e.sev === 'R').map(e => `<li style="margin:6px 0"><b>${esc(e.project)}:</b> ${esc(e.title)}. <i>${esc(e.ask)}.</i></li>`).join('') || '<li>None at urgent level.</li>'}
+      </ol>${P.exceptions.some(e => e.sev === 'A') ? `<p class="hint">${P.exceptions.filter(e => e.sev === 'A').length} further items for management review are listed on the Portfolio page.</p>` : ''}</section>
+      <section><h2>Project commentary</h2>${state.projects.map(p => `<div class="proj"><h3>${esc(p.name)} ${ragChip(state.rag[p.id].overall)}</h3><p>${narrative(p)}</p></div>`).join('')}</section>
+      <section><p class="hint">${HOSTED ? 'To print, open the app locally (see README). ' : ''}Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} by Midad Executive Suite from the cost ledger. Risk figures from a seeded 5,000-iteration Monte Carlo; method on the Risk &amp; scenarios page. Project data is illustrative except where marked as linked.</p></section>
+    </div>`;
+    if (!HOSTED) $('rep-print').addEventListener('click', () => window.print());
+    $('rep-csv').addEventListener('click', exportPortfolioCsv);
+  }
+
+  /* ---------------- Exports ---------------- */
+  function exportPortfolioCsv() {
+    const head = ['project', 'stage', 'bac_sar_m', 'eac_sar_m', 'headroom_sar_m', 'committed_sar_m', 'certified_sar_m', 'cpi', 'spi', 'p50_sar_m', 'p80_sar_m', 'p_within_bac', 'rag_cost', 'rag_schedule', 'rag_overall'];
+    const rows = state.projects.map(p => {
+      const m = state.m[p.id], mc = state.mc[p.id], r = state.rag[p.id];
+      return [p.name, p.stage, p.bac, m.eac, m.headroom, m.committed, m.certified, m.cpi, m.spi, mc.p50, mc.p80, mc.probWithinBac, r.cost, r.schedule, r.overall]
+        .map(v => (typeof v === 'number' ? E.round(v, 3) : v));
+    });
+    download(`midad_portfolio_${window.MIDAD_DATA.reportingPeriod}.csv`, [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv')
+      .then(ok => { if (ok) toast('Portfolio summary exported.'); });
+  }
+  function exportProjectCsv(p) {
+    const m = state.m[p.id];
+    const head = ['package_code', 'package', 'budget_sar_m', 'committed_sar_m', 'certified_sar_m', 'eac_sar_m', 'variance_sar_m', 'pct_complete', 'pct_planned', 'cpi', 'spi'];
+    const rows = m.pkgs.map(k => [k.code, k.name, k.budget, k.committed, k.certified, k.eac, k.variance, k.pct, k.planPct, k.cpi ?? '', k.spi ?? ''].map(v => (typeof v === 'number' ? E.round(v, 3) : v)));
+    download(`midad_${p.code}_cbs_${window.MIDAD_DATA.reportingPeriod}.csv`, [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv')
+      .then(ok => { if (ok) toast(`${p.name} cost breakdown exported.`); });
+  }
+
+  /* ---------------- Modals ---------------- */
+  let lastFocus = null;
+  function openModal(id) { lastFocus = document.activeElement; $(id).classList.remove('hidden'); const f = $(id).querySelector('input,select,button'); if (f) f.focus(); }
+  function closeModal(id) { $(id).classList.add('hidden'); document.body.classList.remove('print-modal'); if (lastFocus) lastFocus.focus(); }
+  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(b.dataset.close)));
+  document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeModal(m.id); }));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal:not(.hidden)').forEach(m => closeModal(m.id)); });
+
+  function openCommitModal() {
+    const p = state.byId[state.projectId];
+    $('commit-form').reset();
+    $('commit-sub').textContent = p.name;
+    $('f-pkg').innerHTML = p.packages.map(k => `<option value="${esc(k.code)}">${esc(k.code)} — ${esc(k.name)}</option>`).join('');
+    $('f-error').textContent = '';
+    updateImpact();
+    openModal('commit-modal');
+  }
+  function updateImpact() {
+    const p = state.byId[state.projectId];
+    const m = state.m[p.id];
+    const k = m.pkgs.find(x => x.code === $('f-pkg').value);
+    const val = (Number($('f-value').value) || 0) / 1e6;
+    if (!k) { $('f-impact').textContent = ''; return; }
+    const after = k.committed + val;
+    $('f-impact').innerHTML = `Package ${esc(k.code)}: committed ${sarM(k.committed, 2)} → <b>${sarM(after, 2)}</b> of ${sarM(k.budget, 2)} budget.` +
+      (after > k.eac ? ` <span class="delta-bad">EAC will rise to ${sarM(after, 2)}.</span>` : '') +
+      ' Certified amounts are booked to the current period.';
+  }
+  ['f-pkg', 'f-value'].forEach(id => $(id).addEventListener('input', updateImpact));
+  $('commit-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const p = state.byId[state.projectId];
+    const title = $('f-title').value.trim(), vendor = $('f-vendor').value.trim();
+    const value = Number($('f-value').value), cert = Number($('f-cert').value || 0);
+    const err = $('f-error');
+    if (!title || !vendor) { err.textContent = 'Title and vendor are required.'; return; }
+    if (!(value > 0)) { err.textContent = 'Contract value must be greater than zero.'; return; }
+    if (cert < 0 || cert > value) { err.textContent = 'Certified to date must be between 0 and the contract value.'; return; }
+    const prefix = (p.commitments[0]?.id.split('-')[0]) || p.code;
+    const nums = p.commitments.map(c => Number(c.id.split('-')[1]) || 0);
+    const id = `${prefix}-${(nums.length ? Math.max(...nums) : (Number(p.id.replace(/\D/g, '')) || 9) * 100) + 1}`;
+    const c = { id, title, vendor, pkg: $('f-pkg').value, original: value / 1e6, variations: 0, certified: cert / 1e6, status: $('f-status').value };
+    store.added = { ...(store.added || {}), [p.id]: [...(store.added?.[p.id] || []), c] };
+    if (cert > 0) store.actualAdds = { ...(store.actualAdds || {}), [p.id]: (store.actualAdds?.[p.id] || 0) + cert / 1e6 };
+    saveStore();
+    closeModal('commit-modal');
+    refresh();
+    toast(`${id} recorded against ${p.name}.`);
+  });
+
+  function openStatement(cid) {
+    const p = state.byId[state.projectId];
+    const c = p.commitments.find(x => x.id === cid); if (!c) return;
+    const rr = window.MIDAD_DATA.retentionRate;
+    const revised = c.original + c.variations;
+    const ret = c.certified * rr;
+    $('statement-title').textContent = `Commitment statement — ${c.id}`;
+    $('statement-body').innerHTML = `
+      <div style="font-weight:700">${esc(c.title)}</div>
+      <div class="muted" style="font-size:12px">${esc(c.vendor)} · ${esc(p.name)} · package ${esc(c.pkg)} · status ${esc(c.status)}</div>
+      <div class="kv">
+        <span>Original contract value</span><span class="num">${sar(c.original)}</span>
+        <span>Approved variations</span><span class="num">${sar(c.variations)}</span>
+        <span class="total">Revised contract value</span><span class="total num">${sar(revised)}</span>
+        <span>Gross certified to date</span><span class="num">${sar(c.certified)}</span>
+        <span>Retention held (${pct(rr)})</span><span class="num">−${sar(ret)}</span>
+        <span class="total">Net paid to date</span><span class="total num">${sar(c.certified - ret)}</span>
+        <span>Remaining to certify</span><span class="num">${sar(revised - c.certified)}</span>
+      </div>
+      <p class="note" style="margin-top:14px">Ledger summary for management information. It is <b>not</b> an Interim Payment Certificate; certificates are issued from the ASCTO IPC System.</p>`;
+    openModal('statement-modal');
+  }
+  $('statement-print').addEventListener('click', () => { document.body.classList.add('print-modal'); window.print(); document.body.classList.remove('print-modal'); });
+
+  /* ---------------- Navigation & theme ---------------- */
+  const RENDER = { portfolio: renderPortfolio, project: renderProject, risk: renderRisk, apps: renderApps, report: renderReport };
+  function navigate(view) {
+    state.view = view;
+    document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.view === view)));
+    Object.keys(RENDER).forEach(v => $(`view-${v}`).classList.toggle('hidden', v !== view));
+    RENDER[view]();
+    try { history.replaceState(null, '', `#${view}`); } catch (e) { /* sandboxed */ }
+    window.scrollTo({ top: 0 });
+  }
+  function refresh() { buildProjects(); compute(); RENDER[state.view](); }
+
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => navigate(t.dataset.view)));
+  $('boardpack-btn').addEventListener('click', () => { navigate('report'); if (!HOSTED) setTimeout(() => window.print(), 150); });
+  if (HOSTED) $('statement-print').hidden = true;
+  $('theme-btn').addEventListener('click', () => {
+    const root = document.documentElement;
+    const dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    const next = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
+    RENDER[state.view]();
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!document.documentElement.getAttribute('data-theme')) RENDER[state.view](); });
+
+  $('period-label').textContent = `Period ${E.monthLabel(E.monthIndex(window.MIDAD_DATA.reportingPeriod))}`;
+  buildProjects();
+  compute();
+  const initial = (location.hash || '').slice(1);
+  navigate(RENDER[initial] ? initial : 'portfolio');
+})();
+
+</script>

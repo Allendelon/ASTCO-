@@ -38,12 +38,28 @@
     setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 260); }, 3200);
   }
 
-  function download(name, text, type) {
+  // Hosted (claude.ai) build: the viewer blocks print dialogs and direct downloads.
+  const HOSTED = window.MIDAD_HOSTED === true;
+  let downloadsApi;
+  async function download(name, text, type) {
+    if (HOSTED) {
+      if (downloadsApi === undefined) {
+        downloadsApi = window.claude && typeof window.claude.use === 'function' ? await window.claude.use('downloads') : null;
+      }
+      if (!downloadsApi) { toast('File downloads are not available in this view.'); return false; }
+      try { await downloadsApi.save({ filename: name, data: text }); return true; }
+      catch (e) {
+        if (e && e.code === 'declined') return false;
+        toast(e && e.code === 'rate_limited' ? 'A save prompt is already open.' : 'The file could not be saved here.');
+        return false;
+      }
+    }
     const url = URL.createObjectURL(new Blob([text], { type }));
     const a = document.createElement('a');
     a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
   }
   const csvCell = v => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
 
@@ -353,7 +369,12 @@
     document.querySelectorAll('[data-statement]').forEach(b => b.addEventListener('click', () => openStatement(b.dataset.statement)));
     const rs = $('reset-project');
     if (rs) rs.addEventListener('click', () => {
-      if (!window.confirm(`Discard locally recorded commitments and imports for ${p.name}?`)) return;
+      // Two-step confirmation in the page (the hosted viewer suppresses confirm()).
+      if (rs.dataset.armed !== '1') {
+        rs.dataset.armed = '1'; rs.textContent = `Click again to discard local changes to ${p.name}`; rs.classList.add('btn-primary');
+        setTimeout(() => { if (rs.isConnected) { rs.dataset.armed = ''; rs.textContent = 'Discard local changes to this project'; rs.classList.remove('btn-primary'); } }, 5000);
+        return;
+      }
       ['added', 'actualAdds', 'overrides', 'feeds'].forEach(k => { if (store[k]) delete store[k][p.id]; });
       saveStore(); refresh(); toast('Local changes discarded.');
     });
@@ -592,7 +613,7 @@
     const reds = state.projects.filter(p => state.rag[p.id].overall === 'R');
     $('view-report').innerHTML = `<div class="report card">
       <div class="view-head"><div><div class="brand-sub">Board report · period ${period}</div><h1 style="margin-top:6px">Capital portfolio — executive summary</h1></div>
-        <div class="actions no-print"><button class="btn" type="button" id="rep-csv">Export CSV</button><button class="btn btn-primary" type="button" id="rep-print">Print / save PDF</button></div></div>
+        <div class="actions no-print"><button class="btn" type="button" id="rep-csv">Export CSV</button>${HOSTED ? '' : '<button class="btn btn-primary" type="button" id="rep-print">Print / save PDF</button>'}</div></div>
       <section><h2>Headline</h2>
         <p>The portfolio of ${state.projects.length} projects carries an approved budget of <b>${sarM(P.bac)}</b>. Bottom-up forecasts total <b>${sarM(P.eac)}</b> (${signedM(P.eac - P.bac)} against budget). On a risk-adjusted basis the portfolio has a <b>${pct(P.mc.probWithinBac)}</b> chance of completing within budget; the P80 outcome is ${sarM(P.mc.p80)}.</p>
         <p>${reds.length ? `<b>${reds.length} project(s) are off track:</b> ${reds.map(p => esc(p.name)).join(', ')}.` : 'No project is off track.'} ${pct(P.committed / P.bac)} of budget is committed and ${sarM(P.certified)} has been certified to date.</p></section>
@@ -603,9 +624,9 @@
         ${P.exceptions.filter(e => e.sev === 'R').map(e => `<li style="margin:6px 0"><b>${esc(e.project)}:</b> ${esc(e.title)}. <i>${esc(e.ask)}.</i></li>`).join('') || '<li>None at urgent level.</li>'}
       </ol>${P.exceptions.some(e => e.sev === 'A') ? `<p class="hint">${P.exceptions.filter(e => e.sev === 'A').length} further items for management review are listed on the Portfolio page.</p>` : ''}</section>
       <section><h2>Project commentary</h2>${state.projects.map(p => `<div class="proj"><h3>${esc(p.name)} ${ragChip(state.rag[p.id].overall)}</h3><p>${narrative(p)}</p></div>`).join('')}</section>
-      <section><p class="hint">Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} by Midad Executive Suite from the cost ledger. Risk figures from a seeded 5,000-iteration Monte Carlo; method on the Risk &amp; scenarios page. Project data is illustrative except where marked as linked.</p></section>
+      <section><p class="hint">${HOSTED ? 'To print, open the app locally (see README). ' : ''}Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} by Midad Executive Suite from the cost ledger. Risk figures from a seeded 5,000-iteration Monte Carlo; method on the Risk &amp; scenarios page. Project data is illustrative except where marked as linked.</p></section>
     </div>`;
-    $('rep-print').addEventListener('click', () => window.print());
+    if (!HOSTED) $('rep-print').addEventListener('click', () => window.print());
     $('rep-csv').addEventListener('click', exportPortfolioCsv);
   }
 
@@ -617,15 +638,15 @@
       return [p.name, p.stage, p.bac, m.eac, m.headroom, m.committed, m.certified, m.cpi, m.spi, mc.p50, mc.p80, mc.probWithinBac, r.cost, r.schedule, r.overall]
         .map(v => (typeof v === 'number' ? E.round(v, 3) : v));
     });
-    download(`midad_portfolio_${window.MIDAD_DATA.reportingPeriod}.csv`, [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv');
-    toast('Portfolio summary exported.');
+    download(`midad_portfolio_${window.MIDAD_DATA.reportingPeriod}.csv`, [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv')
+      .then(ok => { if (ok) toast('Portfolio summary exported.'); });
   }
   function exportProjectCsv(p) {
     const m = state.m[p.id];
     const head = ['package_code', 'package', 'budget_sar_m', 'committed_sar_m', 'certified_sar_m', 'eac_sar_m', 'variance_sar_m', 'pct_complete', 'pct_planned', 'cpi', 'spi'];
     const rows = m.pkgs.map(k => [k.code, k.name, k.budget, k.committed, k.certified, k.eac, k.variance, k.pct, k.planPct, k.cpi ?? '', k.spi ?? ''].map(v => (typeof v === 'number' ? E.round(v, 3) : v)));
-    download(`midad_${p.code}_cbs_${window.MIDAD_DATA.reportingPeriod}.csv`, [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv');
-    toast(`${p.name} cost breakdown exported.`);
+    download(`midad_${p.code}_cbs_${window.MIDAD_DATA.reportingPeriod}.csv`, [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n'), 'text/csv')
+      .then(ok => { if (ok) toast(`${p.name} cost breakdown exported.`); });
   }
 
   /* ---------------- Modals ---------------- */
@@ -715,7 +736,8 @@
   function refresh() { buildProjects(); compute(); RENDER[state.view](); }
 
   document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => navigate(t.dataset.view)));
-  $('boardpack-btn').addEventListener('click', () => { navigate('report'); setTimeout(() => window.print(), 150); });
+  $('boardpack-btn').addEventListener('click', () => { navigate('report'); if (!HOSTED) setTimeout(() => window.print(), 150); });
+  if (HOSTED) $('statement-print').hidden = true;
   $('theme-btn').addEventListener('click', () => {
     const root = document.documentElement;
     const dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
