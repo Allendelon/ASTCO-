@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Midad Executive Suite</title>
+  <meta name="description" content="Senior management view of the capital project portfolio: cost, schedule, risk confidence and decisions required.">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash.
+    try { const t = localStorage.getItem('midad-exec/theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+  <!-- Chart.js 4.4.0 (UMD build) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <div class="topbar-row">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 20V13M10 20V8M16 20V4M22 20H2"/></svg>
+          </div>
+          <div>
+            <div class="brand-name">Midad <span>Executive Suite</span></div>
+            <div class="brand-sub">Capital portfolio · senior management</div>
+          </div>
+        </div>
+        <div class="actions">
+          <span class="period" id="period-label">Period —</span>
+          <button class="btn btn-icon" id="theme-btn" type="button" title="Switch light / dark" aria-label="Switch light or dark theme">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 15A9.75 9.75 0 019 2.25 9.75 9.75 0 1021.75 15z"/></svg>
+          </button>
+          <button class="btn btn-primary" id="boardpack-btn" type="button">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V3h12v6M6 18H4a1 1 0 01-1-1v-6a2 2 0 012-2h14a2 2 0 012 2v6a1 1 0 01-1 1h-2M7 14h10v7H7z"/></svg>
+            <span class="hide-sm">Board pack</span>
+          </button>
+        </div>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Views">
+        <button class="tab" role="tab" data-view="portfolio" aria-selected="true">Portfolio</button>
+        <button class="tab" role="tab" data-view="project" aria-selected="false">Project review</button>
+        <button class="tab" role="tab" data-view="risk" aria-selected="false">Risk &amp; scenarios</button>
+        <button class="tab" role="tab" data-view="apps" aria-selected="false">Connected apps</button>
+        <button class="tab" role="tab" data-view="report" aria-selected="false">Board report</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="view-portfolio" class="view" aria-label="Portfolio"></section>
+    <section id="view-project" class="view hidden" aria-label="Project review"></section>
+    <section id="view-risk" class="view hidden" aria-label="Risk and scenarios"></section>
+    <section id="view-apps" class="view hidden" aria-label="Connected apps"></section>
+    <section id="view-report" class="view hidden" aria-label="Board report"></section>
+  </main>
+
+  <!-- Record commitment -->
+  <div id="commit-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="commit-title">
+    <form class="modal-box" id="commit-form" novalidate>
+      <div class="modal-head">
+        <div><h2 id="commit-title">Record commitment</h2><div class="card-sub" id="commit-sub"></div></div>
+        <button class="btn btn-icon" type="button" data-close="commit-modal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body form-grid">
+        <div class="field full"><label for="f-title">Contract title</label><input id="f-title" required maxlength="120" placeholder="e.g. Structural steel supply"></div>
+        <div class="field"><label for="f-vendor">Contractor / vendor</label><input id="f-vendor" required maxlength="80"></div>
+        <div class="field"><label for="f-pkg">Cost package</label><select id="f-pkg"></select></div>
+        <div class="field"><label for="f-value">Contract value (SAR)</label><input id="f-value" type="number" min="1" step="1000" required inputmode="numeric"></div>
+        <div class="field"><label for="f-cert">Certified to date (SAR)</label><input id="f-cert" type="number" min="0" step="1000" value="0" inputmode="numeric"></div>
+        <div class="field"><label for="f-status">Status</label>
+          <select id="f-status"><option>Active</option><option>Under Review</option></select></div>
+        <div class="full hint" id="f-impact"></div>
+        <div class="full error" id="f-error" role="alert"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close="commit-modal">Cancel</button>
+        <button class="btn btn-primary" type="submit">Save commitment</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Commitment statement -->
+  <div id="statement-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="statement-title">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div><h2 id="statement-title">Commitment statement</h2><div class="card-sub">Generated from the cost ledger</div></div>
+        <button class="btn btn-icon" type="button" data-close="statement-modal" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body" id="statement-body"></div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close="statement-modal">Close</button>
+        <button class="btn btn-primary" type="button" id="statement-print">Print</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/feeds/crystal-gallery-costing.js"></script>
+  <script src="assets/engine.js"></script>
+  <script src="assets/adapters.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
