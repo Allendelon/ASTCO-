@@ -17,6 +17,21 @@ Opening `index.html` directly from disk also works. External assets come from CD
 
 `python3 tools/build_artifact.py OUT_DIR` writes the page in the Artifact host's format (no `<html>`/`<head>`/`<body>` wrappers), and the `assets/` files are published alongside it. Inside that viewer, confirmations use in-page dialogs, the Excel certificate and JSON backup are saved through the viewer's save confirmation (`downloads` capability), and the Print buttons are hidden because the viewer cannot open a print dialog. Data stays in each viewer's own browser; it is not shared between people.
 
+## Crystal Gallery Mall: linked to the cost model
+
+Crystal Gallery Mall (Jeddah) is set up from two sources:
+
+- **Design reference:** Concept i Design, *Crystal Gallery — Revised Design Submission 2* (27 Jan 2023). GFA 45,852 m², 451 parking bays, 1,075-seat cinema (schedule of areas, p.17).
+- **Contract price:** the *Crystal Gallery 4D/5D* take-off and cost model (`crystal-gallery-takeoff.html`, branch `claude/stoic-hypatia-456ykd`).
+
+The two are linked, not copied:
+
+- `python3 tools/sync_costing.py` reads the cost model's 45-line priced bill (`CGJED`) and writes `assets/js/crystal-gallery-costing.js`.
+- On every load the IPC app rebuilds the main-contract BoQ, contract sum and programme dates from that file. Only measured quantities and certificate data belong to the IPC app.
+- **Contract sum = out-turn priced BoQ = SAR 326,769,832**, excl. the cost model's 5% contingency reserve (SAR 16.3M, the employer's money) and VAT. Scope-gap allowances (FLS, cinema equipment, FF&E, tenant MEP) are not in it; instruct them as variations.
+- If the cost model changes, re-run the sync. Lines keep their measured quantities by BoQ code. A dropped line with certified work is kept and flagged for review. Sign-offs are cleared if the contract sum moves.
+- `npm test` fails (`tools/sync_costing.py --check`) whenever the generated file no longer matches the cost model.
+
 ## Official certificate template
 
 The certificate follows the client's **CONTRACTOR PAYMENT CERTIFICATE** workbook (`IPC - 1.xlsx`, sheet `IPC-000-000`, A1:M62):
@@ -101,8 +116,9 @@ assets/js/certificate.js  certificate model mapped onto the official template ro
 assets/js/export-xlsx.js  fills the Excel template (ExcelJS)
 assets/templates/     cleaned official template (.xlsx) + base64 copy used by the browser
 assets/vendor/        ExcelJS 4.4.0 browser build
-tools/                template cleaning / embedding scripts
-assets/js/data.js     demo seed data (5 projects incl. Crystal Gallery Mall, the default; 10 contractor packages)
+tools/                template cleaning / embedding, cost-model sync, artifact build
+assets/js/crystal-gallery-costing.js  GENERATED priced bill from the Crystal Gallery cost model
+assets/js/data.js     seed data: Crystal Gallery Mall (linked main contract, default) + 4 demo projects
 assets/js/app.js      state, persistence, rendering, actions
 tests/                node:test unit tests (calc, certificate, Excel export)
 ```
