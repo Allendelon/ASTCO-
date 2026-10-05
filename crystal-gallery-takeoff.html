@@ -185,6 +185,7 @@
       <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="bim" onclick="setTab('bim')"><i class="fa-solid fa-cubes text-violet-400 mr-1"></i>4D BIM</button>
       <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="boq" onclick="setTab('boq')"><i class="fa-solid fa-ruler-combined text-amber-400 mr-1"></i>Take-off BoQ</button>
       <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="cost" onclick="setTab('cost')"><i class="fa-solid fa-chart-line text-emerald-400 mr-1"></i>Cost Plan &amp; Cashflow</button>
+      <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="gaps" onclick="setTab('gaps')"><i class="fa-solid fa-clipboard-check text-rose-400 mr-1"></i>Scope gaps</button>
       <button class="tab-btn py-2 text-slate-400 hover:text-white font-semibold" data-tab="params" onclick="setTab('params')"><i class="fa-solid fa-sliders text-slate-400 mr-1"></i>Assumptions</button>
     </div>
     <div id="ganttTools" class="flex items-center gap-2 py-1.5">
@@ -294,6 +295,24 @@
       <h5 class="font-semibold text-slate-200 text-xs mb-1">Reconciliation: 4D Planner cost plan vs elemental take-off (baseline, excl. VAT)</h5>
       <p class="text-[11px] text-slate-400 mb-2">Both are built on the same Schedule of Areas. The gap comes from rates, escalation and markups. Planner figures are at base-date rates, with escalation shown as its own row.</p>
       <div class="overflow-x-auto"><table class="w-full text-[11px]" id="reconTable"></table></div>
+    </div>
+  </div>
+
+  <!-- Scope-gap panel -->
+  <div id="panel-gaps" class="hidden flex-1 overflow-auto p-4 text-xs">
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+      <div class="max-w-3xl">
+        <h5 class="font-semibold text-slate-200 text-sm">Scope check: cinema equipment, FLS, store MEP, FF&amp;E and finishes</h5>
+        <p class="text-[11px] text-slate-400 mt-1">The matched 4D Planner total stays at its value. <b class="text-slate-300">MEMO</b> lines itemise scope already inside that total. <b class="text-slate-300">GAP</b> lines are missing from it. <b class="text-slate-300">TENANT</b> lines count only under Fully Fitted. All rates are assumed allowances; edit them in the Controls lens.</p>
+      </div>
+      <div class="flex flex-col gap-1.5 text-[11px]">
+        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chkFlsMissing" onchange="state.flsMissing=this.checked; renderGaps(); renderKPIs();"> FLS is <b>not</b> inside the planner MEP rates (count as gap)</label>
+        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="chkCinemaOperator" onchange="state.cinemaByOperator=this.checked; renderGaps(); renderKPIs();"> Cinema equipment supplied by operator (credit)</label>
+      </div>
+    </div>
+    <div id="gapSummary" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3"></div>
+    <div class="overflow-x-auto border border-slate-800 rounded-lg">
+      <table class="w-full text-[11px]"><thead class="bg-slate-900 text-slate-500 uppercase text-[10px]"><tr><th class="text-left px-2 py-1.5">Item</th><th class="text-left px-2">Description</th><th class="px-2">Status</th><th class="text-right px-2">Qty</th><th class="text-left px-2">Unit</th><th class="text-right px-2">Rate (SAR)</th><th class="text-right px-2">Base (SAR)</th><th class="text-left px-2">Note</th></tr></thead><tbody id="gapBody"></tbody></table>
     </div>
   </div>
 
@@ -512,7 +531,7 @@ const ACTIVITIES = [
 let P = loadJSON('cg_params', {...P_DEFAULT});
 P = {...P_DEFAULT, ...P};
 let RATE_OVR = loadJSON('cg_rates', {});
-let state = { week:1, scope:'core', lens:'exec', scen:'baseline', playing:false, speed:1, timer:null, tab:'gantt', zone:null, act:null, view:'section', planLevel:'auto', basis:'planner' };
+let state = { week:1, scope:'core', lens:'exec', scen:'baseline', playing:false, speed:1, timer:null, tab:'gantt', zone:null, act:null, view:'section', planLevel:'auto', basis:'planner', flsMissing:false, cinemaByOperator:false };
 let BOQ = [], COST = null, D = null;
 
 function loadJSON(k, def){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch(e){ return def; } }
@@ -732,14 +751,69 @@ function buildPlannerBoQ(){
     const src = /^Sheet 17/.test(srcTxt) ? 'DRW' : /^Derived/.test(srcTxt) ? 'DER' : 'ALW';
     return {code:id, grp:m.grp, desc:name, qty, unit, baseRate:rate, rate:r, esc, basis:`${srcTxt} • ${CGJED_RATE_BASIS[rb] || rb} • esc ×${esc.toFixed(3)} (planner days ${es}–${ef})`, src, act:m.act, z:m.z, ifc:m.ifc, temp:!!m.temp};
   });
-  if (state.scope === 'fitted'){ // tenant fit-out is excluded from the planner figure; cinema fit-out is already in CG-5450
-    const d = D;
-    L.push({code:'10.01', grp:'10 Tenant Fit-out & FF&E', desc:'Retail tenant fit-out allowance (outside planner scope)', qty:d.retail, unit:'m²', baseRate:2200, rate:'10.01' in RATE_OVR ? RATE_OVR['10.01'] : 2200, esc:1, basis:'Retail (schedule); not in CG-JED planner', src:'DRW', act:'fit', z:byKey('retail'), ifc:'IfcFurnishingElement'});
-    L.push({code:'10.02', grp:'10 Tenant Fit-out & FF&E', desc:'F&B fit-out incl. kitchens & extract (outside planner scope)', qty:d.fnb, unit:'m²', baseRate:3200, rate:'10.02' in RATE_OVR ? RATE_OVR['10.02'] : 3200, esc:1, basis:'F&B (schedule); not in CG-JED planner', src:'DRW', act:'fit', z:byKey('fnb'), ifc:'IfcFurnishingElement'});
-  }
   L.forEach(l => { l.baseAmt = Math.round(l.qty * l.rate); l.amt = Math.round(l.baseAmt * l.esc); }); // whole-riyal rounding per line, as in the planner
   return L;
 }
+
+/* =====================================================================
+   6c. SCOPE-GAP REGISTER (planner basis)
+   The CG-JED planner total (SAR 343.1M) is landlord shell & core plus a cinema lump sum.
+   Lines here make hidden or missing scope visible WITHOUT changing that matched total:
+     memo   = carved out of an existing planner line for visibility (inside 343.1M, adds nothing)
+     gap    = not in the planner (outside 343.1M)
+     tenant = tenant-side scope, counted only under "Fully Fitted"
+     credit = deduction (cinema equipment supplied by the operator)
+   All rates are ALLOWANCES (assumed, unsourced). Replace with QS / subcontract quotes.
+   ===================================================================== */
+const CINEMA_SPLIT = [ // share of planner line CG-5450 (cinema fit-out, SAR 12,600/m² × 2,974 m²); equip = typically operator-supplied
+  ['CIN.1','Auditorium seating (recliner / standard mix)', 'seats', .15, true],
+  ['CIN.2','Projection, screens & masking', 'screens', .20, true],
+  ['CIN.3','Immersive sound systems', 'screens', .12, true],
+  ['CIN.4','Acoustic box-in-box walls, isolated ceilings, risers & interiors', 'm²', .33, false],
+  ['CIN.5','Cinema-specific HVAC, smoke management & power within fit-out', 'm²', .12, false],
+  ['CIN.6','Lobby, box office & concessions FF&E', 'LS', .08, true]];
+function buildGaps(){
+  const d = D || derive(), G = [], gfa = d.gfa, ov = (c, r) => c in RATE_OVR ? RATE_OVR[c] : r;
+  const add = (code, cat, kind, desc, qty, unit, rate, note, fixedAmt) => {
+    const r = fixedAmt != null ? null : ov(code, rate);
+    G.push({code, cat, kind, desc, qty, unit, rate:r, baseRate:rate, note, amt: fixedAmt != null ? fixedAmt : Math.round(qty * r)});
+  };
+  // A. Fire & life safety: identified inside the planner MEP per-m² rates unless the switch says it is missing
+  const flsKind = state.flsMissing ? 'gap' : 'memo', C1 = 'Fire & life safety (FLS)';
+  add('FLS.1', C1, flsKind, 'Sprinklers, hydrants & hose reels (wet systems)', gfa, 'm² GFA', 95, 'All levels incl. car parks; NFPA 13 / SBC 801');
+  add('FLS.2', C1, flsKind, 'Addressable fire alarm & voice evacuation', gfa, 'm² GFA', 45, 'Civil Defence requirement for assembly occupancy');
+  add('FLS.3', C1, flsKind, 'Atrium / mall & cinema smoke control (excl. car-park jet fans)', d.gfaAbove, 'm² GFA above grade', 120, 'Smoke extract fans, make-up air, dampers, control panel');
+  add('FLS.4', C1, flsKind, 'Fire pump set & fire water tank', 1, 'set', 2500000, 'Fire water tanks shown on B1 plan; may overlap planner CG-4500 "pumps & tanks"');
+  add('FLS.5', C1, flsKind, 'Emergency & exit lighting (central battery)', gfa, 'm² GFA', 25, '');
+  add('FLS.6', C1, flsKind, 'Passive fire: fire-stopping, rated shafts, fire curtains', gfa, 'm² GFA', 35, 'Fire-rated doors not itemised in planner');
+  // B. Cinema sub-BoQ: splits CG-5450 (memo); optional operator-supply credit
+  const cin = (BOQ.find(l => l.code === 'CG-5450') || {}).baseAmt || 37472400, C2 = 'Cinema (CG-5450 itemised)';
+  const qOf = u => u === 'seats' ? d.seats : u === 'screens' ? P.cinemaScreens : u === 'm²' ? d.cinema : 1;
+  CINEMA_SPLIT.forEach(([code, desc, unit, sh, equip]) => add(code, C2, 'memo', desc + (equip ? ' [equipment]' : ''), qOf(unit), unit, cin*sh/qOf(unit), `${Math.round(sh*100)}% of CG-5450 base ${sarM(cin)}; split is assumed`));
+  if (state.cinemaByOperator){ const eq = CINEMA_SPLIT.filter(x => x[4]).reduce((t,x) => t + x[3], 0);
+    add('CIN.CR', C2, 'credit', `Credit: cinema equipment supplied by operator (${Math.round(eq*100)}% of CG-5450)`, 1, 'LS', 0, 'Seating, projection, sound, concessions FF&E', -Math.round(cin*eq)); }
+  // C. Landlord common-area FF&E & systems missing from the planner
+  const C3 = 'Common-area FF&E & signage';
+  add('FFE.1', C3, 'gap', 'Mall seating, planters, bins, kiosks & feature furniture', d.circAbove, 'm² public area', 350, 'Public circulation above grade (Sheet 17)');
+  add('FFE.2', C3, 'gap', 'Signage, wayfinding, directories & pylon sign', 1, 'LS', 900000, 'Not in planner');
+  add('FFE.3', C3, 'gap', 'Digital media screens & interactive directories', 12, 'no', 85000, 'Count assumed');
+  add('FFE.4', C3, 'gap', 'Car-park guidance system (bay sensors & signs)', d.cars, 'bays', 1200, '451 bays (Sheet 17)');
+  add('FFE.5', C3, 'gap', 'Mall management FF&E (offices, security & CCTV control room, prayer rooms)', 1, 'LS', 750000, 'Security office & prayer room shown on GF plan');
+  // D. Tenant-side scope (Fully Fitted only)
+  const C4 = 'Tenant MEP & fit-out (Fully Fitted)', tk = 'tenant';
+  add('TEN.1', C4, tk, 'Retail tenant-side MEP: distribution boards, lighting, HVAC branches, sprinkler drops', d.retail, 'm²', 650, 'Retail (Sheet 17)');
+  add('TEN.2', C4, tk, 'F&B tenant-side MEP: kitchen extract, fresh air, grease traps, gas, drainage', d.fnb, 'm²', 1100, 'F&B (Sheet 17)');
+  add('TEN.3', C4, tk, 'Retail finishes, shopfront & joinery', d.retail, 'm²', 1550, '');
+  add('TEN.4', C4, tk, 'F&B finishes, joinery & commercial kitchen equipment', d.fnb, 'm²', 2100, '');
+  add('TEN.5', C4, tk, 'Terrace outdoor furniture & shading', d.terrace, 'm²', 450, 'Terraces (Sheet 17)');
+  // totals: counted lines priced like the planner (avg planner escalation + contingency reserve)
+  const counts = g => g.kind === 'gap' || g.kind === 'credit' || (g.kind === 'tenant' && state.scope === 'fitted');
+  const escAvg = COST && COST.baseDirect ? COST.direct / COST.baseDirect : 1;
+  const base = G.filter(counts).reduce((t,g) => t + g.amt, 0), memo = G.filter(g => g.kind === 'memo').reduce((t,g) => t + g.amt, 0);
+  const outturn = base * escAvg, cont = outturn * P.plannerContPct/100;
+  return {lines:G, counts, base, memo, escAvg, outturn, cont, total: outturn + cont};
+}
+
 function MK(){ return state.basis === 'planner'
   ? {prelims:0, ohp:0, dc:0, cc:P.plannerContPct, ccLabel:'Contingency reserve', trBase:P.plannerPrelimsPct}
   : {prelims:P.prelimsPct, ohp:P.ohpPct, dc:P.designContPct, cc:P.constContPct, ccLabel:'Construction contingency', trBase:P.prelimsPct}; }
@@ -1488,7 +1562,7 @@ function resetParams(){ P = {...P_DEFAULT}; saveJSON('cg_params', P); recalc(); 
 function renderKPIs(){
   const k = (label, val, cls='text-slate-100') => `<span class="text-slate-500">${label}: <span class="font-mono font-semibold ${cls}">${val}</span></span>`;
   document.getElementById('kpiStrip').innerHTML =
-    k('Basis', state.basis === 'planner' ? '4D Planner (CG-JED)' : 'Elemental QTO', 'text-sky-300') + k('Total excl. VAT', sarM(COST.totalExVat), 'text-emerald-300') + k('Incl. VAT', sarM(COST.total)) + k('GFA costed', nf0.format(D.gfa) + ' m²') +
+    k('Basis', state.basis === 'planner' ? '4D Planner (CG-JED)' : 'Elemental QTO', 'text-sky-300') + k('Total excl. VAT', sarM(COST.totalExVat), 'text-emerald-300') + (state.basis === 'planner' ? k('+ scope gaps', sarM(COST.totalExVat + buildGaps().total), 'text-rose-300') : '') + k('Incl. VAT', sarM(COST.total)) + k('GFA costed', nf0.format(D.gfa) + ' m²') +
     k('SAR/m² GFA', nf0.format(COST.totalExVat/D.gfa)) + k('SAR/m² above-ground', nf0.format(COST.totalExVat/D.gfaAbove)) +
     k('Concrete (QTO)', nf0.format(D.concTotal) + ' m³') + k('Rebar (QTO)', nf0.format((D.concRaft*P.rebarRaft + D.concWall*P.rebarWall + (D.concB1+D.concGF+D.concSuper)*P.rebarSlab + (D.concColB+D.concColS)*P.rebarCol + D.concStair*120)/1000) + ' t') +
     k('Facade', nf0.format(D.facade) + ' m²') + k('Programme', projWeeks() + ' wks', state.scen==='delay'?'text-rose-300':'text-slate-100') +
@@ -1538,6 +1612,34 @@ function setSpeed(s){ state.speed = s; document.querySelectorAll('.speed-btn').f
 /* =====================================================================
    16. TOP CONTROLS
    ===================================================================== */
+
+function renderGaps(){
+  if (state.basis !== 'planner'){
+    document.getElementById('gapSummary').innerHTML = '<div class="sm:col-span-2 lg:col-span-4 text-amber-300 text-[11px]">The scope-gap register checks the 4D Planner basis. Switch Cost basis to "4D Planner" to use it.</div>';
+    document.getElementById('gapBody').innerHTML = ''; return;
+  }
+  const g = buildGaps(), showRate = state.lens === 'controls';
+  const KIND = {memo:['MEMO','bg-slate-700 text-slate-300'], gap:['GAP','bg-rose-500/20 text-rose-300'], tenant:['TENANT','bg-violet-500/20 text-violet-300'], credit:['CREDIT','bg-emerald-500/20 text-emerald-300']};
+  const card = (t, v, sub, cls) => `<div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40"><div class="text-[10px] uppercase tracking-wider text-slate-500">${t}</div><div class="font-mono text-lg font-semibold ${cls}">${v}</div><div class="text-[10px] text-slate-500">${sub}</div></div>`;
+  document.getElementById('gapSummary').innerHTML =
+    card('Matched 4D Planner total', sarM(COST.totalExVat), 'Landlord shell & core + cinema lump sum', 'text-emerald-300') +
+    card('Itemised inside it (memo)', sarM(g.memo), 'Cinema split + FLS shown for visibility', 'text-slate-200') +
+    card('Scope gaps (out-turn + reserve)', (g.total >= 0 ? '+' : '') + sarM(g.total), `base ${sarM(g.base)} × esc ${g.escAvg.toFixed(3)} + ${P.plannerContPct}% reserve`, g.total >= 0 ? 'text-rose-300' : 'text-emerald-300') +
+    card('Indicative total incl. gaps', sarM(COST.totalExVat + g.total), state.scope === 'fitted' ? 'Fully Fitted (tenant scope counted)' : 'Shell & Core (tenant scope not counted)', 'text-white');
+  const cats = [...new Set(g.lines.map(l => l.cat))];
+  document.getElementById('gapBody').innerHTML = cats.map(c => {
+    const ls = g.lines.filter(l => l.cat === c), sub = ls.filter(g.counts).reduce((t,l) => t + l.amt, 0);
+    return `<tr class="bg-slate-800/60 font-semibold text-slate-200"><td class="px-2 py-1.5" colspan="6">${esc(c)}</td><td class="px-2 text-right font-mono">${sub ? nf0.format(sub) : '–'}</td><td class="px-2 text-[10px] text-slate-500 font-normal">${sub ? 'counted in gaps' : ls.some(l => l.kind === 'tenant') ? 'counted only under Fully Fitted' : 'memo only'}</td></tr>` +
+      ls.map(l => { const k = KIND[l.kind], counted = g.counts(l);
+        return `<tr class="border-b border-slate-800/50 ${counted ? '' : 'text-slate-400'}"><td class="px-2 py-1 font-mono text-slate-500">${l.code}</td><td class="px-2 ${counted ? 'text-slate-200' : ''}">${esc(l.desc)}</td>
+        <td class="px-2 text-center"><span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${k[1]}">${k[0]}</span></td>
+        <td class="px-2 text-right font-mono">${nf0.format(l.qty)}</td><td class="px-2">${esc(l.unit)}</td>
+        <td class="px-2 text-right">${l.rate == null ? '–' : showRate ? `<input class="rate ${l.code in RATE_OVR ? 'ovr' : ''}" type="number" step="any" value="${l.rate}" data-code="${l.code}" data-base="${l.baseRate}" onchange="setGapRate(this)">` : `<span class="font-mono">${nf0.format(l.rate)}</span>`}</td>
+        <td class="px-2 text-right font-mono ${l.amt < 0 ? 'text-emerald-300' : ''}">${nf0.format(l.amt)}</td><td class="px-2 text-slate-500">${esc(l.note)}</td></tr>`; }).join('');
+  }).join('');
+}
+function setGapRate(inp){ const v = parseFloat(inp.value), b = parseFloat(inp.dataset.base); if (isNaN(v) || v === b) delete RATE_OVR[inp.dataset.code]; else RATE_OVR[inp.dataset.code] = v; saveJSON('cg_rates', RATE_OVR); renderGaps(); renderKPIs(); }
+
 function setBasis(b){
   state.basis = b;
   document.getElementById('basisPlanner').className = 'px-2 py-0.5 text-xs rounded ' + (b === 'planner' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white');
@@ -1574,7 +1676,7 @@ function switchProject(scope){
 function setLens(l){
   state.lens = l;
   [['exec','lensExec'],['site','lensSite'],['controls','lensControls']].forEach(([k,id]) => document.getElementById(id).className = 'px-2 py-0.5 text-xs rounded ' + (k === l ? 'text-white bg-slate-700' : 'text-slate-400 hover:text-white'));
-  renderGantt(); renderBoQ(); if (state.zone || state.act) renderInspector();
+  renderGantt(); renderBoQ(); if (state.tab === 'gaps') renderGaps(); if (state.zone || state.act) renderInspector();
 }
 function setScenario(s){
   state.scen = s;
@@ -1586,11 +1688,11 @@ function setScenario(s){
 function setTab(t){
   state.tab = t;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
-  ['gantt','boq','cost','params','bim'].forEach(p => document.getElementById('panel-' + p).classList.toggle('hidden', p !== t));
+  ['gantt','boq','cost','params','bim','gaps'].forEach(p => document.getElementById('panel-' + p).classList.toggle('hidden', p !== t));
   document.getElementById('panel-gantt').classList.toggle('flex', t === 'gantt');
   document.getElementById('ganttTools').classList.toggle('hidden', t !== 'gantt'); document.getElementById('ganttTools').classList.toggle('flex', t === 'gantt');
   document.getElementById('boqTools').classList.toggle('hidden', t !== 'boq'); document.getElementById('boqTools').classList.toggle('flex', t === 'boq');
-  if (t === 'bim') renderBIM(); if (t === 'cost') renderCost(); if (t === 'params') renderParams(); if (t === 'boq') renderBoQ(); if (t === 'gantt') renderGantt();
+  if (t === 'gaps') renderGaps(); if (t === 'bim') renderBIM(); if (t === 'cost') renderCost(); if (t === 'params') renderParams(); if (t === 'boq') renderBoQ(); if (t === 'gantt') renderGantt();
 }
 function toggleModal(id, show){ const m = document.getElementById(id); m.classList.toggle('hidden', !show); m.classList.toggle('flex', show); }
 function toggleScheduleDataDrawer(){
@@ -1625,7 +1727,7 @@ function toggleInspector(){
 /* =====================================================================
    17. RECALC + INIT
    ===================================================================== */
-function recalc(){ rollUp(); renderKPIs(); renderScrubber(); renderEOTBox(); updateWeek(); if (state.tab === 'boq') renderBoQ(); if (state.tab === 'cost') renderCost(); }
+function recalc(){ rollUp(); renderKPIs(); renderScrubber(); renderEOTBox(); updateWeek(); if (state.tab === 'boq') renderBoQ(); if (state.tab === 'cost') renderCost(); if (state.tab === 'gaps') renderGaps(); }
 // keep WBS table & bars scrolling together
 (function syncScroll(){ const a = document.getElementById('ganttTableRows'), b = document.getElementById('ganttBarsContainer'); let lock = false;
   a.addEventListener('scroll', () => { if (lock) return; lock = true; b.scrollTop = a.scrollTop; lock = false; });
