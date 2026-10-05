@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #060a14; }
+::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
+.glass-panel {
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.42);
+}
+.glass-panel-elevated {
+  background: rgba(23, 32, 51, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  box-shadow: 0 12px 44px -10px rgba(37, 99, 235, 0.28);
+}
+.tab-btn.active {
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.45);
+  border-color: rgba(96, 165, 250, 0.5);
+}
+.grid-blueprint {
+  background-image: radial-gradient(rgba(59, 130, 246, 0.14) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.field {
+  width: 100%;
+  background: #060a14;
+  border: 1px solid #1e293b;
+  border-radius: 0.5rem;
+  padding: 0.6rem;
+  color: #fff;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+.field:focus { outline: none; border-color: #3b82f6; }
+.label { display: block; color: #cbd5e1; font-weight: 600; margin-bottom: 0.25rem; }
+.chip-toggle { cursor: pointer; user-select: none; }
+.chip-toggle input { display: none; }
+.chip-toggle span {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.3rem 0.65rem; border-radius: 9999px; font-size: 11px;
+  background: #0a0f1d; color: #94a3b8; border: 1px solid #1e293b; transition: all .15s;
+}
+.chip-toggle span:hover { border-color: #3b82f6; color: #e2e8f0; }
+.chip-toggle input:checked + span { background: rgba(37, 99, 235, 0.2); color: #93c5fd; border-color: #3b82f6; }

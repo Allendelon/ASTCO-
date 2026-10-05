@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <title>ASTCO Registration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/js/theme.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="bg-industrial-950 text-slate-100 font-sans antialiased min-h-screen flex items-center justify-center p-4 grid-blueprint">
+  <div class="w-full max-w-lg space-y-6">
+    <div class="text-center">
+      <div class="font-extrabold text-xl tracking-tight text-white">ASTCO<span class="text-blue-400"> Procurement & Logistics</span></div>
+      <p class="text-[11px] text-slate-400">Invitation-only registration</p>
+    </div>
+
+    <div id="invalid" class="hidden glass-panel rounded-2xl p-6 text-sm text-rose-300 flex items-start gap-3">
+      <i class="ph-bold ph-x-circle text-2xl shrink-0"></i>
+      <div><div class="font-bold text-white mb-1">Invitation unavailable</div><div id="invalid-msg"></div>
+        <a href="/login.html" class="inline-block mt-3 text-blue-400 underline text-xs">Go to sign in</a></div>
+    </div>
+
+    <form id="reg-form" class="hidden glass-panel rounded-2xl p-6 space-y-4 text-xs">
+      <h1 class="text-base font-bold text-white flex items-center gap-2"><i class="ph-bold ph-user-plus text-blue-400"></i> Complete your registration</h1>
+      <div class="p-3 rounded-xl bg-blue-950/40 border border-blue-800/60 text-blue-200 text-[11px]" id="invite-summary"></div>
+      <div>
+        <label class="label">Email (from invitation)</label>
+        <input class="field opacity-70" id="email" disabled>
+      </div>
+      <div>
+        <label class="label" for="full_name">Your full name</label>
+        <input class="field" id="full_name" required maxlength="120" autocomplete="name">
+      </div>
+      <div id="vendor-fields" class="hidden space-y-4">
+        <div>
+          <label class="label" for="company_name">Company name</label>
+          <input class="field" id="company_name" maxlength="160" autocomplete="organization">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label" for="country">Country</label>
+            <input class="field" id="country" maxlength="80" autocomplete="country-name">
+          </div>
+          <div>
+            <label class="label" for="phone">Phone</label>
+            <input class="field" id="phone" maxlength="40" autocomplete="tel">
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="label" for="password">Password</label>
+          <input class="field" id="password" type="password" required minlength="10" autocomplete="new-password">
+        </div>
+        <div>
+          <label class="label" for="password2">Confirm password</label>
+          <input class="field" id="password2" type="password" required minlength="10" autocomplete="new-password">
+        </div>
+      </div>
+      <p class="text-[11px] text-slate-500">At least 10 characters, including letters and numbers.</p>
+      <div id="reg-error" class="hidden p-2.5 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300"></div>
+      <button id="reg-btn" type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition shadow-md shadow-blue-600/30">Create account</button>
+    </form>
+  </div>
+  <script src="/js/common.js"></script>
+  <script>
+    const token = new URLSearchParams(window.location.search).get('token') || '';
+    // Remove the token from the address bar/history once read.
+    history.replaceState(null, '', '/register.html');
+    const ROLE_LABELS = { vendor: 'Supplier / Vendor', procurement_staff: 'Procurement Staff', procurement_manager: 'Procurement Manager', admin: 'Administrator' };
+    let invite = null;
+
+    (async () => {
+      try {
+        invite = await ASTCO.api('GET', '/api/invitations/lookup?token=' + encodeURIComponent(token));
+      } catch (err) {
+        document.getElementById('invalid-msg').textContent = err.message;
+        document.getElementById('invalid').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('email').value = invite.email;
+      document.getElementById('invite-summary').innerHTML =
+        `You have been invited as <strong>${ASTCO.esc(ROLE_LABELS[invite.role] || invite.role)}</strong>` +
+        (invite.company_name ? ` for <strong>${ASTCO.esc(invite.company_name)}</strong>` : '') + '.';
+      if (invite.role === 'vendor' && !invite.joining_existing_vendor) {
+        document.getElementById('vendor-fields').classList.remove('hidden');
+        document.getElementById('company_name').value = invite.company_name || '';
+        document.getElementById('company_name').required = true;
+      }
+      document.getElementById('reg-form').classList.remove('hidden');
+    })();
+
+    document.getElementById('reg-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('reg-error');
+      errEl.classList.add('hidden');
+      const pw = document.getElementById('password').value;
+      if (pw !== document.getElementById('password2').value) {
+        errEl.textContent = 'Passwords do not match.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      const btn = document.getElementById('reg-btn');
+      btn.disabled = true;
+      try {
+        const { user } = await ASTCO.api('POST', '/api/auth/register', {
+          token,
+          full_name: document.getElementById('full_name').value,
+          password: pw,
+          company_name: document.getElementById('company_name').value,
+          country: document.getElementById('country').value,
+          phone: document.getElementById('phone').value,
+        });
+        window.location.href = user.role === 'vendor' ? '/vendor.html' : '/procurement.html';
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

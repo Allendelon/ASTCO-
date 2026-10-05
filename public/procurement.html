@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASTCO Procurement & Logistics - Project Materials & Logistics Management Suite</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <!-- Chart.js for Logistics & Procurement Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Phosphor Icons CSS Stylesheets (Regular, Bold, Fill) -->
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        @keyframes radar-sweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .animate-radar {
+            animation: radar-sweep 8s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-industrial-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col selection:bg-blue-600 selection:text-white grid-blueprint">
+
+    <!-- Top System Bar -->
+    <header class="sticky top-0 z-40 bg-industrial-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 lg:px-8 py-3 flex items-center justify-between shadow-xl">
+        <div class="flex items-center gap-3">
+            <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 ring-1 ring-white/20">
+                <i class="ph-bold ph-factory text-2xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="font-extrabold text-lg tracking-tight text-white">ASTCO<span class="text-blue-400"> Procurement & Logistics</span></span>
+                    <span class="px-2 py-0.5 text-[9px] font-mono font-bold tracking-wider uppercase bg-blue-500/15 text-blue-400 rounded border border-blue-500/30">Enterprise v4.8</span>
+                </div>
+                <p class="text-[11px] text-slate-400 hidden sm:block">Hexagon Smart Materials & AVEVA ERM Benchmark Enterprise Engine</p>
+            </div>
+        </div>
+
+        <!-- Project Selector & Quick Actions -->
+        <div class="flex items-center gap-2 sm:gap-3">
+            <div class="hidden xl:flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-700/80 text-xs shadow-inner">
+                <span class="text-slate-400 font-medium">Asset:</span>
+                <select id="active-project-select" onchange="switchProjectAsset(this.value)" class="bg-transparent text-emerald-400 font-semibold focus:outline-none cursor-pointer">
+                    <option value="p1" class="bg-industrial-900 text-slate-200">Ras Tanura Refinery Expansion - Package 4B (EPCM-6002)</option>
+                    <option value="p2" class="bg-industrial-900 text-slate-200">Jafurah Unconventional Gas Basin - Plant #02 (EPCM-5501)</option>
+                    <option value="p3" class="bg-industrial-900 text-slate-200">Yanbu Petrochemicals Olefins Cracker Block (EPCM-4920)</option>
+                </select>
+            </div>
+
+            <button onclick="toggleAudioMute()" id="audio-toggle-btn" title="Toggle UI Sound Effects" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs flex items-center gap-1">
+                <i id="audio-icon" class="ph-bold ph-speaker-high text-sm"></i>
+            </button>
+
+            <!-- Global Action Trigger Buttons -->
+            <button onclick="switchTab('rfq'); document.getElementById('rfq-title').focus();" class="hidden sm:inline-flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow-lg shadow-blue-600/30 transition border border-blue-400/30 active:scale-95">
+                <i class="ph-bold ph-paper-plane-tilt text-sm"></i> New RFQ
+            </button>
+            <button onclick="openModal('new-osd-modal')" class="hidden md:inline-flex items-center gap-1.5 bg-rose-600/90 hover:bg-rose-500 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow-lg shadow-rose-600/25 transition border border-rose-400/30 active:scale-95">
+                <i class="ph-bold ph-warning-octagon text-sm"></i> Log OS&D
+            </button>
+            <div class="flex items-center gap-2 pl-2 border-l border-slate-800">
+                <div class="hidden lg:block text-right leading-tight">
+                    <div class="text-xs font-semibold text-white" id="current-user-name"></div>
+                    <div class="text-[10px] text-slate-400" id="current-user-role"></div>
+                </div>
+                <button onclick="ASTCO.logout()" title="Sign out" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs"><i class="ph-bold ph-sign-out text-sm"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sub-Header Navigation Tabs -->
+    <nav class="bg-industrial-900/80 border-b border-slate-800/80 px-4 lg:px-8 py-2 sticky top-[65px] z-30 overflow-x-auto no-scrollbar backdrop-blur-sm">
+        <div class="flex items-center gap-2 min-w-max">
+            <button onclick="switchTab('rfq')" id="nav-rfq" class="tab-btn active px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+                <i class="ph ph-paper-plane-tilt text-sm"></i> Quick RFQ Dispatch
+            </button>
+            <button onclick="switchTab('vendors')" id="nav-vendors" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+                <i class="ph ph-users-three text-sm"></i> Vendor Network
+            </button>
+            <span class="mx-1 h-5 w-px bg-slate-700"></span>
+            <span class="text-[9px] uppercase tracking-wider font-mono text-amber-400/80 px-1" title="These modules still run on sample data in the browser; they are not yet connected to the server.">Project controls · demo data</span>
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+                <i class="ph ph-chart-pie-slice text-sm"></i> Control Tower
+            </button>
+            <button onclick="switchTab('service1')" id="nav-service1" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+                <i class="ph ph-blueprint text-sm"></i> 1. MTO & BIM Take-Off
+            </button>
+            <button onclick="switchTab('service2')" id="nav-service2" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+                <i class="ph ph-scales text-sm"></i> 2. Sourcing & TBE / CBE Tabulation
+            </button>
+            <button onclick="switchTab('service3')" id="nav-service3" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+                <i class="ph ph-certificate text-sm"></i> 3. Expediting & Quality (ITP / IRN)
+            </button>
+            <button onclick="switchTab('service4')" id="nav-service4" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+                <i class="ph ph-boat text-sm"></i> 4. Multimodal Logistics & Tracking
+            </button>
+            <button onclick="switchTab('service5')" id="nav-service5" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+                <i class="ph ph-warehouse text-sm"></i> 5. Site Laydown & CWP Readiness
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content Stage -->
+    <main class="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
+
+        <!-- ========================================================================= -->
+        <!-- TAB: QUICK RFQ DISPATCH (live, server-backed) -->
+        <!-- ========================================================================= -->
+        <section id="tab-rfq" class="space-y-6">
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="glass-panel p-4 rounded-xl">
+                    <div class="text-slate-400 text-xs font-semibold">Open RFQs</div>
+                    <div class="text-2xl font-extrabold text-white font-mono mt-1" id="kpi-open">—</div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl">
+                    <div class="text-slate-400 text-xs font-semibold">Awaiting Award</div>
+                    <div class="text-2xl font-extrabold text-amber-400 font-mono mt-1" id="kpi-closed">—</div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl">
+                    <div class="text-slate-400 text-xs font-semibold">Quotations Received</div>
+                    <div class="text-2xl font-extrabold text-blue-400 font-mono mt-1" id="kpi-quotes">—</div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl">
+                    <div class="text-slate-400 text-xs font-semibold">Active Registered Vendors</div>
+                    <div class="text-2xl font-extrabold text-emerald-400 font-mono mt-1" id="kpi-vendors">—</div>
+                </div>
+            </div>
+
+            <form id="rfq-form" class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                <div class="glass-panel p-5 rounded-xl lg:col-span-3 space-y-4 text-xs">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="ph-bold ph-paper-plane-tilt text-blue-400"></i> New Requirement → Instant RFQ
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Describe what you need, pick the vendor categories, and the RFQ goes straight to every registered vendor that supplies them.</p>
+                    </div>
+                    <div>
+                        <label class="label" for="rfq-title">Part / device / component / unit required</label>
+                        <input class="field" id="rfq-title" required maxlength="200" placeholder="e.g. 10&quot; 600# RF Gate Valve, API 600, A105 body">
+                    </div>
+                    <div>
+                        <label class="label" for="rfq-desc">Requirement description &amp; specifications</label>
+                        <textarea class="field" id="rfq-desc" rows="4" required maxlength="5000" placeholder="Standards, material, pressure class, certifications (e.g. EN 10204 3.1 MTC), packing, documentation required..."></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label class="label" for="rfq-qty">Quantity</label>
+                            <input class="field font-mono" id="rfq-qty" type="number" min="0.0001" step="any" required value="1">
+                        </div>
+                        <div>
+                            <label class="label" for="rfq-unit">Unit</label>
+                            <input class="field" id="rfq-unit" maxlength="20" value="EA">
+                        </div>
+                        <div>
+                            <label class="label" for="rfq-required-by">Required on site by</label>
+                            <input class="field font-mono" id="rfq-required-by" type="date">
+                        </div>
+                        <div>
+                            <label class="label" for="rfq-closes">Quote deadline</label>
+                            <input class="field font-mono" id="rfq-closes" type="datetime-local" required>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                        <div class="sm:col-span-2">
+                            <label class="label" for="rfq-location">Delivery location</label>
+                            <input class="field" id="rfq-location" maxlength="200" placeholder="e.g. Ras Tanura site laydown, Zone A">
+                        </div>
+                        <label class="flex items-center gap-2 text-slate-300 pb-2" title="Prices stay hidden from everyone, including procurement, until the deadline or until bidding is closed.">
+                            <input type="checkbox" id="rfq-sealed" checked> Sealed bids until deadline
+                        </label>
+                    </div>
+                    <div class="pt-2 border-t border-slate-800 space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <div class="text-sm font-bold text-white">Vendor categories</div>
+                                <p class="text-[11px] text-slate-500">Within a group: any match. Across groups: vendor must match each group (e.g. Piping <em>and</em> Valves).</p>
+                            </div>
+                            <input id="cat-filter" class="field !w-48 !py-1.5" placeholder="Filter categories...">
+                        </div>
+                        <div id="rfq-categories" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <div class="glass-panel-elevated p-5 rounded-xl lg:col-span-2 flex flex-col gap-4 text-xs lg:sticky lg:top-[130px] self-start">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="ph-bold ph-target text-blue-400"></i> Matched Vendors</h3>
+                        <span id="match-count" class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">0</span>
+                    </div>
+                    <div id="match-list" class="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                        <div class="text-slate-500 text-center py-6">Select one or more categories to see which registered vendors will receive this RFQ.</div>
+                    </div>
+                    <p class="text-[11px] text-slate-500">Untick a vendor to leave it out of this RFQ. Vendors only see their own quotation.</p>
+                    <button id="dispatch-btn" type="submit" disabled class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-lg font-semibold transition shadow-md shadow-blue-600/30 flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-paper-plane-tilt"></i> <span id="dispatch-label">Dispatch RFQ</span>
+                    </button>
+                </div>
+            </form>
+
+            <div class="glass-panel p-5 rounded-xl space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="ph-bold ph-list-checks text-blue-400"></i> RFQ Register</h3>
+                        <p class="text-xs text-slate-400">Every dispatched RFQ with vendor response status.</p>
+                    </div>
+                    <select id="rfq-status-filter" class="bg-industrial-900 border border-slate-800 text-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-500">
+                        <option value="ALL">All statuses</option>
+                        <option value="open">Open</option>
+                        <option value="closed">Closed (awaiting award)</option>
+                        <option value="awarded">Awarded</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr>
+                                <th class="p-3">RFQ #</th>
+                                <th class="p-3">Requirement</th>
+                                <th class="p-3 text-right">Qty</th>
+                                <th class="p-3">Deadline</th>
+                                <th class="p-3 text-center">Quotes / Sent</th>
+                                <th class="p-3">Raised By</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="rfq-register-body" class="divide-y divide-slate-800/60"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB: VENDOR NETWORK (live, server-backed) -->
+        <!-- ========================================================================= -->
+        <section id="tab-vendors" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="manager-only-panels">
+                <form id="invite-form" class="glass-panel p-5 rounded-xl space-y-3.5 text-xs">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="ph-bold ph-envelope-simple-open text-blue-400"></i> Invite a Vendor or Team Member</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Registration is by invitation only. Each link is single-use and expires in 7 days.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="label" for="inv-role">Role</label>
+                            <select class="field" id="inv-role">
+                                <option value="vendor">Vendor / Supplier</option>
+                                <option value="procurement_staff">Procurement Staff</option>
+                                <option value="procurement_manager" data-admin-only>Procurement Manager</option>
+                                <option value="admin" data-admin-only>Administrator</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="label" for="inv-email">Email</label>
+                            <input class="field" id="inv-email" type="email" required maxlength="254">
+                        </div>
+                    </div>
+                    <div id="inv-vendor-fields" class="space-y-3">
+                        <div>
+                            <label class="label" for="inv-company">Company name</label>
+                            <input class="field" id="inv-company" maxlength="160" placeholder="e.g. Gulf Valve Industries LLC">
+                        </div>
+                        <div>
+                            <div class="label">Pre-assign supply categories <span class="font-normal text-slate-500">(vendor can refine later)</span></div>
+                            <div id="inv-categories" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+                        </div>
+                    </div>
+                    <div id="invite-result" class="hidden p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-emerald-200 space-y-2"></div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold shadow-md shadow-blue-600/30">Create invitation link</button>
+                    </div>
+                </form>
+
+                <div class="glass-panel p-5 rounded-xl space-y-3 text-xs flex flex-col">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="ph-bold ph-hourglass text-amber-400"></i> Invitations</h3>
+                        <button type="button" onclick="openModal('category-modal')" class="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1"><i class="ph-bold ph-plus"></i> Add vendor category</button>
+                    </div>
+                    <div class="overflow-auto flex-1 max-h-80">
+                        <table class="w-full text-left">
+                            <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[10px] border-b border-slate-800 tracking-wider sticky top-0">
+                                <tr><th class="p-2">Email</th><th class="p-2">Role</th><th class="p-2">Company</th><th class="p-2">Status</th><th class="p-2"></th></tr>
+                            </thead>
+                            <tbody id="invitations-body" class="divide-y divide-slate-800/60"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel p-5 rounded-xl space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="ph-bold ph-users-three text-blue-400"></i> Registered Vendor Registry</h3>
+                        <p class="text-xs text-slate-400">Vendors and the categories they supply (declared or derived from their product listings).</p>
+                    </div>
+                    <input id="vendor-filter" class="field !w-60 !py-1.5 text-xs" placeholder="Filter by name, country, category...">
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr><th class="p-3">Vendor</th><th class="p-3">Country</th><th class="p-3">Supply Categories</th><th class="p-3 text-center">Products</th><th class="p-3 text-center">Quotes</th><th class="p-3">Status</th><th class="p-3"></th></tr>
+                        </thead>
+                        <tbody id="vendors-body" class="divide-y divide-slate-800/60"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="glass-panel p-5 rounded-xl space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="ph-bold ph-magnifying-glass text-blue-400"></i> Cross-Vendor Catalog Search</h3>
+                        <p class="text-xs text-slate-400">Visible to ASTCO procurement only. Vendors never see each other's listings or prices.</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                        <input id="catalog-q" class="field !w-56 !py-1.5" placeholder="Product, SKU or spec...">
+                        <select id="catalog-cat" class="field !w-48 !py-1.5"></select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr><th class="p-3">Product</th><th class="p-3">Vendor</th><th class="p-3">Category</th><th class="p-3 text-right">Unit Price</th><th class="p-3 text-center">MOQ</th><th class="p-3 text-center">Lead Time</th></tr>
+                        </thead>
+                        <tbody id="catalog-body" class="divide-y divide-slate-800/60"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 0: CONTROL TOWER / EXECUTIVE TELEMETRY -->
+        <!-- ========================================================================= -->
+        <section id="tab-dashboard" class="hidden space-y-6">
+            <!-- Top Metric Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 relative overflow-hidden group hover:border-blue-500/40 transition">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition"></div>
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
+                        <span>Committed Procurement Spend</span>
+                        <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
+                            <i class="ph-bold ph-currency-dollar text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="text-3xl font-extrabold text-white tracking-tight font-mono" id="dash-committed-spend">$42,850,000</div>
+                    <div class="mt-2.5 flex items-center text-xs text-emerald-400 font-medium">
+                        <i class="ph-bold ph-trend-up mr-1 text-sm"></i>
+                        <span>91.2% committed against CAPEX baseline</span>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 relative overflow-hidden group hover:border-amber-500/40 transition">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition"></div>
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
+                        <span>Active Material Requisitions</span>
+                        <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+                            <i class="ph-bold ph-file-text text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="text-3xl font-extrabold text-white tracking-tight font-mono" id="dash-mto-count">148 Packages</div>
+                    <div class="mt-2.5 flex items-center text-xs text-amber-300 font-medium">
+                        <span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1.5 animate-pulse"></span>
+                        <span id="dash-tbe-pending">12 awaiting Technical Bid Evaluation</span>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 relative overflow-hidden group hover:border-indigo-500/40 transition">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition"></div>
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
+                        <span>Cargo Consignments In Transit</span>
+                        <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                            <i class="ph-bold ph-boat text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="text-3xl font-extrabold text-white tracking-tight font-mono" id="dash-transit-shipments">26 Shipments</div>
+                    <div class="mt-2.5 flex items-center text-xs text-blue-400 font-medium">
+                        <i class="ph-bold ph-navigation-arrow mr-1 text-sm"></i>
+                        <span>18 Ocean • 5 Air • 3 Overland Haul</span>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 relative overflow-hidden group hover:border-emerald-500/40 transition">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition"></div>
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
+                        <span>CWP Material Readiness Index</span>
+                        <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                            <i class="ph-bold ph-check-square-offset text-lg"></i>
+                        </div>
+                    </div>
+                    <div class="text-3xl font-extrabold text-emerald-400 tracking-tight font-mono" id="dash-cwp-index">88.4%</div>
+                    <div class="mt-2.5 flex items-center text-xs text-rose-400 font-medium">
+                        <i class="ph-bold ph-warning-octagon mr-1 text-sm"></i>
+                        <span id="dash-cwp-constraint-note">1 Work package constrained by OS&D items</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Lifecycle Funnel Bar Chart -->
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 lg:col-span-2 flex flex-col justify-between">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                                <i class="ph-bold ph-chart-bar text-blue-400"></i>
+                                Integrated End-to-End Item Pipeline
+                            </h3>
+                            <p class="text-xs text-slate-400">Real-time distribution of tagged engineering line items across EPC milestones</p>
+                        </div>
+                        <span class="text-xs font-mono bg-blue-950/80 text-blue-300 px-3 py-1 rounded-full border border-blue-800/80 flex items-center gap-1.5 self-start sm:self-auto shadow-sm">
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                            <span id="dash-pipeline-total">3,420 Items Tracked</span>
+                        </span>
+                    </div>
+                    <div class="h-64 relative">
+                        <canvas id="pipelineChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Critical Path Lead Time Alerts -->
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <h3 class="font-bold text-sm text-slate-100 flex items-center gap-1.5">
+                                <i class="ph-bold ph-warning text-amber-400"></i> Critical Path Alerts
+                            </h3>
+                            <span class="text-[10px] font-mono text-rose-400 bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800">2 High Priority</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-3">Long-lead packages threatening site erection milestones</p>
+                    </div>
+
+                    <div class="space-y-3" id="critical-alerts-container">
+                        <div class="p-3.5 rounded-xl bg-rose-950/30 border border-rose-800/50 hover:border-rose-700/80 transition flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
+                                <i class="ph-bold ph-x-circle text-lg"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between">
+                                    <div class="text-xs font-bold text-rose-200">Heavy Wall Chrome-Moly Piping</div>
+                                    <button onclick="switchTab('service3')" class="text-[10px] text-rose-400 underline hover:text-rose-300">Expedite</button>
+                                </div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">PO-4102 • Mill hydro-test delay (+7 days) in Montbard, France.</div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <span class="text-[9px] font-mono uppercase bg-rose-900/60 text-rose-300 px-2 py-0.5 rounded border border-rose-700/60">Impacting CWP-04</span>
+                                    <span class="text-[10px] text-slate-400 font-mono">Shortage: 2 Spools</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-3.5 rounded-xl bg-amber-950/30 border border-amber-800/50 hover:border-amber-700/80 transition flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                                <i class="ph-bold ph-clock-countdown text-lg"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between">
+                                    <div class="text-xs font-bold text-amber-200">Main ESD Emergency Shut-Off Valves</div>
+                                    <button onclick="switchTab('service4')" class="text-[10px] text-amber-400 underline hover:text-amber-300">Track</button>
+                                </div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">PO-3980 • Customs inspection backlog at King Abdulaziz Port.</div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <span class="text-[9px] font-mono uppercase bg-amber-900/60 text-amber-300 px-2 py-0.5 rounded border border-amber-700/60">ETA Site: 3 Days</span>
+                                    <span class="text-[10px] text-slate-400 font-mono">DAP Incoterm</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-800/50 hover:border-emerald-700/80 transition flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+                                <i class="ph-bold ph-check-circle text-lg"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between">
+                                    <div class="text-xs font-bold text-emerald-200">33kV GIS Substation Switchgear</div>
+                                    <button onclick="switchTab('service4')" class="text-[10px] text-emerald-400 underline hover:text-emerald-300">Manifest</button>
+                                </div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">PO-4050 • IRN stamped. Seaworthy packaging complete.</div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <span class="text-[9px] font-mono uppercase bg-emerald-900/60 text-emerald-300 px-2 py-0.5 rounded border border-emerald-700/60">Ready to Ship</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EPC Lifecycle Roadmap Banner -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="ph-bold ph-tree-structure text-blue-400"></i> The 5 Pillars of Enterprise Project Procurement & Logistics
+                    </h3>
+                    <span class="text-[11px] text-slate-400 hidden sm:inline">Click any card to navigate directly into that operational cockpit</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+                    <div onclick="switchTab('service1')" class="cursor-pointer p-3.5 bg-industrial-900 rounded-xl border border-slate-800 hover:border-blue-500/60 hover:bg-slate-900 transition group shadow-md">
+                        <div class="text-blue-400 font-bold mb-1.5 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5"><span class="w-5 h-5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 flex items-center justify-center text-[10px] font-mono">1</span> MTO & BIM</span>
+                            <i class="ph-bold ph-arrow-right opacity-0 group-hover:opacity-100 transition text-blue-400"></i>
+                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">Direct 3D model ingestion, standardized commodity coding, specification enforcement, and revision delta audits.</p>
+                    </div>
+
+                    <div onclick="switchTab('service2')" class="cursor-pointer p-3.5 bg-industrial-900 rounded-xl border border-slate-800 hover:border-blue-500/60 hover:bg-slate-900 transition group shadow-md">
+                        <div class="text-blue-400 font-bold mb-1.5 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5"><span class="w-5 h-5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 flex items-center justify-center text-[10px] font-mono">2</span> Sourcing & RFQ</span>
+                            <i class="ph-bold ph-arrow-right opacity-0 group-hover:opacity-100 transition text-blue-400"></i>
+                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">Vendor pre-qualification, ITB packaging, Technical Bid Evaluation (TBE), Commercial (CBE) analysis, and PO contracts.</p>
+                    </div>
+
+                    <div onclick="switchTab('service3')" class="cursor-pointer p-3.5 bg-industrial-900 rounded-xl border border-slate-800 hover:border-blue-500/60 hover:bg-slate-900 transition group shadow-md">
+                        <div class="text-blue-400 font-bold mb-1.5 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5"><span class="w-5 h-5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 flex items-center justify-center text-[10px] font-mono">3</span> Expediting & QA</span>
+                            <i class="ph-bold ph-arrow-right opacity-0 group-hover:opacity-100 transition text-blue-400"></i>
+                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">Factory surveillance, witness testing against ITP, resolution of Non-Conformance Reports (NCR), and issuance of IRN.</p>
+                    </div>
+
+                    <div onclick="switchTab('service4')" class="cursor-pointer p-3.5 bg-industrial-900 rounded-xl border border-slate-800 hover:border-blue-500/60 hover:bg-slate-900 transition group shadow-md">
+                        <div class="text-blue-400 font-bold mb-1.5 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5"><span class="w-5 h-5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 flex items-center justify-center text-[10px] font-mono">4</span> Shipping & Ports</span>
+                            <i class="ph-bold ph-arrow-right opacity-0 group-hover:opacity-100 transition text-blue-400"></i>
+                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">Multimodal freight, cargo consolidation, Incoterms, container stuffing, bill of lading tracking, and customs clearance.</p>
+                    </div>
+
+                    <div onclick="switchTab('service5')" class="cursor-pointer p-3.5 bg-industrial-900 rounded-xl border border-slate-800 hover:border-blue-500/60 hover:bg-slate-900 transition group shadow-md">
+                        <div class="text-blue-400 font-bold mb-1.5 flex items-center justify-between">
+                            <span class="flex items-center gap-1.5"><span class="w-5 h-5 rounded-full bg-blue-950 text-blue-400 border border-blue-800 flex items-center justify-center text-[10px] font-mono">5</span> Laydown & CWP</span>
+                            <i class="ph-bold ph-arrow-right opacity-0 group-hover:opacity-100 transition text-blue-400"></i>
+                        </div>
+                        <p class="text-slate-400 text-[11px] leading-relaxed">Gate receiving (MRIR), physical bin storage, OS&D damage control, and Advanced Work Packaging (AWP) crew issuance.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 1: SERVICE 1 - ENGINEERING REQUISITION & MATERIAL TAKE-OFF (MTO) -->
+        <!-- ========================================================================= -->
+        <section id="tab-service1" class="hidden space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel p-5 rounded-xl border border-slate-800">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="ph-bold ph-blueprint text-blue-400"></i> Engineering Requisition & Material Take-Off (MTO) Engine
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Direct interface with 3D CAD/BIM models, standardized commodity specs, and revision delta control.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-700/80 text-slate-300 font-mono flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Sync: Hexagon Smart3D / AVEVA E3D
+                    </span>
+                    <button onclick="simulateBIMSync()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1">
+                        <i class="ph-bold ph-arrows-clockwise"></i> Re-Sync Model
+                    </button>
+                    <button onclick="openModal('new-mto-modal')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3.5 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 shadow-md shadow-blue-600/30">
+                        <i class="ph-bold ph-plus"></i> Add MTO Line
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filter & Search Toolbar -->
+            <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div class="flex items-center gap-2 flex-1 max-w-md">
+                    <div class="relative w-full">
+                        <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                        <input type="text" id="mto-search" oninput="filterMTO()" placeholder="Search by Tag, Commodity Code, or Spec..." class="w-full bg-industrial-900 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition shadow-inner">
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <select id="mto-discipline" onchange="filterMTO()" class="bg-industrial-900 border border-slate-800 text-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+                        <option value="ALL">All Disciplines</option>
+                        <option value="Piping">Piping</option>
+                        <option value="Mechanical">Mechanical Equipment</option>
+                        <option value="Electrical">Electrical & Instrumentation</option>
+                        <option value="Structural">Structural Steel</option>
+                    </select>
+                    <select id="mto-status" onchange="filterMTO()" class="bg-industrial-900 border border-slate-800 text-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+                        <option value="ALL">All Statuses</option>
+                        <option value="Approved">Approved for Requisition</option>
+                        <option value="In RFQ">Packaged in RFQ</option>
+                        <option value="Under Review">Engineering Review</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- MTO Table -->
+            <div class="glass-panel rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-industrial-900/95 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr>
+                                <th class="p-3.5">Tag / Component Code</th>
+                                <th class="p-3.5">Discipline</th>
+                                <th class="p-3.5">Description & Standard</th>
+                                <th class="p-3.5">Material Spec</th>
+                                <th class="p-3.5 text-right">Required Qty</th>
+                                <th class="p-3.5">Model Rev</th>
+                                <th class="p-3.5">Requisition Package</th>
+                                <th class="p-3.5">Status</th>
+                                <th class="p-3.5 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mto-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 2: SERVICE 2 - SOURCING & BID TABULATION (RFQ / TBE / CBE) -->
+        <!-- ========================================================================= -->
+        <section id="tab-service2" class="hidden space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel p-5 rounded-xl border border-slate-800">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="ph-bold ph-scales text-blue-400"></i> Sourcing, Inquiry & Bid Tabulation (TBE / CBE)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Technical Bid Evaluation, commercial comparison against project baseline budget, and PO generation.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-mono shadow-sm">
+                        <i class="ph-bold ph-shield-check"></i> AVL Compliant: 100%
+                    </span>
+                    <button onclick="exportTBEReport()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1">
+                        <i class="ph-bold ph-file-arrow-down"></i> Export TBE Dossier
+                    </button>
+                </div>
+            </div>
+
+            <!-- RFQ Selection Bar -->
+            <div class="glass-panel p-4 rounded-xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-semibold text-slate-300">Tender Package:</span>
+                    <select id="rfq-selector" onchange="renderBidMatrix()" class="bg-industrial-900 border border-slate-700 text-xs text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 font-mono">
+                        <option value="RFQ-9021">RFQ-9021: API 610 Heavy Duty Centrifugal Pumps (Crude Feed)</option>
+                        <option value="RFQ-8840">RFQ-8840: ASTM A335 P91 High-Pressure Chrome Piping</option>
+                        <option value="RFQ-7115">RFQ-7115: 33kV GIS Substation Medium Voltage Switchgear</option>
+                    </select>
+                </div>
+                <div class="text-xs text-slate-400 flex items-center gap-4 font-mono">
+                    <span>Approved Budget: <strong class="text-white" id="rfq-budget-display">$3,200,000</strong></span>
+                    <span>• Target Site Delivery: <strong class="text-amber-400">Nov 15, 2026</strong></span>
+                </div>
+            </div>
+
+            <!-- Bid Tabulation Matrix (TBE / CBE) -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            Commercial & Technical Bid Evaluation Matrix
+                            <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700">Weighted Scoring Engine</span>
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Scoring weights: Technical Compliance (40%), Commercial Price (40%), Ex-Works Lead Time (20%)</p>
+                    </div>
+                    <div id="award-recommendation-badge" class="text-xs font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800 px-3.5 py-1.5 rounded-lg shadow-sm">
+                        Recommended: Flowserve Corp.
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300" id="bid-matrix-table">
+                        <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr>
+                                <th class="p-3">Vendor / Manufacturer</th>
+                                <th class="p-3">Origin</th>
+                                <th class="p-3">Incoterm Quoted</th>
+                                <th class="p-3 text-right">Quoted Total ($)</th>
+                                <th class="p-3 text-right">Variance vs Budget</th>
+                                <th class="p-3 text-center">Lead Time (Wks)</th>
+                                <th class="p-3 text-center">Tech Score (100)</th>
+                                <th class="p-3 text-center">Composite Score</th>
+                                <th class="p-3 text-center">PO Award Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bid-matrix-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Purchase Orders List (Resulting from Awards) -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Committed Purchase Orders (POs)</h3>
+                        <p class="text-xs text-slate-400">Synchronized with SAP / Hexagon SMAT financial records</p>
+                    </div>
+                    <button onclick="downloadPOListJSON()" class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-mono">
+                        <i class="ph-bold ph-download-simple"></i> Download PO Audit JSON
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr>
+                                <th class="p-3">PO Number</th>
+                                <th class="p-3">Awarded Supplier</th>
+                                <th class="p-3">Contract Value</th>
+                                <th class="p-3">Terms & Incoterm</th>
+                                <th class="p-3">Contractual Ex-Works</th>
+                                <th class="p-3">Payment Milestones</th>
+                                <th class="p-3">Current Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pos-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 3: SERVICE 3 - EXPEDITING & QUALITY SURVEILLANCE -->
+        <!-- ========================================================================= -->
+        <section id="tab-service3" class="hidden space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel p-5 rounded-xl border border-slate-800">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="ph-bold ph-certificate text-blue-400"></i> Expediting, Shop Surveillance & Quality (ITP / IRN)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Tracking vendor fabrication milestones, factory witness testing, Non-Conformance Reports (NCR), and issuing Inspection Release Notes.</p>
+                </div>
+                <button onclick="openModal('new-ncr-modal')" class="bg-rose-600 hover:bg-rose-500 text-white text-xs px-3.5 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 shadow-md shadow-rose-600/30">
+                    <i class="ph-bold ph-warning-octagon"></i> Raise NCR
+                </button>
+            </div>
+
+            <!-- Expediting Progress Across Orders -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="glass-panel p-4 rounded-xl border border-slate-800">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fabrication Surveillance</span>
+                    <div class="text-2xl font-extrabold text-white mt-1 font-mono">14 Shop Audits</div>
+                    <p class="text-xs text-slate-400 mt-2">Certified TPI (Third Party Inspectors) on site in Germany, Japan, France, and Sweden.</p>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border border-slate-800">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Open NCRs (Quality Deviations)</span>
+                    <div class="text-2xl font-extrabold text-rose-400 mt-1 font-mono" id="open-ncr-count">1 Actionable Item</div>
+                    <p class="text-xs text-slate-400 mt-2">1 Protection relay timing deviation undergoing re-calibration & witness testing.</p>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border border-slate-800">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">IRNs Issued This Month</span>
+                    <div class="text-2xl font-extrabold text-emerald-400 mt-1 font-mono">19 Inspection Releases</div>
+                    <p class="text-xs text-slate-400 mt-2">All 19 consignments formally stamped and authorized for export packaging.</p>
+                </div>
+            </div>
+
+            <!-- PO Expediting Milestone Monitor -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="ph-bold ph-hourglass text-blue-400"></i> Fabrication & Witness Milestone Tracker
+                </h3>
+                <div class="space-y-4" id="expediting-cards-container">
+                    <!-- Dynamic expediting progress items -->
+                </div>
+            </div>
+
+            <!-- Non-Conformance Reports (NCR) Log -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="ph-bold ph-warning-octagon text-rose-400"></i> Active Quality Discrepancies (NCR Log)
+                        </h3>
+                        <p class="text-xs text-slate-400">Surveillance standards: ISO 9001 / ASME Sec. VIII / API 610</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr>
+                                <th class="p-3">NCR #</th>
+                                <th class="p-3">PO Reference</th>
+                                <th class="p-3">Supplier & Location</th>
+                                <th class="p-3">Discrepancy Description</th>
+                                <th class="p-3">Severity</th>
+                                <th class="p-3">Disposition / Corrective Action</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ncr-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 4: SERVICE 4 - MULTIMODAL LOGISTICS & SHIPPING -->
+        <!-- ========================================================================= -->
+        <section id="tab-service4" class="hidden space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel p-5 rounded-xl border border-slate-800">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="ph-bold ph-boat text-blue-400"></i> Multimodal Logistics, Shipping & Port Clearance
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Waybill tracking, shipping lines, container stuffing, oversized heavy-lift cargo, and customs duty exemptions.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-700/80 text-slate-300 font-mono">
+                        <i class="ph-bold ph-truck text-emerald-400 mr-1"></i> Forwarders: Kuehne+Nagel / DHL Global Forwarding
+                    </span>
+                </div>
+            </div>
+
+            <!-- Global Shipping Lane Schematic Visualizer -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="ph-bold ph-globe-hemisphere-east text-blue-400"></i> Active Shipping Corridors & Cargo Telemetry
+                    </h3>
+                    <span class="text-[10px] font-mono bg-blue-950 text-blue-300 px-2.5 py-1 rounded border border-blue-800">Live Satellite AIS Feeds</span>
+                </div>
+                <!-- Interactive SVG / Visual Map Lane Simulator -->
+                <div class="relative w-full h-44 rounded-xl bg-industrial-900 border border-slate-800 overflow-hidden flex items-center justify-center p-4">
+                    <svg class="w-full h-full" viewBox="0 0 800 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Stylized Global Shipping Lines -->
+                        <path d="M 60 80 Q 240 20 440 90 T 740 70" stroke="#1e3a8a" stroke-width="4" stroke-dasharray="6 6" class="opacity-60" />
+                        <path d="M 60 80 Q 240 20 440 90 T 740 70" stroke="#3b82f6" stroke-width="2" />
+
+                        <!-- Port Waypoint 1: Antwerp / Europe -->
+                        <circle cx="60" cy="80" r="7" fill="#3b82f6" />
+                        <circle cx="60" cy="80" r="14" fill="#3b82f6" opacity="0.2" class="animate-ping" />
+                        <text x="60" y="110" fill="#94a3b8" font-size="11" font-family="Inter" text-anchor="middle" font-weight="600">Antwerp / Marseille</text>
+                        <text x="60" y="125" fill="#64748b" font-size="9" font-family="JetBrains Mono" text-anchor="middle">Origin Port</text>
+
+                        <!-- Port Waypoint 2: Suez Canal Transit Point -->
+                        <circle cx="440" cy="90" r="6" fill="#f59e0b" />
+                        <text x="440" y="120" fill="#f59e0b" font-size="11" font-family="Inter" text-anchor="middle" font-weight="600">Suez Canal Corridor</text>
+                        <text x="440" y="135" fill="#64748b" font-size="9" font-family="JetBrains Mono" text-anchor="middle">Waypoint Cleared</text>
+
+                        <!-- Vessel on Route -->
+                        <g transform="translate(560, 78)">
+                            <circle cx="0" cy="0" r="10" fill="#1d4ed8" />
+                            <circle cx="0" cy="0" r="5" fill="#60a5fa" />
+                            <text x="0" y="-14" fill="#e2e8f0" font-size="10" font-family="JetBrains Mono" font-weight="bold" text-anchor="middle">MV Maersk Danube (85%)</text>
+                        </g>
+
+                        <!-- Port Waypoint 3: Destination (King Abdulaziz Port Dammam) -->
+                        <circle cx="740" cy="70" r="8" fill="#10b981" />
+                        <circle cx="740" cy="70" r="16" fill="#10b981" opacity="0.25" class="animate-ping" />
+                        <text x="740" y="100" fill="#10b981" font-size="11" font-family="Inter" text-anchor="middle" font-weight="bold">Dammam / Jubail Port</text>
+                        <text x="740" y="115" fill="#64748b" font-size="9" font-family="JetBrains Mono" text-anchor="middle">Customs Gate Clearance</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Active Shipments Table with Visual Progress Bar -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="text-sm font-bold text-white">Active Cargo Consignments & In-Transit Telemetry</h3>
+                    <div class="flex items-center gap-3 text-xs">
+                        <span class="inline-flex items-center gap-1.5 text-slate-400">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Ocean
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 text-slate-400">
+                            <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span> Air Freight
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 text-slate-400">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Overland Heavy Haul
+                        </span>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr>
+                                <th class="p-3">Shipment / BOL</th>
+                                <th class="p-3">Mode & Carrier</th>
+                                <th class="p-3">Origin Port</th>
+                                <th class="p-3">Destination Port</th>
+                                <th class="p-3">ETD / ETA</th>
+                                <th class="p-3" style="width: 25%;">Voyage Milestone Progress</th>
+                                <th class="p-3">Customs Exemption</th>
+                                <th class="p-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logistics-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Heavy Transport & Container Packing Details -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                    <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <i class="ph-bold ph-bounding-box text-blue-400 text-base"></i> Heavy-Lift Skid & Oversized Module Alerts
+                    </h4>
+                    <p class="text-xs text-slate-400">Engineering route surveys and road transport permits from port of entry to refinery site.</p>
+
+                    <div class="space-y-2 mt-3">
+                        <div class="p-3.5 bg-industrial-900 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                            <div>
+                                <div class="font-bold text-white">Demethanizer Column (V-101)</div>
+                                <div class="text-[11px] text-slate-400">Weight: 420 Metric Tons | Length: 58.4m</div>
+                            </div>
+                            <span class="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-lg text-[10px] font-mono">Heavy Highway Escort Issued</span>
+                        </div>
+                        <div class="p-3.5 bg-industrial-900 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                            <div>
+                                <div class="font-bold text-white">Main Gas Compressor Train Skid</div>
+                                <div class="text-[11px] text-slate-400">Weight: 180 Metric Tons | Width: 6.2m</div>
+                            </div>
+                            <span class="px-2.5 py-1 bg-amber-950 text-amber-300 border border-amber-800 rounded-lg text-[10px] font-mono">Hydraulic Axle Trailer Cleared</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                    <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <i class="ph-bold ph-stamp text-emerald-400 text-base"></i> Customs Clearance Documentation & Duty Exemptions
+                    </h4>
+                    <p class="text-xs text-slate-400">Tracking Saber / SASO certification, Certificates of Origin, and import duty waivers.</p>
+
+                    <div class="grid grid-cols-2 gap-3 mt-3 text-xs">
+                        <div class="p-3.5 bg-industrial-900 rounded-xl border border-slate-800">
+                            <span class="text-slate-400 text-[11px]">Industrial Exemption Ref</span>
+                            <div class="font-mono font-bold text-white mt-1 text-sm">MOF-SA-2026-881</div>
+                            <span class="text-[10px] text-emerald-400 mt-1 inline-block font-mono">0% Duty Tariff Applied</span>
+                        </div>
+                        <div class="p-3.5 bg-industrial-900 rounded-xl border border-slate-800">
+                            <span class="text-slate-400 text-[11px]">EDI B/L Turnaround</span>
+                            <div class="font-mono font-bold text-white mt-1 text-sm">1.8 Days Avg.</div>
+                            <span class="text-[10px] text-blue-400 mt-1 inline-block font-mono">Electronic Customs Release</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================= -->
+        <!-- TAB 5: SERVICE 5 - SITE MATERIAL CONTROL, OS&D & CWP READINESS -->
+        <!-- ========================================================================= -->
+        <section id="tab-service5" class="hidden space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel p-5 rounded-xl border border-slate-800">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="ph-bold ph-warehouse text-blue-400"></i> Site Material Control, Laydown Warehousing & CWP Readiness
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Material Receipt & Inspection Reports (MRIR), Over/Short/Damaged (OS&D) resolutions, and Advanced Work Packaging (AWP) issuance.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="openModal('new-mrir-modal')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3.5 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 shadow-md shadow-blue-600/30">
+                        <i class="ph-bold ph-barcode"></i> Receive Consignment (MRIR)
+                    </button>
+                    <button onclick="openModal('new-osd-modal')" class="bg-rose-600 hover:bg-rose-500 text-white text-xs px-3.5 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 shadow-md shadow-rose-600/30">
+                        <i class="ph-bold ph-warning-octagon"></i> Log OS&D
+                    </button>
+                </div>
+            </div>
+
+            <!-- CWP / FIWP Construction Work Package Readiness Checker -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="ph-bold ph-hard-hat text-amber-400"></i> Construction Work Package (CWP) Material Availability
+                        </h3>
+                        <p class="text-xs text-slate-400">Automated "Ready-to-Erect" calculation ensuring zero site downtime before releasing work crews.</p>
+                    </div>
+                    <span class="text-xs font-mono bg-industrial-900 px-3 py-1 rounded-lg border border-slate-700 text-slate-300">
+                        Methodology: CII Advanced Work Packaging (AWP)
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="cwp-readiness-grid">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Laydown Yard Physical Inventory & Bin Mapping -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="ph-bold ph-map-pin text-blue-400"></i> Laydown Yard Physical Inventory & Bin Allocation
+                    </h3>
+                    <div class="flex items-center gap-2 text-xs">
+                        <button onclick="filterLaydown('ALL')" id="laydown-btn-all" class="px-3 py-1 bg-blue-600 text-white rounded-lg transition font-medium">All Zones</button>
+                        <button onclick="filterLaydown('Zone A')" id="laydown-btn-zonea" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-200 transition font-medium">Zone A (Piping)</button>
+                        <button onclick="filterLaydown('Zone B')" id="laydown-btn-zoneb" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-200 transition font-medium">Zone B (Heavy Equipment)</button>
+                        <button onclick="filterLaydown('Warehouse 1')" id="laydown-btn-wh1" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-200 transition font-medium">Warehouse 1 (Climate)</button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr>
+                                <th class="p-3">Physical Tag #</th>
+                                <th class="p-3">Material Description</th>
+                                <th class="p-3">PO Reference</th>
+                                <th class="p-3">MRIR Number</th>
+                                <th class="p-3">Storage Location / Bin</th>
+                                <th class="p-3 text-right">Available Qty</th>
+                                <th class="p-3">Reserved for CWP</th>
+                                <th class="p-3 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="laydown-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Over, Short & Damaged (OS&D) Register -->
+            <div class="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="ph-bold ph-warning-octagon text-rose-400"></i> Over, Short & Damaged (OS&D) Incident Register
+                        </h3>
+                        <p class="text-xs text-slate-400">Claims against shipping lines and vendors with direct replacement re-ordering tracking.</p>
+                    </div>
+                    <span class="text-xs font-mono bg-rose-950 text-rose-300 px-2.5 py-1 rounded-full border border-rose-800" id="osd-counter">
+                        3 Open Discrepancies
+                    </span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-industrial-900 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+                            <tr>
+                                <th class="p-3">OS&D Report #</th>
+                                <th class="p-3">Type</th>
+                                <th class="p-3">PO & Shipment</th>
+                                <th class="p-3">Item Tag & Description</th>
+                                <th class="p-3 text-center">Discrepant Qty</th>
+                                <th class="p-3">Insurance / Vendor Claim</th>
+                                <th class="p-3">Corrective Resolution</th>
+                                <th class="p-3 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="osd-table-body" class="divide-y divide-slate-800/60 font-mono">
+                            <!-- Populated dynamically via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ========================================================================= -->
+    <!-- INTERACTIVE MODALS -->
+    <!-- ========================================================================= -->
+
+    <!-- Modal: RFQ detail, quote comparison & award (live) -->
+    <div id="rfq-detail-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4">
+        <div id="rfq-detail-body" class="bg-industrial-900 border border-slate-700/80 rounded-2xl max-w-4xl w-full p-6 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto"></div>
+    </div>
+
+    <!-- Modal: vendor catalog (live) -->
+    <div id="vendor-catalog-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4">
+        <div id="vendor-catalog-body" class="bg-industrial-900 border border-slate-700/80 rounded-2xl max-w-4xl w-full p-6 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto"></div>
+    </div>
+
+    <!-- Modal: add category (live) -->
+    <div id="category-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4">
+        <form id="category-form" class="bg-industrial-900 border border-slate-700/80 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-xs">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="ph-bold ph-tag text-blue-400"></i> Add Vendor Category</h3>
+                <button type="button" onclick="closeModal('category-modal')" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"><i class="ph-bold ph-x text-lg"></i></button>
+            </div>
+            <div>
+                <label class="label" for="cat-kind">Category group</label>
+                <input class="field" id="cat-kind" list="cat-kind-options" required maxlength="40" placeholder="discipline, product_type, service, or a new group">
+                <datalist id="cat-kind-options"></datalist>
+            </div>
+            <div>
+                <label class="label" for="cat-name">Category name</label>
+                <input class="field" id="cat-name" required maxlength="80" placeholder="e.g. Cathodic Protection">
+            </div>
+            <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                <button type="button" onclick="closeModal('category-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold">Add category</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal 1: New Engineering Requisition MTO -->
+    <div id="new-mto-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-industrial-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="ph-bold ph-plus-circle text-blue-400"></i> New Engineering Material Take-Off (MTO)
+                </h3>
+                <button onclick="closeModal('new-mto-modal')" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"><i class="ph-bold ph-x text-lg"></i></button>
+            </div>
+            <form onsubmit="handleCreateMTO(event)" class="space-y-3.5 text-xs">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Tag / Commodity Identification Number</label>
+                    <input type="text" id="modal-mto-tag" required placeholder="e.g. 10-PV-8821 or 24-PIPE-A106-004" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono focus:border-blue-500 focus:outline-none shadow-inner">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Discipline</label>
+                        <select id="modal-mto-discipline" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none">
+                            <option value="Piping">Piping</option>
+                            <option value="Mechanical">Mechanical Equipment</option>
+                            <option value="Electrical">Electrical</option>
+                            <option value="Structural">Structural Steel</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Material Specification</label>
+                        <input type="text" id="modal-mto-spec" required placeholder="e.g. ASTM A106 Gr. B / ASME B16.5" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono focus:border-blue-500 focus:outline-none shadow-inner">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Item Detailed Description</label>
+                    <input type="text" id="modal-mto-desc" required placeholder="e.g. Seamless Pipe 12-inch Sch 80 with 3.1 Material Test Cert" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none shadow-inner">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Required Quantity</label>
+                        <input type="number" id="modal-mto-qty" required min="1" value="10" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono focus:border-blue-500 focus:outline-none shadow-inner">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Requisition Package Code</label>
+                        <input type="text" id="modal-mto-pkg" required value="MR-PIP-2026-08" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono focus:border-blue-500 focus:outline-none shadow-inner">
+                    </div>
+                </div>
+                <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                    <button type="button" onclick="closeModal('new-mto-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition font-medium">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition shadow-md shadow-blue-600/30">Ingest to MTO Database</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 2: Log OS&D (Over, Short & Damaged) -->
+    <div id="new-osd-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-industrial-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="ph-bold ph-warning-octagon text-rose-400"></i> Site OS&D Damage / Shortage Report
+                </h3>
+                <button onclick="closeModal('new-osd-modal')" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"><i class="ph-bold ph-x text-lg"></i></button>
+            </div>
+            <form onsubmit="handleCreateOSD(event)" class="space-y-3.5 text-xs">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Discrepancy Category</label>
+                        <select id="modal-osd-type" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-rose-500 focus:outline-none">
+                            <option value="Damaged">Damaged in Transit</option>
+                            <option value="Shortage">Shortage (Missing Quantity)</option>
+                            <option value="Over">Over-shipment (Unordered)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Purchase Order (PO)</label>
+                        <input type="text" id="modal-osd-po" required placeholder="PO-4102" value="PO-4102" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono focus:border-rose-500 focus:outline-none shadow-inner">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Item Description & Tag</label>
+                    <input type="text" id="modal-osd-desc" required placeholder="e.g. 6-inch Flanged Ball Valve, flange face gouged" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-rose-500 focus:outline-none shadow-inner">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Affected Quantity</label>
+                        <input type="number" id="modal-osd-qty" required min="1" value="2" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono focus:border-rose-500 focus:outline-none shadow-inner">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Carrier / Insurance Status</label>
+                        <select id="modal-osd-claim" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-rose-500 focus:outline-none">
+                            <option value="Claim Filed">Insurance Claim Filed</option>
+                            <option value="Vendor Dispatched">Vendor Free Replacement Dispatched</option>
+                            <option value="Under Assessment">Site Surveyor Assessment</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Corrective Resolution Plan</label>
+                    <textarea id="modal-osd-resolution" rows="2" placeholder="Air freight replacement from supplier stocks to protect CWP erection date." class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-rose-500 focus:outline-none shadow-inner"></textarea>
+                </div>
+                <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                    <button type="button" onclick="closeModal('new-osd-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition font-medium">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-semibold transition shadow-md shadow-rose-600/30">Register OS&D</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 3: Raise Quality NCR -->
+    <div id="new-ncr-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-industrial-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="ph-bold ph-certificate text-rose-400"></i> Raise Shop Quality Non-Conformance (NCR)
+                </h3>
+                <button onclick="closeModal('new-ncr-modal')" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"><i class="ph-bold ph-x text-lg"></i></button>
+            </div>
+            <form onsubmit="handleCreateNCR(event)" class="space-y-3.5 text-xs">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">PO Reference</label>
+                        <input type="text" id="modal-ncr-po" required value="PO-4050" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono focus:border-rose-500 focus:outline-none shadow-inner">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Severity Rating</label>
+                        <select id="modal-ncr-severity" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-rose-500 focus:outline-none">
+                            <option value="Critical">Critical (Pressure / Safety Boundary)</option>
+                            <option value="Moderate">Moderate (Dimensional / Coating)</option>
+                            <option value="Minor">Minor (Documentation / Labeling)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Supplier & Manufacturing Plant</label>
+                    <input type="text" id="modal-ncr-supplier" required value="ABB Power Grids - Ludvika, Sweden" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-rose-500 focus:outline-none shadow-inner">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Specific Discrepancy Found during ITP Witness</label>
+                    <textarea id="modal-ncr-desc" required rows="2" placeholder="e.g. Hydrostatic pressure drop detected at 1.5x design pressure on shell weld seam W-04." class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-rose-500 focus:outline-none shadow-inner"></textarea>
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Proposed Disposition</label>
+                    <input type="text" id="modal-ncr-disposition" required value="Excavate weld defect via carbon arc gouging, re-weld and 100% RT inspect." class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-rose-500 focus:outline-none shadow-inner">
+                </div>
+                <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                    <button type="button" onclick="closeModal('new-ncr-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition font-medium">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-semibold transition shadow-md shadow-rose-600/30">Issue Formal NCR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 4: Material Receipt Inspection (MRIR) Simulator -->
+    <div id="new-mrir-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-industrial-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="ph-bold ph-barcode text-blue-400"></i> Generate Material Receiving Report (MRIR)
+                </h3>
+                <button onclick="closeModal('new-mrir-modal')" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"><i class="ph-bold ph-x text-lg"></i></button>
+            </div>
+            <form onsubmit="handleCreateMRIR(event)" class="space-y-3.5 text-xs">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Consignment Waybill</label>
+                        <select id="modal-mrir-waybill" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none font-mono">
+                            <option value="MSK-2026-8901">MSK-2026-8901 (Centrifugal Pumps)</option>
+                            <option value="HAP-8840-77">HAP-8840-77 (P91 Chrome Piping)</option>
+                            <option value="SV-AIR-9921">SV-AIR-9921 (Pressure Transmitter Skids)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Target Storage Bin / Zone</label>
+                        <select id="modal-mrir-zone" class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none">
+                            <option value="Zone A - Bay 04">Zone A - Bay 04 (Piping)</option>
+                            <option value="Zone B - Pad 02">Zone B - Pad 02 (Heavy Skids)</option>
+                            <option value="Warehouse 1 - Rack C">Warehouse 1 - Rack C (Climate Controlled)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Receiving Physical Inspection Notes</label>
+                    <input type="text" id="modal-mrir-notes" required value="Packaging intact, silica gel desiccants dry, heat numbers verified against Mill Test Report 3.1." class="w-full bg-industrial-950 border border-slate-800 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none shadow-inner">
+                </div>
+                <div class="p-3 bg-emerald-950/40 border border-emerald-800/60 rounded-xl text-emerald-300 text-[11px] flex items-center gap-2.5">
+                    <i class="ph-bold ph-check-circle text-lg shrink-0"></i>
+                    <span>Passing QA inspection automatically updates ERP stock and releases reservation to CWP.</span>
+                </div>
+                <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                    <button type="button" onclick="closeModal('new-mrir-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition font-medium">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition shadow-md shadow-blue-600/30">Confirm Gate Receipt & Sign MRIR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[60] flex flex-col gap-2.5 pointer-events-none"></div>
+
+    <script src="/js/common.js"></script>
+    <script src="/js/project-controls.js"></script>
+    <script src="/js/procurement.js"></script>
+</body>
+</html>

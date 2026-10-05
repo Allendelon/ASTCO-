@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASTCO Sign In</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/js/theme.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="bg-industrial-950 text-slate-100 font-sans antialiased min-h-screen flex items-center justify-center p-4 grid-blueprint">
+  <div class="w-full max-w-md space-y-6">
+    <div class="flex items-center gap-3 justify-center">
+      <div class="h-12 w-12 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 ring-1 ring-white/20">
+        <i class="ph-bold ph-factory text-3xl"></i>
+      </div>
+      <div>
+        <div class="font-extrabold text-xl tracking-tight text-white">ASTCO<span class="text-blue-400"> Procurement & Logistics</span></div>
+        <p class="text-[11px] text-slate-400">Procurement team &amp; invited supplier portal</p>
+      </div>
+    </div>
+
+    <form id="login-form" class="glass-panel rounded-2xl p-6 space-y-4 text-xs">
+      <h1 class="text-base font-bold text-white flex items-center gap-2"><i class="ph-bold ph-lock-key text-blue-400"></i> Sign in</h1>
+      <div>
+        <label class="label" for="email">Email</label>
+        <input class="field" id="email" type="email" autocomplete="username" required>
+      </div>
+      <div>
+        <label class="label" for="password">Password</label>
+        <input class="field" id="password" type="password" autocomplete="current-password" required>
+      </div>
+      <div id="login-error" class="hidden p-2.5 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300"></div>
+      <button id="login-btn" type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition shadow-md shadow-blue-600/30">Sign in</button>
+      <p class="text-[11px] text-slate-500 text-center">Access is by invitation only. Suppliers: use the registration link sent by ASTCO procurement.</p>
+    </form>
+  </div>
+  <script src="/js/common.js"></script>
+  <script>
+    // Already signed in? Go straight to the right dashboard.
+    ASTCO.api('GET', '/api/auth/me').then(({ user }) => {
+      window.location.href = user.role === 'vendor' ? '/vendor.html' : '/procurement.html';
+    }).catch(() => {});
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('login-btn');
+      const errEl = document.getElementById('login-error');
+      errEl.classList.add('hidden');
+      btn.disabled = true;
+      try {
+        const { user } = await ASTCO.api('POST', '/api/auth/login', {
+          email: document.getElementById('email').value,
+          password: document.getElementById('password').value,
+        });
+        window.location.href = user.role === 'vendor' ? '/vendor.html' : '/procurement.html';
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASTCO Supplier Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/js/theme.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="bg-industrial-950 text-slate-100 font-sans antialiased min-h-screen flex flex-col grid-blueprint">
+  <header class="sticky top-0 z-40 bg-industrial-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 lg:px-8 py-3 flex items-center justify-between shadow-xl">
+    <div class="flex items-center gap-3">
+      <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-700 via-teal-600 to-cyan-500 flex items-center justify-center text-white shadow-lg ring-1 ring-white/20">
+        <i class="ph-bold ph-storefront text-2xl"></i>
+      </div>
+      <div>
+        <div class="font-extrabold text-lg tracking-tight text-white">ASTCO<span class="text-emerald-400"> Supplier Portal</span></div>
+        <p class="text-[11px] text-slate-400" id="vendor-name">&nbsp;</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 text-xs">
+      <span class="hidden sm:inline text-slate-400" id="user-name"></span>
+      <button onclick="ASTCO.logout()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1.5"><i class="ph-bold ph-sign-out"></i> Sign out</button>
+    </div>
+  </header>
+
+  <nav class="bg-industrial-900/80 border-b border-slate-800/80 px-4 lg:px-8 py-2 sticky top-[65px] z-30 overflow-x-auto no-scrollbar backdrop-blur-sm">
+    <div class="flex items-center gap-2 min-w-max">
+      <button data-tab="inbox" class="tab-btn active px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+        <i class="ph ph-tray text-sm"></i> RFQ Inbox <span id="unread-badge" class="hidden px-1.5 rounded-full bg-rose-600 text-white text-[10px] font-bold"></span>
+      </button>
+      <button data-tab="catalog" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+        <i class="ph ph-package text-sm"></i> My Products &amp; Prices
+      </button>
+      <button data-tab="categories" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+        <i class="ph ph-tag text-sm"></i> Supply Categories
+      </button>
+      <button data-tab="profile" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-2 text-slate-300 hover:bg-slate-800/80 border border-transparent transition">
+        <i class="ph ph-buildings text-sm"></i> Company Profile
+      </button>
+    </div>
+  </nav>
+
+  <main class="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
+    <div class="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-emerald-200 text-xs flex items-start gap-2.5">
+      <i class="ph-bold ph-shield-check text-lg shrink-0"></i>
+      <span><strong>Confidential.</strong> Your prices and quotations are visible only to your company and ASTCO procurement. Other suppliers can never see them, and you will never see theirs.</span>
+    </div>
+
+    <!-- RFQ INBOX -->
+    <section id="tab-inbox" class="space-y-4">
+      <div class="glass-panel p-5 rounded-xl">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="ph-bold ph-tray text-emerald-400"></i> Requests for Quotation</h2>
+        <p class="text-xs text-slate-400 mt-1">ASTCO sends you RFQs that match your supply categories. Submit or revise your quote any time before the deadline.</p>
+      </div>
+      <div class="glass-panel rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-industrial-900/95 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+              <tr><th class="p-3">RFQ</th><th class="p-3">Requirement</th><th class="p-3 text-right">Qty</th><th class="p-3">Quote Deadline</th><th class="p-3">My Quote</th><th class="p-3">Status</th><th class="p-3"></th></tr>
+            </thead>
+            <tbody id="rfq-body" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- CATALOG -->
+    <section id="tab-catalog" class="hidden space-y-4">
+      <div class="glass-panel p-5 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="ph-bold ph-package text-emerald-400"></i> Products &amp; Price List</h2>
+          <p class="text-xs text-slate-400 mt-1">Products you list here also tell ASTCO which RFQs to route to you.</p>
+        </div>
+        <button onclick="openProduct()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-2 rounded-lg font-semibold flex items-center gap-1.5 self-start"><i class="ph-bold ph-plus"></i> Add Product</button>
+      </div>
+      <div class="glass-panel rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-industrial-900/95 text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800 tracking-wider">
+              <tr><th class="p-3">SKU</th><th class="p-3">Product</th><th class="p-3">Category</th><th class="p-3 text-right">Unit Price</th><th class="p-3">Unit</th><th class="p-3 text-center">MOQ</th><th class="p-3 text-center">Lead Time</th><th class="p-3">Status</th><th class="p-3"></th></tr>
+            </thead>
+            <tbody id="product-body" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- CATEGORIES -->
+    <section id="tab-categories" class="hidden space-y-4">
+      <div class="glass-panel p-5 rounded-xl space-y-4">
+        <div>
+          <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="ph-bold ph-tag text-emerald-400"></i> What do you supply?</h2>
+          <p class="text-xs text-slate-400 mt-1">Select every discipline, product type and service you can quote on. RFQs are routed to you automatically when your categories match.</p>
+        </div>
+        <div id="category-picker" class="space-y-4"></div>
+        <button onclick="saveCategories()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2 rounded-lg font-semibold">Save categories</button>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="tab-profile" class="hidden space-y-4">
+      <form id="profile-form" class="glass-panel p-5 rounded-xl space-y-4 text-xs max-w-xl">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="ph-bold ph-buildings text-emerald-400"></i> Company Profile</h2>
+        <div><label class="label">Company</label><input class="field opacity-70" id="pf-company" disabled></div>
+        <div><label class="label">Primary contact email</label><input class="field opacity-70" id="pf-email" disabled></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label" for="pf-country">Country</label><input class="field" id="pf-country" maxlength="80"></div>
+          <div><label class="label" for="pf-phone">Phone</label><input class="field" id="pf-phone" maxlength="40"></div>
+        </div>
+        <p class="text-[11px] text-slate-500">To change your company name or add colleagues, contact ASTCO procurement. They will send each colleague an invitation.</p>
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-semibold">Save profile</button>
+      </form>
+    </section>
+  </main>
+
+  <!-- RFQ detail / quote modal -->
+  <div id="rfq-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="bg-industrial-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto" id="rfq-modal-body"></div>
+  </div>
+
+  <!-- Product modal -->
+  <div id="product-modal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="bg-industrial-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white" id="product-modal-title">Add product</h3>
+        <button onclick="ASTCO.closeModal('product-modal')" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"><i class="ph-bold ph-x text-lg"></i></button>
+      </div>
+      <form id="product-form" class="space-y-3.5 text-xs">
+        <input type="hidden" id="p-id">
+        <div class="grid grid-cols-3 gap-3">
+          <div><label class="label" for="p-sku">SKU / Part #</label><input class="field font-mono" id="p-sku" maxlength="60"></div>
+          <div class="col-span-2"><label class="label" for="p-name">Product name</label><input class="field" id="p-name" required maxlength="200"></div>
+        </div>
+        <div><label class="label" for="p-desc">Description / specification</label><textarea class="field" id="p-desc" rows="2" maxlength="3000"></textarea></div>
+        <div><label class="label" for="p-cat">Category</label><select class="field" id="p-cat"></select></div>
+        <div class="grid grid-cols-3 gap-3">
+          <div><label class="label" for="p-price">Unit price</label><input class="field font-mono" id="p-price" type="number" min="0" step="0.01" required></div>
+          <div><label class="label" for="p-cur">Currency</label><input class="field font-mono uppercase" id="p-cur" maxlength="3" value="USD" required></div>
+          <div><label class="label" for="p-unit">Unit</label><input class="field" id="p-unit" maxlength="20" value="EA"></div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div><label class="label" for="p-moq">Min. order qty</label><input class="field font-mono" id="p-moq" type="number" min="1" step="1" value="1"></div>
+          <div><label class="label" for="p-lead">Lead time (days)</label><input class="field font-mono" id="p-lead" type="number" min="0" step="1" value="0"></div>
+          <div class="flex items-end"><label class="flex items-center gap-2 text-slate-300 pb-2"><input type="checkbox" id="p-active" checked> Active</label></div>
+        </div>
+        <div class="pt-3 flex justify-end gap-2 border-t border-slate-800">
+          <button type="button" onclick="ASTCO.closeModal('product-modal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold">Save product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/vendor.js"></script>
+</body>
+</html>

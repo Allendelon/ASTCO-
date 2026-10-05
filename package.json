@@ -1,0 +1,16 @@
+{
+  "name": "astco-procurement-logistics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ASTCO procurement & logistics platform: invitation-only vendor network, category-matched RFQ dispatch, confidential vendor catalogs and sealed quotations.",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "create-admin": "node --disable-warning=ExperimentalWarning scripts/create-admin.js",
+    "seed-demo": "node --disable-warning=ExperimentalWarning scripts/seed-demo.js",
+    "test": "node --disable-warning=ExperimentalWarning --test"
+  }
+}
