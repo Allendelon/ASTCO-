@@ -28,7 +28,7 @@
     <div class="w-9 h-9 rounded-lg bg-sky-600/20 border border-sky-600/40 flex items-center justify-center text-sky-400"><i class="fa-solid fa-calculator"></i></div>
     <div class="min-w-0">
       <h1 class="text-sm font-bold text-white truncate">Crystal Gallery, Jeddah: 4D BIM Planning, Take-off &amp; 5D Cost Model</h1>
-      <p class="text-[11px] text-slate-400 truncate">Basis: Concept i Design, Revised Design Submission 2 (27 Jan 2023) • B2+B1+GF+L1–L4 • Class 4 parametric estimate (SAR)</p>
+      <p class="text-[11px] text-slate-400 truncate">Basis: Concept i Design, Revised Design Submission 2 (27 Jan 2023) • B2+B1+GF+L1–L4 • Default cost basis matches the ASTCO 4D Planner (SAR 343.1M)</p>
     </div>
   </div>
 
@@ -50,6 +50,13 @@
       <button id="lensExec" onclick="setLens('exec')" title="Element totals, SAR/m², cashflow" class="px-2 py-0.5 text-xs rounded text-white bg-slate-700">Client / Exec</button>
       <button id="lensSite" onclick="setLens('site')" title="Quantities only, trades and crews" class="px-2 py-0.5 text-xs rounded text-slate-400 hover:text-white">Foreman</button>
       <button id="lensControls" onclick="setLens('controls')" title="Full BoQ with editable rates, float, baseline variance" class="px-2 py-0.5 text-xs rounded text-slate-400 hover:text-white">Controls</button>
+    </div>
+
+    <!-- Cost basis: CG-JED planner (default) vs elemental take-off -->
+    <div class="flex items-center bg-slate-800/90 rounded-lg p-1 border border-slate-700">
+      <span class="text-[11px] text-slate-400 px-2 font-medium">Cost basis:</span>
+      <button id="basisPlanner" onclick="setBasis('planner')" title="Line-for-line cost plan from the ASTCO 4D Planner (CG-JED): benchmark rates, 5%/yr escalation, 5% contingency" class="px-2 py-0.5 text-xs rounded bg-sky-600 text-white">4D Planner</button>
+      <button id="basisElemental" onclick="setBasis('elemental')" title="This model's own elemental take-off with assumed rates and markups" class="px-2 py-0.5 text-xs rounded text-slate-400 hover:text-white">Elemental QTO</button>
     </div>
 
     <!-- Scenario: Baseline vs EOT Delay -->
@@ -283,6 +290,11 @@
         <div id="sCurveTip" class="absolute hidden pointer-events-none bg-slate-900/95 border border-slate-700 rounded px-2 py-1 text-[11px]"></div>
       </div>
     </div>
+    <div class="mt-4 border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+      <h5 class="font-semibold text-slate-200 text-xs mb-1">Reconciliation: 4D Planner cost plan vs elemental take-off (baseline, excl. VAT)</h5>
+      <p class="text-[11px] text-slate-400 mb-2">Both are built on the same Schedule of Areas. The gap comes from rates, escalation and markups. Planner figures are at base-date rates, with escalation shown as its own row.</p>
+      <div class="overflow-x-auto"><table class="w-full text-[11px]" id="reconTable"></table></div>
+    </div>
   </div>
 
   <!-- Params panel -->
@@ -337,7 +349,7 @@
 
     <div class="bg-sky-950/30 border border-sky-800/40 rounded-lg p-3 text-[11px] text-sky-200">
       <div class="font-bold text-sky-400 mb-1 flex items-center gap-1"><i class="fa-solid fa-lightbulb"></i> Read this before quoting the number</div>
-      <p class="text-slate-300 leading-relaxed">This is a Class 4 estimate built from a concept presentation that has no dimensions, structure, MEP or specification. Expect an accuracy of about −20% / +30%. Rates are editable placeholders. Replace them with current Jeddah supplier or subcontract quotes before any commercial use.</p>
+      <p class="text-slate-300 leading-relaxed">This is a Class 4 estimate built from a concept presentation that has no dimensions, structure, MEP or specification. Expect an accuracy of about −20% / +30%. The default 4D Planner basis uses benchmark-calibrated rates; they are still not tender prices. Replace them with QS or subcontract quotes before any commercial use.</p>
     </div>
   </div>
 </aside>
@@ -436,7 +448,7 @@ const SPACE = {
    2. ESTIMATING PARAMETERS (editable on the Assumptions tab)
    ===================================================================== */
 const P_DEFAULT = {
-  startDate:'2026-01-04',
+  startDate:'2027-03-01',
   bsmtF2F:3.6, raftThk:1.0, wallThk:0.40, bsmtPerimeter:455, shoringToe:4.0,
   pileCount:360, pileLength:18, dewaterMonths:8,
   eqB1:0.32, eqGF:0.42, eqSuper:0.30, colB:0.035, colS:0.05, stairConc:600,
@@ -447,6 +459,7 @@ const P_DEFAULT = {
   escalators:8, passLifts:6, serviceLifts:2, cinemaScreens:7,
   extHard:6000, extSoft:2000,
   prelimsPct:10, ohpPct:8, designContPct:10, constContPct:5, vatPct:15,
+  plannerContPct:5, plannerPrelimsPct:8, plannerEscPct:5,
   eotWeeks:6, timeRelShare:0.6
 };
 const PARAM_META = [
@@ -455,7 +468,8 @@ const PARAM_META = [
   ['Frame intensities', [['eqB1','B1 slab equivalent thickness (m)'],['eqGF','GF podium slab equiv. thk (m)'],['eqSuper','Upper slabs equiv. thk (m)'],['colB','Basement cols/cores (m³/m² GFA)'],['colS','Upper cols/cores (m³/m² GFA)'],['stairConc','Stairs & car ramps concrete (m³)'],['rebarRaft','Rebar: raft (kg/m³)'],['rebarWall','Rebar: walls (kg/m³)'],['rebarSlab','Rebar: slabs/beams (kg/m³)'],['rebarCol','Rebar: columns/cores (kg/m³)']]],
   ['Envelope', [['perimGF','Facade perimeter GF (m)'],['perimL1','Facade perimeter L1 (m)'],['perimL2','Facade perimeter L2 (m)'],['perimL3','Facade perimeter L3 (m)'],['perimL4','Facade perimeter L4 (m)'],['fCW','Share: curtain wall'],['fScreen','Share: mashrabiya screen'],['fSolid','Share: solid cladding']]],
   ['Internal / VT / External', [['partAbove','Partitions above GF (m²/m² GFA)'],['partBelow','Partitions basements (m²/m² GFA)'],['escalators','Escalators (no.)'],['passLifts','Passenger lifts (no.)'],['serviceLifts','Service lifts (no.)'],['cinemaScreens','Cinema auditoria (no.)'],['extHard','External hardscape/roads (m²)'],['extSoft','Soft landscape (m²)']]],
-  ['Markups (%)', [['prelimsPct','Preliminaries'],['ohpPct','Contractor OH&P'],['designContPct','Design contingency'],['constContPct','Construction contingency'],['vatPct','VAT (KSA)']]]
+  ['Planner basis (%)', [['plannerContPct','Contingency reserve on out-turn'],['plannerPrelimsPct','Prelims embedded in rates (EOT prolongation only)']]],
+  ['Elemental basis markups (%)', [['prelimsPct','Preliminaries'],['ohpPct','Contractor OH&P'],['designContPct','Design contingency'],['constContPct','Construction contingency'],['vatPct','VAT (KSA)']]]
 ];
 
 /* =====================================================================
@@ -498,7 +512,7 @@ const ACTIVITIES = [
 let P = loadJSON('cg_params', {...P_DEFAULT});
 P = {...P_DEFAULT, ...P};
 let RATE_OVR = loadJSON('cg_rates', {});
-let state = { week:1, scope:'core', lens:'exec', scen:'baseline', playing:false, speed:1, timer:null, tab:'gantt', zone:null, act:null, view:'section', planLevel:'auto' };
+let state = { week:1, scope:'core', lens:'exec', scen:'baseline', playing:false, speed:1, timer:null, tab:'gantt', zone:null, act:null, view:'section', planLevel:'auto', basis:'planner' };
 let BOQ = [], COST = null, D = null;
 
 function loadJSON(k, def){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch(e){ return def; } }
@@ -563,7 +577,7 @@ const UPPER_Z = () => ({GF:AREA.GF.gross, L1:AREA.L1.gross, L2:AREA.L2.gross, L3
 const BSMT_Z = {B2:1, B1:1};
 
 function buildBoQ(){
-  const d = D = derive(); const L = [];
+  const d = D = derive(); if (state.basis === 'planner') return buildPlannerBoQ(); const L = [];
   const add = (code, grp, desc, qty, unit, rate, basis, src, act, z) =>
     L.push({code, grp, desc, qty, unit, baseRate:rate, rate:(code in RATE_OVR ? RATE_OVR[code] : rate), basis, src, act, z: z || {SITE:1}});
 
@@ -668,13 +682,67 @@ function buildBoQ(){
     add('10.03',G10,'Cinema seating', d.seats,'seat',2400,'1,075 seats (schedule)','DRW','fit',{L2:1});
     add('10.04',G10,'Cinema projection, sound & screens', P.cinemaScreens,'no',650000,'Auditoria counted on L2 plan (assumed 7)','DER','fit',{L2:1});
   }
-  L.forEach(l => { l.qty = Math.round(l.qty * 100) / 100; l.amt = l.qty * l.rate; });
+  L.forEach(l => { l.qty = Math.round(l.qty * 100) / 100; l.esc = 1; l.amt = l.qty * l.rate; l.baseAmt = l.amt; });
   return L;
 }
 function scale(obj, total){ const s = Object.values(obj).reduce((a,b)=>a+b,0) || 1; const o = {}; for (const k in obj) o[k] = obj[k] / s * total; return o; }
 function mergeZ(...objs){ const o = {}; objs.forEach(x => { for (const k in x) o[k] = (o[k]||0) + x[k]; }); return o; }
 function byKeyLevels(key, levels){ const o = {}; levels.forEach(l => { if (AREA[l][key]) o[l] = AREA[l][key]; }); return o; }
 function norm(w){ if (typeof w === 'string') return {[w]:1}; const s = Object.values(w).reduce((a,b)=>a+b,0) || 1; const o = {}; for (const k in w) o[k] = w[k]/s; return o; }
+
+
+/* =====================================================================
+   6b. CG-JED PLANNER COST BASIS (default)
+   Imported line-for-line from the ASTCO 4D Planner (branch claude/fervent-euler-lqew8l, project CG-JED):
+   [id, name, qty, unit, base rate SAR @ Q1-2026, escalation factor (5%/yr to cost midpoint, NTP 1 Mar 2027), quantity source, rate basis, ES day, EF day]
+   Base SAR 298,452,170 → out-turn SAR 326,769,832 → +5% contingency reserve = SAR 343,108,324 (excl. VAT, land, fees, tenant fit-out).
+   ===================================================================== */
+const CGJED = [["CG-1010", "Mobilisation, site set-up & enabling works", 1, "LS", 4000000, 1.0603952363791178, "Lump sum (assumed)", "mall", 0, 30], ["CG-1020", "Secant pile shoring & dewatering", 5400, "m²", 1650, 1.0630899627053816, "Derived: basement perimeter ≈450 m (B1/B2 plans) × 12 m retained depth", "basement", 14, 54], ["CG-1030", "Bulk excavation & disposal (2 basements)", 112500, "m³", 48, 1.06593391514171, "Derived: 12,500 m² basement (Sheet 17) × 9.0 m (2 × 3.6 m + raft/blinding)", "excav", 34, 75], ["CG-1040", "Raft foundation & below-grade waterproofing", 12500, "m²", 1200, 1.0707861057065566, "Sheet 17: B2 gross area 12,500 m²", "basement", 75, 102], ["CG-2000", "RC frame & slab — B2", 12500, "m²", 2000, 1.0792585613788566, "Sheet 17: B2 gross area 12,500 m²; height 3.6 m (assumed)", "basement", 102, 192], ["CG-2010", "RC frame & slab — B1", 12500, "m²", 2000, 1.0828687752622104, "Sheet 17: B1 gross area 12,500 m²; height 3.6 m (assumed)", "basement", 127, 217], ["CG-2020", "RC frame & slab — GF", 7503, "m²", 1750, 1.0864910656254272, "Sheet 17: GF gross area 7,503 m²; height 7 m", "mall", 170, 224], ["CG-2030", "RC frame & slab — L1", 5622, "m²", 1650, 1.0893976201236666, "Sheet 17: L1 gross area 5,622 m²; height 6 m", "mall", 190, 244], ["CG-2040", "RC frame & slab — L2 (incl. cinema long-span roof)", 5825, "m²", 2300, 1.0940642891031829, "Sheet 17: L2 gross area 5,825 m²; height 5.5 m", "mall", 210, 288], ["CG-2050", "RC frame & slab — L3", 1902, "m²", 1650, 1.0987509487628346, "Sheet 17: L3 gross area 1,902 m²; height 5.5 m", "mall", 267, 295], ["CG-2060", "RC frame & slab — L4", 246, "m²", 1650, 1.1012488970556398, "Sheet 17: L4 gross area 246 m² (Sheet 17 gives net 246 m² only); height 3.5 m", "mall", 294, 302], ["CG-3010", "Curtain wall & shopfront glazing — GF–L1", 3100, "m²", 2600, 1.097577405044786, "Derived: podium perimeter ≈400 m × 13 m (GF 7.0 + L1 6.0) × 60% glazed", "cw", 258, 288], ["CG-3020", "Parametric perforated screen — L2–L3 blocks", 4500, "m²", 3000, 1.108628766541512, "Derived: two screen blocks ≈410 m perimeter × 11 m (L2 5.5 + L3 5.5)", "mall", 318, 378], ["CG-3030", "Fluted metal cladding & cinema box enclosure", 3600, "m²", 750, 1.1040474426288904, "Derived: service/cinema façades on Elevations C & D ≈160 m × 22 m", "mall", 302, 332], ["CG-3040", "Roofing, waterproofing & shading pergolas", 6500, "m²", 450, 1.1028682418808196, "Derived: L2/L3/L4 roof areas + pergolas from plans & sections", "mall", 302, 317], ["CG-4000", "MEP rough-in — B2 (ventilation, fire, drainage)", 12500, "m²", 750, 1.0882340664220813, "Sheet 17: B2 gross area; MEP/service rooms 660 m²", "basement", 147, 272], ["CG-4010", "MEP rough-in — B1 (ventilation, fire, drainage)", 12500, "m²", 750, 1.0918743041515055, "Sheet 17: B1 gross area; MEP/service rooms 802 m²", "basement", 172, 297], ["CG-4020", "MEP rough-in — GF", 7503, "m²", 1400, 1.0937720375140887, "Sheet 17: GF gross area; MEP/service rooms 923 m²", "mall", 197, 298], ["CG-4030", "MEP rough-in — L1", 5622, "m²", 1400, 1.0947952597586432, "Sheet 17: L1 gross area; MEP/service rooms 273 m²", "mall", 217, 292], ["CG-4040", "MEP rough-in — L2", 5825, "m²", 1700, 1.09977882877205, "Sheet 17: L2 gross area; MEP/service rooms 146 m²", "mall", 249, 327], ["CG-4050", "MEP rough-in — L3", 1902, "m²", 1400, 1.1015431464322138, "Sheet 17: L3 gross area; MEP/service rooms 157 m²", "mall", 281, 320], ["CG-4060", "MEP rough-in — L4", 246, "m²", 1400, 1.1031629239399656, "Sheet 17: L4 gross area; MEP/service rooms 0 m²", "mall", 306, 316], ["CG-4500", "Central plant: chillers, AHUs, pumps & tanks", 1, "LS", 14000000, 1.1072967498264126, "Lump sum (assumed); plant rooms on B1/B2 plans and roof", "mall", 302, 377], ["CG-4600", "Utilities: SCECO substation, LPG tank, generator & fuel", 1, "LS", 7500000, 1.0991913510799152, "Lump sum (assumed); SCECO 54 m², LPG 68 m², generator 78 m² on GF plan", "mall", 254, 314], ["CG-4700", "Escalators, retail passenger & service lifts", 18, "no.", 600000, 1.1090731280941613, "Derived: ≈10 escalators + 8 lifts counted from plans — verify", "lifts", 295, 408], ["CG-5010", "Car park finishes, coatings & line marking — B2 (237 bays)", 11730, "m²", 180, 1.0964051147544225, "Sheet 17: B2 parking/driveway 11,730 m², 237 cars", "basement", 252, 279], ["CG-5110", "Car park finishes, coatings & line marking — B1 (202 bays)", 11564, "m²", 180, 1.1002196430848956, "Sheet 17: B1 parking/driveway 11,564 m², 202 cars", "basement", 278, 304], ["CG-5220", "Public circulation & WC finishes — GF", 1803, "m²", 2000, 1.1038999736121133, "Sheet 17: GF public circulation & WC 1,803 m²", "fitout", 278, 354], ["CG-5230", "Tenant shell & core handover — GF (F&B + retail)", 3192, "m²", 600, 1.1022791138920653, "Sheet 17: GF F&B 2,522 m² + retail 670 m²", "fitout", 278, 332], ["CG-5240", "Terraces & outdoor seating — GF", 1150, "m²", 1100, 1.1033102944949318, "Sheet 17: GF terrace 1,150 m²", "fitout", 288, 336], ["CG-5260", "Event plaza & fountain — GF", 435, "m²", 4500, 1.1000726853521572, "Sheet 17: event plaza 435 m² (fountain per GF Landscape Plan)", "assumed", 254, 327], ["CG-5320", "Public circulation & WC finishes — L1", 946, "m²", 2000, 1.1027209303713814, "Sheet 17: L1 public circulation & WC 946 m²", "fitout", 278, 338], ["CG-5330", "Tenant shell & core handover — L1 (F&B + retail)", 3463, "m²", 600, 1.1025736385385285, "Sheet 17: L1 F&B 3,463 m² + retail 0 m²", "fitout", 278, 336], ["CG-5340", "Terraces & outdoor seating — L1", 940, "m²", 1100, 1.1055232167450364, "Sheet 17: L1 terrace 940 m²", "fitout", 288, 367], ["CG-5420", "Public circulation & WC finishes — L2", 489, "m²", 2000, 1.1117430402068238, "Sheet 17: L2 public circulation & WC 489 m²", "fitout", 338, 400], ["CG-5430", "Tenant shell & core handover — L2 (F&B + retail)", 1446, "m²", 600, 1.1107039781549666, "Sheet 17: L2 F&B 1,446 m² + retail 0 m²", "fitout", 338, 387], ["CG-5440", "Terraces & outdoor seating — L2", 770, "m²", 1100, 1.117848524847107, "Sheet 17: L2 terrace 770 m²", "fitout", 378, 443], ["CG-5450", "Cinema fit-out — L2 (1,075 seats)", 2974, "m²", 12600, 1.1185953863222977, "Sheet 17: cinema 2,974 m², 1,075 seats (≈USD 9.3k/seat)", "cinema", 332, 498], ["CG-5520", "Public circulation & WC finishes — L3", 63, "m²", 2000, 1.1077405774789562, "Sheet 17: L3 public circulation & WC 63 m²", "fitout", 338, 346], ["CG-5530", "Tenant shell & core handover — L3 (F&B + retail)", 1110, "m²", 600, 1.1098141265157997, "Sheet 17: L3 F&B 623 m² + retail 487 m²", "fitout", 338, 375], ["CG-5540", "Terraces & outdoor seating — L3", 572, "m²", 1100, 1.1166545835672006, "Sheet 17: L3 terrace 572 m²", "fitout", 378, 426], ["CG-5630", "Tenant shell & core handover — L4 (F&B + retail)", 246, "m²", 600, 1.1059663335284977, "Sheet 17: L4 F&B 0 m² + retail 246 m²", "fitout", 326, 335], ["CG-5900", "External works: roads, drop-off, parking & planting", 8000, "m²", 450, 1.1016903006025418, "Derived: site outside building footprint ≈8,000 m² from GF Landscape Plan", "assumed", 284, 318], ["CG-6010", "Testing & commissioning — all MEP systems", 1, "LS", 2500000, 1.1242878647184877, "Lump sum (assumed)", "mall", 408, 498], ["CG-6020", "Civil Defense & authority inspections", 1, "LS", 500000, 1.1333350270909706, "Lump sum (assumed)", "mall", 498, 528]];
+const CGJED_RATE_BASIS = { basement:'Basements calibrated to SAR 3,600–4,600/m² benchmark', mall:'Above-grade shell & core calibrated to SAR 6,700–7,500/m² (Stonehaven KSA 2025)', excav:'Excavation SAR 48/m³ (Turner & Townsend KSAMI 2025)', cw:'Curtain wall within Samman Group 2026 range', fitout:"Landlord fit-out within Exceptional PM 2026 range", cinema:'Cinema ≈USD 9.3k/seat (Empire Cinemas KSA)', lifts:'Lifts/escalators ≈USD 20k–200k per unit (Saudi market reports)', assumed:'Assumed (no public benchmark)' };
+function plannerMap(id){
+  const n = +id.slice(3), lv = ['B2','B1','GF','L1','L2','L3','L4'];
+  const G = {pre:'00 Preliminaries & Enabling', sub:'01 Substructure', fr:'02 Frame & Upper Floors', rf:'03 Roof & Terraces', env:'04 External Envelope', fin:'06 Finishes', mep:'07 MEP Services', vt:'08 Vertical Transportation', ext:'09 External Works', fit:'10 Tenant Fit-out & FF&E', co:'11 Commissioning & Authorities'};
+  if (n === 1010) return {grp:G.pre, act:'mob', z:{EXT:1}, ifc:'IfcSite'};
+  if (n === 1020) return {grp:G.sub, act:{shor:3, dewat:1}, z:{SUB:1}, ifc:'IfcBuildingElementProxy', temp:true};
+  if (n === 1030) return {grp:G.sub, act:'exc', z:{SUB:1}, ifc:'IfcBuildingElementProxy'};
+  if (n === 1040) return {grp:G.sub, act:'raft', z:{SUB:1}, ifc:'IfcFooting'};
+  if (n >= 2000 && n <= 2060){ const i = (n - 2000)/10; return {grp:G.fr, act:['b2','b1','gf','l1','l2','l3','l3'][i], z:{[lv[i]]:1}, ifc:'IfcSlab'}; }
+  if (n === 3010) return {grp:G.env, act:'cw', z:{GF:7, L1:6}, ifc:'IfcCurtainWall'};
+  if (n === 3020) return {grp:G.env, act:'scr', z:{L2:1, L3:1}, ifc:'IfcPlate'};
+  if (n === 3030) return {grp:G.env, act:'scr', z:{L1:1, L2:1}, ifc:'IfcCovering'};
+  if (n === 3040) return {grp:G.rf, act:'roof', z:{L2:AREA.L2.gross-AREA.L3.gross, L3:AREA.L3.gross-AREA.L4.gross, L4:AREA.L4.gross}, ifc:'IfcRoof'};
+  if (n >= 4000 && n <= 4060){ const i = (n - 4000)/10; return {grp:G.mep, act: i < 2 ? 'mepB' : 'mepS', z:{[lv[i]]:1}, ifc:'IfcDistributionElement'}; }
+  if (n === 4500) return {grp:G.mep, act:{mepB:2, mepS:1}, z:{B2:1, B1:1, L4:1}, ifc:'IfcDistributionElement'};
+  if (n === 4600) return {grp:G.mep, act:'mepS', z:{GF:1}, ifc:'IfcDistributionElement'};
+  if (n === 4700) return {grp:G.vt, act:'vt', z:{B2:1, B1:1, GF:1, L1:1, L2:1, L3:1}, ifc:'IfcTransportElement'};
+  if (n >= 5000 && n < 5900){
+    const i = Math.floor((n - 5000)/100), t = n % 100;
+    if (t === 10) return {grp:G.fin, act:'intB', z:{[lv[i]]:1}, ifc:'IfcCovering'};
+    if (t === 40) return {grp:G.rf, act:'intS', z:{[lv[i]]:1}, ifc:'IfcCovering'};
+    if (t === 50) return {grp:G.fit, act:'cin', z:{L2:1}, ifc:'IfcFurnishingElement'};
+    if (t === 60) return {grp:G.ext, act:'ext', z:{GF:1}, ifc:'IfcBuildingElementProxy'};
+    return {grp:G.fin, act:'intS', z:{[lv[i]]:1}, ifc:'IfcCovering'};
+  }
+  if (n === 5900) return {grp:G.ext, act:'ext', z:{EXT:1}, ifc:'IfcSite'};
+  return {grp:G.co, act:'tc', z:{SITE:1}, ifc:'IfcBuildingElementProxy'};
+}
+function buildPlannerBoQ(){
+  const L = CGJED.map(([id, name, qty, unit, rate, esc, srcTxt, rb, es, ef]) => {
+    const m = plannerMap(id), r = id in RATE_OVR ? RATE_OVR[id] : rate;
+    const src = /^Sheet 17/.test(srcTxt) ? 'DRW' : /^Derived/.test(srcTxt) ? 'DER' : 'ALW';
+    return {code:id, grp:m.grp, desc:name, qty, unit, baseRate:rate, rate:r, esc, basis:`${srcTxt} • ${CGJED_RATE_BASIS[rb] || rb} • esc ×${esc.toFixed(3)} (planner days ${es}–${ef})`, src, act:m.act, z:m.z, ifc:m.ifc, temp:!!m.temp};
+  });
+  if (state.scope === 'fitted'){ // tenant fit-out is excluded from the planner figure; cinema fit-out is already in CG-5450
+    const d = D;
+    L.push({code:'10.01', grp:'10 Tenant Fit-out & FF&E', desc:'Retail tenant fit-out allowance (outside planner scope)', qty:d.retail, unit:'m²', baseRate:2200, rate:'10.01' in RATE_OVR ? RATE_OVR['10.01'] : 2200, esc:1, basis:'Retail (schedule); not in CG-JED planner', src:'DRW', act:'fit', z:byKey('retail'), ifc:'IfcFurnishingElement'});
+    L.push({code:'10.02', grp:'10 Tenant Fit-out & FF&E', desc:'F&B fit-out incl. kitchens & extract (outside planner scope)', qty:d.fnb, unit:'m²', baseRate:3200, rate:'10.02' in RATE_OVR ? RATE_OVR['10.02'] : 3200, esc:1, basis:'F&B (schedule); not in CG-JED planner', src:'DRW', act:'fit', z:byKey('fnb'), ifc:'IfcFurnishingElement'});
+  }
+  L.forEach(l => { l.baseAmt = Math.round(l.qty * l.rate); l.amt = Math.round(l.baseAmt * l.esc); }); // whole-riyal rounding per line, as in the planner
+  return L;
+}
+function MK(){ return state.basis === 'planner'
+  ? {prelims:0, ohp:0, dc:0, cc:P.plannerContPct, ccLabel:'Contingency reserve', trBase:P.plannerPrelimsPct}
+  : {prelims:P.prelimsPct, ohp:P.ohpPct, dc:P.designContPct, cc:P.constContPct, ccLabel:'Construction contingency', trBase:P.prelimsPct}; }
 
 /* =====================================================================
    7. SCHEDULE (scenario) + COST ROLL-UP + CASHFLOW
@@ -694,18 +762,20 @@ function projWeeks(scen = state.scen){ return Math.max(...activeActs().map(a => 
 function rollUp(){
   BOQ = buildBoQ();
   const direct = BOQ.reduce((s,l)=>s+l.amt,0);
-  const prelims = direct * P.prelimsPct/100;
-  const F = (1+P.ohpPct/100) * (1+P.designContPct/100) * (1+P.constContPct/100);
-  const ohp = (direct + prelims) * P.ohpPct/100;
-  const dc = (direct + prelims + ohp) * P.designContPct/100;
-  const cc = (direct + prelims + ohp + dc) * P.constContPct/100;
+  const M = MK();
+  const prelims = direct * M.prelims/100;
+  const F = (1+M.ohp/100) * (1+M.dc/100) * (1+M.cc/100);
+  const ohp = (direct + prelims) * M.ohp/100;
+  const dc = (direct + prelims + ohp) * M.dc/100;
+  const cc = (direct + prelims + ohp + dc) * M.cc/100;
   const baseT = projWeeks('baseline');
-  const weeklyTR = prelims * P.timeRelShare / baseT * F;
+  const weeklyTR = direct * M.trBase/100 * P.timeRelShare / baseT * F;
   const prolong = state.scen === 'delay' ? weeklyTR * P.eotWeeks : 0;
   const totalExVat = (direct + prelims) * F + prolong;
   const vat = totalExVat * P.vatPct/100;
   const groups = {}; BOQ.forEach(l => groups[l.grp] = (groups[l.grp]||0) + l.amt);
-  COST = {direct, prelims, ohp, dc, cc, F, prolong, weeklyTR, totalExVat, vat, total: totalExVat + vat, groups,
+  const baseDirect = BOQ.reduce((s,l)=>s+l.baseAmt,0);
+  COST = {direct, baseDirect, escalation: direct - baseDirect, prelims, ohp, dc, cc, F, prolong, weeklyTR, totalExVat, vat, total: totalExVat + vat, groups,
           base: cashflow('baseline'), cur: cashflow(state.scen)};
   LINKS = buildLinks();
 }
@@ -716,10 +786,10 @@ function cashflow(scen){
   BOQ.forEach(l => { const w = norm(l.act); for (const id in w) actCost[id] = (actCost[id]||0) + l.amt*w[id]; });
   activeActs().forEach(a => { const c = actCost[a.id]||0; const sc = sched(a, scen); for (let i = sc.s; i <= sc.e; i++) wk[i] += c / sc.d; });
   const direct = BOQ.reduce((s,l)=>s+l.amt,0);
-  const prelims = direct * P.prelimsPct/100;
-  const F = (1+P.ohpPct/100) * (1+P.designContPct/100) * (1+P.constContPct/100);
+  const M = MK(), prelims = direct * M.prelims/100;
+  const F = (1+M.ohp/100) * (1+M.dc/100) * (1+M.cc/100);
   for (let i = 1; i <= T; i++) wk[i] = (wk[i] + (i <= baseT ? prelims/baseT : 0)) * F;
-  if (scen === 'delay'){ const tr = prelims * P.timeRelShare / baseT * F; for (let i = baseT+1; i <= T; i++) wk[i] += tr; }
+  if (scen === 'delay'){ const tr = direct * M.trBase/100 * P.timeRelShare / baseT * F; for (let i = baseT+1; i <= T; i++) wk[i] += tr; }
   const cum = []; let c = 0; for (let i = 0; i <= T; i++){ c += wk[i]; cum.push(c); }
   return {T, wk, cum, actCost};
 }
@@ -837,7 +907,7 @@ function buildLinks(){
   const links = [], seen = {};
   const push = (l, actId, loc, sh) => {
     const a = findAct(actId), sc = sched(a); let eid = `CG-${loc}-${l.code}`; if (seen[eid]) eid += '-' + actId; seen[eid] = 1;
-    links.push({eid, ifc:ifcOf(l.code), loc, lvl:loc.split('-')[0], code:l.code, desc:l.desc, act:actId, actName:a.name, task:TEMP_ITEMS.includes(l.code) ? 'Temporary' : 'Construct', s:sc.s, e:sc.e, qty:l.qty*sh, unit:l.unit, cost:l.amt*sh});
+    links.push({eid, ifc:l.ifc || ifcOf(l.code), loc, lvl:loc.split('-')[0], code:l.code, desc:l.desc, act:actId, actName:a.name, task:(l.temp || TEMP_ITEMS.includes(l.code)) ? 'Temporary' : 'Construct', s:sc.s, e:sc.e, qty:l.qty*sh, unit:l.unit, cost:l.amt*sh});
   };
   BOQ.forEach(l => {
     const as = norm(l.act), zs = norm(l.z); let pairs = [];
@@ -1288,14 +1358,14 @@ function filterGanttSearch(){ const i = document.getElementById('ganttFilterInpu
 function renderBoQ(){
   const lens = state.lens, f = (document.getElementById('boqFilterInput').value || '').toLowerCase();
   const showRate = lens === 'controls', showAmt = lens !== 'site', showBasis = lens !== 'exec';
-  document.getElementById('boqHead').innerHTML = `<th class="text-left px-3 py-2">Item</th><th class="text-left px-2">Description</th>${showBasis?'<th class="text-left px-2">Measurement basis</th>':''}<th class="px-2">Src</th><th class="text-right px-2">Qty</th><th class="text-left px-2">Unit</th>${showRate?'<th class="text-right px-2">Rate (SAR)</th>':''}${showAmt?'<th class="text-right px-3">Amount (SAR)</th><th class="text-right px-3">%</th>':''}`;
+  document.getElementById('boqHead').innerHTML = `<th class="text-left px-3 py-2">Item</th><th class="text-left px-2">Description</th>${showBasis?'<th class="text-left px-2">Measurement basis</th>':''}<th class="px-2">Src</th><th class="text-right px-2">Qty</th><th class="text-left px-2">Unit</th>${showRate && state.basis==='planner'?'<th class="text-right px-2">Esc.</th>':''}${showRate?'<th class="text-right px-2">Rate (SAR)</th>':''}${showAmt?'<th class="text-right px-3">Amount (SAR)</th><th class="text-right px-3">%</th>':''}`;
   const groups = [...new Set(BOQ.map(l => l.grp))];
   let h = '';
   groups.forEach(gname => {
     const lines = BOQ.filter(l => l.grp === gname && (!f || (l.code+' '+l.desc+' '+l.basis).toLowerCase().includes(f)));
     if (!lines.length) return;
     const gt = COST.groups[gname];
-    const cols = 4 + (showBasis?1:0) + (showRate?1:0);
+    const cols = 4 + (showBasis?1:0) + (showRate?1:0) + (showRate && state.basis==='planner'?1:0);
     h += `<tr class="bg-slate-800/60 font-semibold text-slate-200"><td class="px-3 py-1.5" colspan="${cols+1}">${esc(gname)}</td>${showAmt?`<td class="text-right px-3 font-mono">${nf0.format(gt)}</td><td class="text-right px-3 font-mono text-slate-400">${nf1.format(gt/COST.direct*100)}</td>`:''}</tr>`;
     if (lens === 'exec') return;
     lines.forEach(l => {
@@ -1306,18 +1376,20 @@ function renderBoQ(){
         ${showBasis?`<td class="px-2 text-slate-500">${esc(l.basis)}</td>`:''}
         <td class="px-2 text-center"><span class="src-${l.src} px-1.5 py-0.5 rounded text-[9px] font-semibold">${l.src}</span></td>
         <td class="px-2 text-right font-mono">${nf1.format(l.qty)}</td><td class="px-2 text-slate-400">${l.unit}</td>
-        ${showRate?`<td class="px-2 text-right"><input class="rate ${ovr?'ovr':''}" type="number" step="any" value="${l.rate}" data-code="${l.code}" title="Default ${nf0.format(l.baseRate)}" onchange="setRate(this)"></td>`:''}
+        ${showRate && state.basis==='planner'?`<td class="px-2 text-right font-mono text-slate-500">×${l.esc.toFixed(3)}</td>`:''}${showRate?`<td class="px-2 text-right"><input class="rate ${ovr?'ovr':''}" type="number" step="any" value="${l.rate}" data-code="${l.code}" title="Default ${nf0.format(l.baseRate)}" onchange="setRate(this)"></td>`:''}
         ${showAmt?`<td class="px-3 text-right font-mono">${nf0.format(l.amt)}</td><td class="px-3 text-right font-mono text-slate-500">${nf2.format(l.amt/COST.direct*100)}</td>`:''}</tr>`;
     });
   });
   if (showAmt){
-    const span = 4 + (showBasis?1:0) + (showRate?1:0) + 1;
+    const span = 4 + (showBasis?1:0) + (showRate?1:0) + (showRate && state.basis==='planner'?1:0) + 1;
     const row = (t, v, cls='') => `<tr class="${cls}"><td colspan="${span}" class="px-3 py-1 text-right">${t}</td><td class="px-3 text-right font-mono">${nf0.format(v)}</td><td></td></tr>`;
-    h += row('Total direct construction cost', COST.direct, 'font-semibold text-slate-200 border-t-2 border-slate-700');
-    h += row(`Preliminaries ${P.prelimsPct}%`, COST.prelims, 'text-slate-400');
-    h += row(`Contractor OH&P ${P.ohpPct}%`, COST.ohp, 'text-slate-400');
-    h += row(`Design contingency ${P.designContPct}%`, COST.dc, 'text-slate-400');
-    h += row(`Construction contingency ${P.constContPct}%`, COST.cc, 'text-slate-400');
+    const M = MK();
+    if (COST.escalation > 1){ h += row('Base cost (Q1-2026 rates)', COST.baseDirect, 'text-slate-400 border-t-2 border-slate-700'); h += row(`Escalation ${P.plannerEscPct}%/yr to cost midpoint`, COST.escalation, 'text-slate-400'); }
+    h += row(COST.escalation > 1 ? 'Out-turn construction cost' : 'Total direct construction cost', COST.direct, 'font-semibold text-slate-200' + (COST.escalation > 1 ? '' : ' border-t-2 border-slate-700'));
+    if (M.prelims) h += row(`Preliminaries ${M.prelims}%`, COST.prelims, 'text-slate-400');
+    if (M.ohp) h += row(`Contractor OH&P ${M.ohp}%`, COST.ohp, 'text-slate-400');
+    if (M.dc) h += row(`Design contingency ${M.dc}%`, COST.dc, 'text-slate-400');
+    h += row(`${M.ccLabel} ${M.cc}%`, COST.cc, 'text-slate-400');
     if (COST.prolong) h += row(`EOT prolongation (${P.eotWeeks} wks time-related prelims)`, COST.prolong, 'text-rose-300');
     h += row('Total excl. VAT', COST.totalExVat, 'font-bold text-white');
     h += row(`VAT ${P.vatPct}%`, COST.vat, 'text-slate-400');
@@ -1340,6 +1412,7 @@ function exportCSV(){
    13. COST PLAN & S-CURVE
    ===================================================================== */
 function renderCost(){
+  renderRecon();
   const g = Object.entries(COST.groups).sort((a,b) => b[1]-a[1]), max = g[0][1];
   document.getElementById('elementBars').innerHTML = g.map(([k,v]) => `
     <div class="grid grid-cols-[150px_1fr_110px] items-center gap-2" title="${esc(k)}: ${sar(v)}">
@@ -1348,8 +1421,10 @@ function renderCost(){
       <span class="font-mono text-right text-slate-300">${nf2.format(v/1e6)}M • ${nf0.format(v/D.gfa)}/m²</span></div>`).join('');
   const r = (t,v,c='') => `<tr class="${c}"><td class="py-0.5">${t}</td><td class="text-right font-mono">${sarM(v)}</td><td class="text-right font-mono text-slate-500">${nf0.format(v/D.gfa)}/m²</td></tr>`;
   document.getElementById('markupTable').innerHTML =
-    r('Direct construction', COST.direct, 'border-t border-slate-700') + r(`Preliminaries ${P.prelimsPct}%`, COST.prelims, 'text-slate-400') + r(`OH&P ${P.ohpPct}%`, COST.ohp, 'text-slate-400') +
-    r(`Design contingency ${P.designContPct}%`, COST.dc, 'text-slate-400') + r(`Construction contingency ${P.constContPct}%`, COST.cc, 'text-slate-400') +
+    (COST.escalation > 1 ? r('Base cost (Q1-2026 rates)', COST.baseDirect, 'border-t border-slate-700 text-slate-400') + r(`Escalation ${P.plannerEscPct}%/yr`, COST.escalation, 'text-slate-400') : '') +
+    r(COST.escalation > 1 ? 'Out-turn construction cost' : 'Direct construction', COST.direct, COST.escalation > 1 ? '' : 'border-t border-slate-700') +
+    (MK().prelims ? r(`Preliminaries ${MK().prelims}%`, COST.prelims, 'text-slate-400') : '') + (MK().ohp ? r(`OH&P ${MK().ohp}%`, COST.ohp, 'text-slate-400') : '') +
+    (MK().dc ? r(`Design contingency ${MK().dc}%`, COST.dc, 'text-slate-400') : '') + r(`${MK().ccLabel} ${MK().cc}%`, COST.cc, 'text-slate-400') +
     (COST.prolong ? r('EOT prolongation', COST.prolong, 'text-rose-300') : '') + r('Total excl. VAT', COST.totalExVat, 'font-bold text-white border-t border-slate-700') +
     r(`VAT ${P.vatPct}%`, COST.vat, 'text-slate-400') + r('Total incl. VAT', COST.total, 'font-bold text-emerald-300') +
     `<tr><td colspan="3" class="pt-2 text-[10px] text-slate-500">Per m² rates use the costed GFA of ${nf0.format(D.gfa)} m². Per car space (basement share): ${sar(zoneCost('B2').total/AREA.B2.cars)} (B2 direct cost ÷ 237 spaces).</td></tr>`;
@@ -1413,9 +1488,9 @@ function resetParams(){ P = {...P_DEFAULT}; saveJSON('cg_params', P); recalc(); 
 function renderKPIs(){
   const k = (label, val, cls='text-slate-100') => `<span class="text-slate-500">${label}: <span class="font-mono font-semibold ${cls}">${val}</span></span>`;
   document.getElementById('kpiStrip').innerHTML =
-    k('Total excl. VAT', sarM(COST.totalExVat), 'text-emerald-300') + k('Incl. VAT', sarM(COST.total)) + k('GFA costed', nf0.format(D.gfa) + ' m²') +
+    k('Basis', state.basis === 'planner' ? '4D Planner (CG-JED)' : 'Elemental QTO', 'text-sky-300') + k('Total excl. VAT', sarM(COST.totalExVat), 'text-emerald-300') + k('Incl. VAT', sarM(COST.total)) + k('GFA costed', nf0.format(D.gfa) + ' m²') +
     k('SAR/m² GFA', nf0.format(COST.totalExVat/D.gfa)) + k('SAR/m² above-ground', nf0.format(COST.totalExVat/D.gfaAbove)) +
-    k('Concrete', nf0.format(D.concTotal) + ' m³') + k('Rebar', nf0.format(BOQ.filter(l=>l.unit==='t' && l.desc.toLowerCase().includes('reinforcement')).reduce((s,l)=>s+l.qty,0)) + ' t') +
+    k('Concrete (QTO)', nf0.format(D.concTotal) + ' m³') + k('Rebar (QTO)', nf0.format((D.concRaft*P.rebarRaft + D.concWall*P.rebarWall + (D.concB1+D.concGF+D.concSuper)*P.rebarSlab + (D.concColB+D.concColS)*P.rebarCol + D.concStair*120)/1000) + ' t') +
     k('Facade', nf0.format(D.facade) + ' m²') + k('Programme', projWeeks() + ' wks', state.scen==='delay'?'text-rose-300':'text-slate-100') +
     k('Accuracy', 'Class 4 (−20%/+30%)', 'text-amber-300');
 }
@@ -1463,6 +1538,32 @@ function setSpeed(s){ state.speed = s; document.querySelectorAll('.speed-btn').f
 /* =====================================================================
    16. TOP CONTROLS
    ===================================================================== */
+function setBasis(b){
+  state.basis = b;
+  document.getElementById('basisPlanner').className = 'px-2 py-0.5 text-xs rounded ' + (b === 'planner' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white');
+  document.getElementById('basisElemental').className = 'px-2 py-0.5 text-xs rounded ' + (b === 'elemental' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white');
+  recalc();
+}
+function totalsFor(b){
+  const save = state.basis; state.basis = b; const L = buildBoQ(); const M = MK(); state.basis = save;
+  const groups = {}; L.forEach(l => groups[l.grp] = (groups[l.grp] || 0) + l.baseAmt);
+  const base = L.reduce((t,l) => t + l.baseAmt, 0), direct = L.reduce((t,l) => t + l.amt, 0);
+  const prelims = direct*M.prelims/100, ohp = (direct+prelims)*M.ohp/100, dc = (direct+prelims+ohp)*M.dc/100, cc = (direct+prelims+ohp+dc)*M.cc/100;
+  return {groups, base, escalation:direct - base, prelims, ohp, dc, cc, total:direct + prelims + ohp + dc + cc};
+}
+function renderRecon(){
+  const a = totalsFor('planner'), b = totalsFor('elemental');
+  const keys = [...new Set([...Object.keys(a.groups), ...Object.keys(b.groups)])].sort();
+  const f = v => v ? nf2.format(v/1e6) : '–';
+  const row = (k, x, y, cls='') => { const dlt = x - y; return `<tr class="border-b border-slate-800/50 ${cls}"><td class="py-0.5 pr-2">${esc(k)}</td><td class="text-right font-mono px-2">${f(x)}</td><td class="text-right font-mono px-2">${f(y)}</td><td class="text-right font-mono px-2 ${Math.abs(dlt) < 1 ? 'text-slate-500' : dlt > 0 ? 'text-amber-300' : 'text-sky-300'}">${dlt ? (dlt > 0 ? '+' : '') + nf2.format(dlt/1e6) : '–'}</td></tr>`; };
+  document.getElementById('reconTable').innerHTML =
+    `<tr class="text-slate-500 text-[10px] uppercase"><th class="text-left">Element (SAR M)</th><th class="text-right px-2">4D Planner</th><th class="text-right px-2">Elemental QTO</th><th class="text-right px-2">Planner − QTO</th></tr>` +
+    keys.map(k => row(k, a.groups[k] || 0, b.groups[k] || 0)).join('') +
+    row('Base construction cost', a.base, b.base, 'font-semibold text-slate-200') +
+    row(`Escalation to cost midpoint (${P.plannerEscPct}%/yr)`, a.escalation, b.escalation) + row('Preliminaries', a.prelims, b.prelims) + row('Contractor OH&P', a.ohp, b.ohp) +
+    row('Design contingency', a.dc, b.dc) + row('Construction contingency / reserve', a.cc, b.cc) +
+    row('Total excl. VAT', a.total, b.total, 'font-bold text-white border-t-2 border-slate-700');
+}
 function switchProject(scope){
   state.scope = scope;
   const on = 'px-2.5 py-1 text-xs font-medium rounded-md transition-all bg-sky-600 text-white shadow flex items-center gap-1.5', off = 'px-2.5 py-1 text-xs font-medium rounded-md transition-all text-slate-400 hover:text-white flex items-center gap-1.5';
