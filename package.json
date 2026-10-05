@@ -1,0 +1,10 @@
+{
+  "name": "ascto-ipc-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ASCTO Interim Payment Certificate (IPC) system — static browser app",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "npx http-server -p 8080 ."
+  }
+}

@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASCTO IPC System</title>
+  <meta name="description" content="ASCTO Interim Payment Certificate (IPC) portal — BOQ valuation, variations, materials on site, retention, advance recovery and approvals.">
+  <!-- Tailwind Play CDN (v3 runtime) — fine for a prototype; precompile with the Tailwind CLI before production use. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js pinned to 4.4.1 (UMD build exposes window.Chart). -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+  <script>
+    // Guarded so a blocked CDN degrades to unstyled HTML instead of a script error.
+    if (window.tailwind) tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            midad: {
+              50: '#f8fafc', 100: '#f1f5f9', 800: '#0f172a', 900: '#090d16',
+              gold: '#c5a059', goldHover: '#b38d44', goldLight: '#fdf9f0',
+              accent: '#1e293b', navy: '#0b192c', border: '#e2e8f0'
+            }
+          },
+          fontFamily: { sans: ['Inter', 'sans-serif'], display: ['Cinzel', 'serif'] }
+        }
+      }
+    };
+  </script>
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+  <header class="bg-midad-navy text-white border-b border-slate-700 sticky top-0 z-40 no-print shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex flex-wrap items-center justify-between gap-3 py-3">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-midad-gold to-amber-700 flex items-center justify-center font-bold text-white shadow-md text-xl tracking-wider font-display">A</div>
+          <div>
+            <div class="text-lg font-bold tracking-tight text-white flex items-center gap-2 flex-wrap">
+              <span>ASCTO</span>
+              <span class="hidden sm:inline text-xs px-2 py-0.5 rounded bg-amber-500/20 text-midad-gold border border-amber-500/30 uppercase tracking-widest font-semibold">Engineering &amp; Contracting</span>
+            </div>
+            <p class="text-xs text-slate-400">Interim Payment Certificate (IPC) Portal · <span id="saveIndicator" class="text-slate-500"></span></p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="btnAddContractor" class="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 transition" title="Enlist new contractor package">+ Contractor</button>
+          <button id="btnExport" class="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition" title="Download a JSON backup of all data">Export</button>
+          <button id="btnImport" class="inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition" title="Restore from a JSON backup">Import</button>
+          <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+          <button id="btnPrint" class="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition" title="Print official IPC">
+            <svg class="w-4 h-4 mr-1.5 text-midad-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+            Print IPC
+          </button>
+          <button id="btnNewIpc" class="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-midad-gold hover:bg-midad-goldHover text-white transition shadow-sm">
+            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            New IPC Cycle
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 pb-3">
+        <label class="flex flex-col min-w-0">
+          <span class="text-xs text-slate-400">Active Contract</span>
+          <select id="projectSelector" class="bg-slate-800 text-sm text-slate-100 font-medium rounded-md px-3 py-1.5 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-midad-gold w-full"></select>
+        </label>
+        <label class="flex flex-col min-w-0">
+          <span class="text-xs text-amber-400 font-semibold">Contractor Package</span>
+          <select id="contractorSelector" class="bg-slate-800 text-sm text-amber-200 font-semibold rounded-md px-3 py-1.5 border border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-midad-gold w-full"></select>
+        </label>
+      </div>
+    </div>
+
+    <nav class="bg-slate-900/90 border-t border-slate-800 px-4 sm:px-8 flex space-x-6 overflow-x-auto text-sm" role="tablist">
+      <button id="tab-contractors" class="tab-btn py-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap" role="tab">Contractors Directory &amp; Hub</button>
+      <button id="tab-certificate" class="tab-btn py-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap" role="tab">IPC Certificate &amp; Summary</button>
+      <button id="tab-boq" class="tab-btn py-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap" role="tab">BOQ Valuation Sheet</button>
+      <button id="tab-variations" class="tab-btn py-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap" role="tab">Variations &amp; Materials on Site</button>
+      <button id="tab-deductions" class="tab-btn py-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap" role="tab">Retention &amp; Advance Recovery</button>
+      <button id="tab-workflow" class="tab-btn py-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap" role="tab">Verification &amp; Approvals</button>
+      <button id="tab-analytics" class="tab-btn py-3 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium whitespace-nowrap" role="tab">S-Curve &amp; Cash Flow</button>
+    </nav>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <div id="noContractorNotice" hidden class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 text-sm no-print">
+      This project has no contractor packages yet. Use <strong>+ Contractor</strong> to enlist one.
+    </div>
+
+    <!-- KPI strip -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <p class="text-xs uppercase font-semibold text-slate-500 tracking-wider">Revised Contract Sum</p>
+        <h3 class="text-xl font-bold text-slate-900 mt-1" id="kpiRevisedContract">SAR 0.00</h3>
+        <p class="text-xs text-slate-500 mt-1" id="kpiOriginalContract">Base: SAR 0.00</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <p class="text-xs uppercase font-semibold text-slate-500 tracking-wider">Cumulative Gross Certified</p>
+        <h3 class="text-xl font-bold text-slate-900 mt-1" id="kpiGrossCertified">SAR 0.00</h3>
+        <p class="text-xs text-emerald-600 font-semibold mt-1"><span id="kpiPercentCompleted">0.00%</span> Completed</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <p class="text-xs uppercase font-semibold text-slate-500 tracking-wider">Current Net Payable</p>
+        <h3 class="text-xl font-bold text-midad-gold mt-1" id="kpiNetPayable">SAR 0.00</h3>
+        <p class="text-xs text-slate-500 mt-1" id="kpiVatAmount">VAT: SAR 0.00</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div class="flex items-center gap-2">
+          <span class="text-xs uppercase font-semibold text-slate-500 tracking-wider">Certificate</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium" id="kpiStatusBadge">Under Review</span>
+        </div>
+        <h3 class="text-xl font-bold text-slate-900 mt-1" id="kpiIpcNumber">IPC-01</h3>
+        <p class="text-xs text-slate-500 mt-1" id="kpiValuationDate">Cut-off</p>
+      </div>
+    </div>
+
+    <!-- TAB: CONTRACTORS HUB -->
+    <section id="content-contractors" class="tab-content hidden space-y-6">
+      <div class="bg-gradient-to-r from-midad-navy via-slate-900 to-slate-800 rounded-xl p-6 text-white shadow-sm border border-slate-700">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="px-2.5 py-0.5 rounded text-xs uppercase tracking-wider font-bold bg-amber-500/20 text-midad-gold border border-amber-500/30">Master Project Overview</span>
+              <span class="text-xs text-slate-300" id="hubProjectName"></span>
+            </div>
+            <h2 class="text-2xl font-bold mt-2 tracking-tight">Contractor Packages &amp; Trade Directory</h2>
+            <p class="text-sm text-slate-300 mt-1">Multi-contractor administration for Mixed-Use, Industrial Plants, Hospitality, Shopping Malls, and Residential scopes.</p>
+          </div>
+          <button id="btnAddContractorHub" class="px-4 py-2 bg-midad-gold hover:bg-midad-goldHover text-white rounded-lg text-sm font-semibold transition shadow">+ Enlist Contractor Package</button>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-700">
+          <div>
+            <span class="text-slate-400 block text-xs uppercase font-medium">Total Contract Commitments</span>
+            <span class="text-lg font-bold text-white mt-1 block" id="hubTotalCommitted">SAR 0.00</span>
+            <span class="text-[11px] text-slate-400" id="hubContractorCount"></span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-xs uppercase font-medium">Consolidated Cumulative Certified</span>
+            <span class="text-lg font-bold text-emerald-400 mt-1 block" id="hubTotalCertified">SAR 0.00</span>
+            <span class="text-[11px] text-emerald-300" id="hubOverallProgress"></span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-xs uppercase font-medium">Total Retention Withheld</span>
+            <span class="text-lg font-bold text-amber-400 mt-1 block" id="hubTotalRetention">SAR 0.00</span>
+            <span class="text-[11px] text-slate-400">Security Against Defects</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block text-xs uppercase font-medium">Current Month Net Due (All PKGs)</span>
+            <span class="text-lg font-bold text-cyan-300 mt-1 block" id="hubTotalCurrentDue">SAR 0.00</span>
+            <span class="text-[11px] text-slate-400">Incl. VAT</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2 overflow-x-auto text-xs py-1">
+          <span class="text-slate-500 font-semibold px-2 whitespace-nowrap">Filter by Sector:</span>
+          <button class="trade-filter-btn" data-sector="all">All Sectors</button>
+          <button class="trade-filter-btn" data-sector="Mixed-Use">🏢 Mixed-Use</button>
+          <button class="trade-filter-btn" data-sector="Plants &amp; Utilities">🏭 Plants &amp; Utilities</button>
+          <button class="trade-filter-btn" data-sector="Hospitality">🏨 Hospitality</button>
+          <button class="trade-filter-btn" data-sector="Malls &amp; Retail">🛍️ Malls &amp; Retail</button>
+          <button class="trade-filter-btn" data-sector="Residential">🏡 Residential</button>
+          <button class="trade-filter-btn" data-sector="General">🏗️ Core / General</button>
+        </div>
+        <div class="text-xs text-slate-500 font-medium">Showing <span id="visibleContractorsCount" class="font-bold text-slate-800">0</span> packages</div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="contractorCardsContainer"></div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-bold text-slate-900 text-base">Contractor Packages Cross-Valuation Matrix</h3>
+        <p class="text-xs text-slate-500 mb-4">Contract sums, certified execution, retention and current payment per contractor.</p>
+        <div class="overflow-x-auto border border-slate-200 rounded-lg custom-scrollbar">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-900 text-white uppercase font-semibold">
+              <tr>
+                <th class="py-3 px-3">Contractor / Trade Package</th>
+                <th class="py-3 px-3">Contract Ref</th>
+                <th class="py-3 px-3 text-right">Original Sum</th>
+                <th class="py-3 px-3 text-right">Revised Sum</th>
+                <th class="py-3 px-3 text-right">Certified to Date</th>
+                <th class="py-3 px-2 text-center">% Done</th>
+                <th class="py-3 px-3 text-right">Retention Withheld</th>
+                <th class="py-3 px-3 text-right bg-amber-900/40">Active IPC Net Due</th>
+                <th class="py-3 px-2 text-center">Status</th>
+                <th class="py-3 px-3 text-center no-print">Action</th>
+              </tr>
+            </thead>
+            <tbody id="multiContractorTableBody" class="divide-y divide-slate-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: CERTIFICATE -->
+    <section id="content-certificate" class="tab-content hidden space-y-6">
+      <div id="negativeCertNotice" hidden class="no-print bg-rose-50 border border-rose-200 text-rose-900 rounded-xl p-4 text-sm">
+        <strong>Negative certificate:</strong> deductions exceed this period's gross value, so the contractor owes this amount. Check quantities and MOS movements before approving.
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sm:p-10 relative overflow-hidden" id="officialCertificateSheet">
+        <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none" aria-hidden="true"><span class="font-display font-bold text-slate-800 opacity-[0.04] -rotate-12" style="font-size:10rem">ASCTO</span></div>
+
+        <div class="border-b-2 border-slate-900 pb-6 mb-6">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <span class="text-2xl font-bold tracking-tight text-slate-900 font-display">ASCTO CONTRACTING &amp; REAL ESTATE</span>
+                <span class="text-xs font-semibold px-2.5 py-1 rounded bg-slate-900 text-white uppercase tracking-wider">FIDIC Red Book IPC</span>
+              </div>
+              <p class="text-sm text-slate-600 mt-1">Kingdom of Saudi Arabia • Commercial Development Division</p>
+              <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-3 uppercase tracking-wide">
+                Interim Payment Certificate No: <span class="text-amber-700" id="certIpcNoDisplay"></span>
+              </h2>
+            </div>
+            <div class="sm:text-right sm:border-l sm:pl-6 border-slate-300">
+              <p class="text-xs text-slate-500 uppercase tracking-wider font-medium">Valuation Period</p>
+              <p class="text-sm font-bold text-slate-800" id="certValuationPeriod"></p>
+              <p class="text-xs text-slate-500 uppercase tracking-wider font-medium mt-2">Date of Issue</p>
+              <p class="text-sm font-bold text-slate-800" id="certIssueDate"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs sm:text-sm mb-6">
+          <div class="space-y-2">
+            <div class="flex"><span class="w-36 shrink-0 font-semibold text-slate-600">Project Name:</span><span class="font-bold text-slate-900" id="certProjectName"></span></div>
+            <div class="flex"><span class="w-36 shrink-0 font-semibold text-slate-600">Employer / Client:</span><span class="text-slate-800" id="certClientName"></span></div>
+            <div class="flex"><span class="w-36 shrink-0 font-semibold text-slate-600">Consultant / Engineer:</span><span class="text-slate-800" id="certConsultantName"></span></div>
+            <div class="flex"><span class="w-36 shrink-0 font-semibold text-slate-600">Contractor &amp; Pkg:</span><span class="font-bold text-amber-900" id="certContractorName"></span></div>
+          </div>
+          <div class="space-y-2 md:border-l md:pl-4 border-slate-200">
+            <div class="flex"><span class="w-36 shrink-0 font-semibold text-slate-600">Contract Reference:</span><span class="font-medium text-slate-800" id="certContractRef"></span></div>
+            <div class="flex"><span class="w-36 shrink-0 font-semibold text-slate-600">Package Trade:</span><span class="font-semibold text-slate-800" id="certPackageTrade"></span></div>
+            <div class="flex"><span class="w-36 shrink-0 font-semibold text-slate-600">Contract Dates:</span><span class="text-slate-800" id="certContractDates"></span></div>
+            <div class="flex"><span class="w-36 shrink-0 font-semibold text-slate-600">Contract Currency:</span><span class="font-bold text-slate-900">Saudi Arabian Riyal (SAR)</span></div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-sm border-collapse min-w-[760px]">
+            <thead>
+              <tr class="bg-slate-900 text-white font-semibold">
+                <th class="py-3 px-4 w-12 text-center">Item</th>
+                <th class="py-3 px-4">Description of Valuation Component</th>
+                <th class="py-3 px-4 text-right w-44">Amount to Date (SAR)</th>
+                <th class="py-3 px-4 text-right w-44">Previous Certified (SAR)</th>
+                <th class="py-3 px-4 text-right w-44 bg-amber-900/40">This Period Due (SAR)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-center text-slate-500">1.0</td>
+                <td class="py-2.5 px-4 font-semibold text-slate-800">Value of Permanent &amp; Temporary Works Executed to Date (BOQ)</td>
+                <td class="py-2.5 px-4 text-right font-medium text-slate-900" id="valRow1Cum"></td>
+                <td class="py-2.5 px-4 text-right text-slate-600" id="valRow1Prev"></td>
+                <td class="py-2.5 px-4 text-right font-semibold text-slate-900 bg-amber-50/30" id="valRow1Period"></td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-center text-slate-500">2.0</td>
+                <td class="py-2.5 px-4 font-semibold text-slate-800">Approved Variation Orders (VOs)</td>
+                <td class="py-2.5 px-4 text-right font-medium text-slate-900" id="valRow2Cum"></td>
+                <td class="py-2.5 px-4 text-right text-slate-600" id="valRow2Prev"></td>
+                <td class="py-2.5 px-4 text-right font-semibold text-slate-900 bg-amber-50/30" id="valRow2Period"></td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-center text-slate-500">3.0</td>
+                <td class="py-2.5 px-4 font-semibold text-slate-800">Materials Delivered on Site (MOS, at contractual valuation %)</td>
+                <td class="py-2.5 px-4 text-right font-medium text-slate-900" id="valRow3Cum"></td>
+                <td class="py-2.5 px-4 text-right text-slate-600" id="valRow3Prev"></td>
+                <td class="py-2.5 px-4 text-right font-semibold text-slate-900 bg-amber-50/30" id="valRow3Period"></td>
+              </tr>
+              <tr class="bg-slate-100 font-bold border-y-2 border-slate-300">
+                <td class="py-3 px-4 text-center">A</td>
+                <td class="py-3 px-4 uppercase text-slate-900">Total Gross Certified (1.0 + 2.0 + 3.0)</td>
+                <td class="py-3 px-4 text-right text-slate-900 text-base" id="valGrossCum"></td>
+                <td class="py-3 px-4 text-right text-slate-700" id="valGrossPrev"></td>
+                <td class="py-3 px-4 text-right text-amber-900 font-bold bg-amber-100/60" id="valGrossPeriod"></td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-center text-slate-500">4.0</td>
+                <td class="py-2.5 px-4 text-slate-700">
+                  <div class="font-medium text-slate-900">Less: Retention (<span id="valRetRateText"></span> of Works &amp; VOs, capped at <span id="valRetCapRateText"></span> of Revised Contract Sum)</div>
+                  <span class="text-xs text-slate-500">Max Cap: <span id="valRetentionCapText"></span></span>
+                </td>
+                <td class="py-2.5 px-4 text-right font-medium text-rose-600" id="valRetCum"></td>
+                <td class="py-2.5 px-4 text-right text-slate-600" id="valRetPrev"></td>
+                <td class="py-2.5 px-4 text-right font-semibold text-rose-600 bg-amber-50/30" id="valRetPeriod"></td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-center text-slate-500">5.0</td>
+                <td class="py-2.5 px-4 text-slate-700">
+                  <div class="font-medium text-slate-900">Less: Advance Payment Recovery (<span id="valAdvRateText"></span> of gross, up to advance paid)</div>
+                  <span class="text-xs text-slate-500">Cumulative Recovered: <span id="valAdvanceRecPct"></span></span>
+                </td>
+                <td class="py-2.5 px-4 text-right font-medium text-rose-600" id="valAdvCum"></td>
+                <td class="py-2.5 px-4 text-right text-slate-600" id="valAdvPrev"></td>
+                <td class="py-2.5 px-4 text-right font-semibold text-rose-600 bg-amber-50/30" id="valAdvPeriod"></td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-center text-slate-500">6.0</td>
+                <td class="py-2.5 px-4 text-slate-700">
+                  <div class="font-medium text-slate-900">Less: Other Contractual Deductions (NCR Withholding / Safety Penalties)</div>
+                  <span class="text-xs text-slate-500">Set on the Retention &amp; Advance Recovery tab</span>
+                </td>
+                <td class="py-2.5 px-4 text-right font-medium text-rose-600" id="valOthCum"></td>
+                <td class="py-2.5 px-4 text-right text-slate-600" id="valOthPrev"></td>
+                <td class="py-2.5 px-4 text-right font-semibold text-rose-600 bg-amber-50/30" id="valOthPeriod"></td>
+              </tr>
+              <tr class="bg-rose-50/40 text-rose-900 font-semibold">
+                <td class="py-2 px-4 text-center">B</td>
+                <td class="py-2 px-4 uppercase text-xs">Total Deductions (4.0 + 5.0 + 6.0)</td>
+                <td class="py-2 px-4 text-right" id="valDedTotalCum"></td>
+                <td class="py-2 px-4 text-right text-slate-600" id="valDedTotalPrev"></td>
+                <td class="py-2 px-4 text-right bg-amber-100/50 text-rose-700" id="valDedTotalPeriod"></td>
+              </tr>
+              <tr class="bg-slate-50 font-bold border-t border-slate-300">
+                <td class="py-3 px-4 text-center">C</td>
+                <td class="py-3 px-4 uppercase text-slate-900">Net Amount Certified (Excluding VAT) [A − B]</td>
+                <td class="py-3 px-4 text-right text-slate-900" id="valNetCum"></td>
+                <td class="py-3 px-4 text-right text-slate-600" id="valNetPrev"></td>
+                <td class="py-3 px-4 text-right text-slate-900 text-base bg-amber-50" id="valNetPeriod"></td>
+              </tr>
+              <tr>
+                <td class="py-2.5 px-4 font-bold text-center text-slate-500">7.0</td>
+                <td class="py-2.5 px-4 text-slate-800">
+                  <div class="font-semibold text-slate-900">Value Added Tax (<span id="valVatRateText"></span> KSA VAT)</div>
+                  <span class="text-xs text-slate-500">Calculated on Net Certified Amount</span>
+                </td>
+                <td class="py-2.5 px-4 text-right text-slate-600" id="valVatCum"></td>
+                <td class="py-2.5 px-4 text-right text-slate-600" id="valVatPrev"></td>
+                <td class="py-2.5 px-4 text-right font-semibold text-amber-700 bg-amber-50/30" id="valVatPeriod"></td>
+              </tr>
+              <tr class="bg-gradient-to-r from-midad-navy to-slate-900 text-white font-extrabold text-base border-t-2 border-midad-gold">
+                <td class="py-4 px-4 text-center text-midad-gold">TOTAL</td>
+                <td class="py-4 px-4 uppercase tracking-wider">Net Amount Certified Payable to Contractor (Incl. <span id="valVatRateText2"></span> VAT)</td>
+                <td class="py-4 px-4 text-right text-slate-300 font-normal text-sm" id="valTotalIncVatCum"></td>
+                <td class="py-4 px-4 text-right text-slate-300 font-normal text-sm" id="valTotalIncVatPrev"></td>
+                <td class="py-4 px-4 text-right text-xl text-midad-gold font-bold bg-amber-500/20" id="valTotalIncVatPeriod"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-6 p-4 rounded-lg bg-amber-50/60 border border-amber-200">
+          <p class="text-xs font-semibold uppercase text-amber-800 tracking-wider">Amount Due in Words (Saudi Riyals):</p>
+          <p class="text-sm font-bold text-slate-900 mt-1 italic" id="certAmountInWords"></p>
+        </div>
+
+        <div class="mt-10 pt-8 border-t-2 border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-6 text-xs sm:text-sm">
+          <div class="border border-slate-200 rounded-lg p-4 bg-slate-50/60 flex flex-col justify-between min-h-[14rem]">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-900 uppercase">1. Contractor Application</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">Submitted</span>
+              </div>
+              <p class="text-slate-500 text-xs mt-1" id="certContractorSignCompany"></p>
+              <div class="mt-4 text-slate-700 text-xs space-y-1">
+                <p><strong>Name:</strong> <span id="certContractorSignName"></span></p>
+                <p><strong>Role:</strong> <span id="certContractorSignRole"></span></p>
+                <p><strong>Submission:</strong> Verified joint measurement</p>
+              </div>
+            </div>
+            <div class="border-t border-dashed border-slate-300 pt-2 text-center">
+              <div class="font-display italic text-base text-blue-900 font-semibold py-1" id="certContractorSignSig"></div>
+              <span class="text-xs text-slate-400">Contractor Signature</span>
+            </div>
+          </div>
+
+          <div class="border border-slate-200 rounded-lg p-4 bg-slate-50/60 flex flex-col justify-between min-h-[14rem]">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-900 uppercase">2. Supervising Engineer</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">Certified</span>
+              </div>
+              <p class="text-slate-500 text-xs mt-1" id="certEngineerCompany"></p>
+              <div class="mt-4 text-slate-700 text-xs space-y-1">
+                <p><strong>Name:</strong> <span id="certEngineerName"></span></p>
+                <p><strong>Role:</strong> <span id="certEngineerRole"></span></p>
+                <p><strong>Certification:</strong> Quantities inspected &amp; stamped</p>
+              </div>
+            </div>
+            <div class="border-t border-dashed border-slate-300 pt-2 text-center">
+              <div class="font-display italic text-base text-emerald-800 font-semibold py-1" id="certEngineerSig"></div>
+              <span class="text-xs text-slate-400">Engineer's Seal &amp; Quantity Certification</span>
+            </div>
+          </div>
+
+          <div class="border-2 border-midad-gold/60 rounded-lg p-4 bg-amber-50/30 flex flex-col justify-between min-h-[14rem]">
+            <div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-slate-900 uppercase">3. ASCTO Approval</span>
+                <span class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold" id="midadApprovalBadge">Under Review</span>
+              </div>
+              <p class="text-slate-500 text-xs mt-1">ASCTO Project Development &amp; Contracts</p>
+              <div class="mt-4 text-slate-700 text-xs space-y-1">
+                <p><strong>Name:</strong> <span id="certApproverName"></span></p>
+                <p><strong>Role:</strong> <span id="certApproverRole"></span></p>
+                <p><strong>Authorization:</strong> Executive IPC Sign-off</p>
+              </div>
+            </div>
+            <div class="border-t border-dashed border-amber-300 pt-2 text-center" id="approverSigBlock">
+              <div class="font-display italic text-base text-midad-gold font-bold py-1" id="certApproverSig"></div>
+              <span class="text-xs text-amber-800 font-medium">ASCTO Executive Authorization Stamp</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-200 flex flex-col sm:flex-row justify-between gap-1 text-xs text-slate-400">
+          <span>FIDIC Conditions of Contract for Construction (1999/2017) Clause 14.6 - Interim Payment</span>
+          <span>System Generated Record • ASCTO-FIN-IPC</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: BOQ -->
+    <section id="content-boq" class="tab-content hidden space-y-6">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Bill of Quantities (BOQ) Progress Measurement</h3>
+            <p class="text-sm text-slate-500">Certified work quantities for the current valuation period.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <input type="search" id="boqSearch" placeholder="Search item, trade or code..." class="text-sm px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-midad-gold w-64 max-w-full">
+            <button id="btnAddBoq" class="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition">+ Add BOQ Item</button>
+            <button id="btnResetDemo" class="px-3 py-1.5 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-100 transition">Reset Demo</button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-200 rounded-lg custom-scrollbar">
+          <table class="w-full text-left text-xs border-collapse min-w-[1100px]">
+            <thead class="bg-slate-800 text-white uppercase tracking-wider font-semibold">
+              <tr>
+                <th class="py-3 px-3 w-16">Item No</th>
+                <th class="py-3 px-3">Description of Work Item</th>
+                <th class="py-3 px-2 w-16 text-center">Unit</th>
+                <th class="py-3 px-3 w-24 text-right">Contract Qty</th>
+                <th class="py-3 px-3 w-28 text-right">Unit Rate (SAR)</th>
+                <th class="py-3 px-3 w-28 text-right">Contract Sum (SAR)</th>
+                <th class="py-3 px-3 w-24 text-right">Prev Qty</th>
+                <th class="py-3 px-3 w-28 text-right bg-amber-900/60">This Qty (Edit)</th>
+                <th class="py-3 px-3 w-24 text-right">Total Qty</th>
+                <th class="py-3 px-2 w-20 text-center">% Comp</th>
+                <th class="py-3 px-3 w-32 text-right bg-amber-900/40">Total Value (SAR)</th>
+                <th class="py-3 px-2 w-12 text-center no-print">Action</th>
+              </tr>
+            </thead>
+            <tbody id="boqTableBody" class="divide-y divide-slate-200"></tbody>
+            <tfoot class="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
+              <tr>
+                <td colspan="5" class="py-3 px-4 uppercase text-right">BOQ Subtotal:</td>
+                <td class="py-3 px-3 text-right" id="boqFooterContractTotal"></td>
+                <td colspan="4" class="py-3 px-3 text-right uppercase">Total BOQ Value Certified:</td>
+                <td class="py-3 px-3 text-right text-emerald-700 text-sm font-bold" id="boqFooterCertifiedTotal"></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="mt-4 flex flex-col sm:flex-row justify-between gap-2 text-xs text-slate-500">
+          <span>* Quantities certified jointly by Consultant Resident QS &amp; Contractor QS. ▲ = exceeds contract quantity.</span>
+          <span class="text-amber-800 font-semibold bg-amber-50 px-2 py-1 rounded border border-amber-200">Edit "This Qty" inline — the certificate recalculates and saves automatically.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: VARIATIONS & MOS -->
+    <section id="content-variations" class="tab-content hidden space-y-6">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Variation Orders Register</h3>
+            <p class="text-xs text-slate-500">Only <strong>Approved</strong> VOs count toward the revised sum and valuation. Click a status to toggle it.</p>
+          </div>
+          <button id="btnAddVo" class="px-3 py-1.5 bg-midad-gold text-white rounded-lg text-xs font-semibold hover:bg-midad-goldHover transition">+ Add Variation Order</button>
+        </div>
+        <div class="overflow-x-auto border border-slate-200 rounded-lg custom-scrollbar">
+          <table class="w-full text-left text-xs border-collapse min-w-[900px]">
+            <thead class="bg-slate-100 text-slate-700 uppercase font-semibold">
+              <tr>
+                <th class="py-2.5 px-3 w-20">VO No</th>
+                <th class="py-2.5 px-3">Description of Variation Scope</th>
+                <th class="py-2.5 px-3 w-28 text-center">Date</th>
+                <th class="py-2.5 px-3 w-32 text-right">Amount (SAR)</th>
+                <th class="py-2.5 px-3 w-20 text-center">Prev %</th>
+                <th class="py-2.5 px-3 w-28 text-center">% To Date</th>
+                <th class="py-2.5 px-3 w-32 text-right">Certified to Date</th>
+                <th class="py-2.5 px-3 w-24 text-center">Status</th>
+                <th class="py-2.5 px-2 w-12 text-center no-print">Action</th>
+              </tr>
+            </thead>
+            <tbody id="voTableBody" class="divide-y divide-slate-200"></tbody>
+            <tfoot class="bg-slate-50 font-bold border-t border-slate-200 text-slate-800">
+              <tr>
+                <td colspan="3" class="py-2.5 px-3 text-right uppercase">Total Approved Variations:</td>
+                <td class="py-2.5 px-3 text-right" id="voTotalApprovedSum"></td>
+                <td colspan="2"></td>
+                <td class="py-2.5 px-3 text-right text-emerald-700" id="voTotalCertifiedSum"></td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Materials Delivered on Site (MOS Schedule)</h3>
+            <p class="text-xs text-slate-500">Unfixed materials stored on site. Reduce "Stored Qty" as materials are built in — the period movement goes negative, which is correct.</p>
+          </div>
+          <button id="btnAddMos" class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-semibold hover:bg-slate-700 transition">+ Add MOS Consignment</button>
+        </div>
+        <div class="overflow-x-auto border border-slate-200 rounded-lg custom-scrollbar">
+          <table class="w-full text-left text-xs border-collapse min-w-[1000px]">
+            <thead class="bg-slate-100 text-slate-700 uppercase font-semibold">
+              <tr>
+                <th class="py-2.5 px-3 w-20">Ref No</th>
+                <th class="py-2.5 px-3">Material Description &amp; Storage</th>
+                <th class="py-2.5 px-2 w-16 text-center">Unit</th>
+                <th class="py-2.5 px-3 w-24 text-right">Prev Qty</th>
+                <th class="py-2.5 px-3 w-28 text-right">Stored Qty (Edit)</th>
+                <th class="py-2.5 px-3 w-28 text-right">Invoice Rate</th>
+                <th class="py-2.5 px-3 w-32 text-right">Invoice Total</th>
+                <th class="py-2.5 px-3 w-20 text-center">Val. %</th>
+                <th class="py-2.5 px-3 w-32 text-right">Certified Value</th>
+                <th class="py-2.5 px-2 w-12 text-center no-print">Action</th>
+              </tr>
+            </thead>
+            <tbody id="mosTableBody" class="divide-y divide-slate-200"></tbody>
+            <tfoot class="bg-slate-50 font-bold border-t border-slate-200 text-slate-800">
+              <tr>
+                <td colspan="6" class="py-2.5 px-3 text-right uppercase">Total Materials on Site:</td>
+                <td class="py-2.5 px-3 text-right" id="mosInvoiceTotal"></td>
+                <td></td>
+                <td class="py-2.5 px-3 text-right text-emerald-700" id="mosCertifiedTotal"></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: DEDUCTIONS -->
+    <section id="content-deductions" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+          <div class="border-b pb-3">
+            <h3 class="font-bold text-slate-900 text-base">Advance Payment Recovery Tracker</h3>
+            <p class="text-xs text-slate-500">Mobilization advance amortized against each certificate</p>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between gap-3 py-1 border-b border-slate-100"><span class="text-slate-600">Total Advance Payment Paid:</span><span class="font-bold text-slate-900" id="advCardTotalPaid"></span></div>
+            <div class="flex justify-between gap-3 py-1 border-b border-slate-100"><span class="text-slate-600">Cumulative Recovery to Date:</span><span class="font-bold text-rose-600" id="advCardCumRecovered"></span></div>
+            <div class="flex justify-between gap-3 py-1 border-b border-slate-100"><span class="text-slate-600">Remaining Advance Balance:</span><span class="font-bold text-slate-900" id="advCardBalance"></span></div>
+            <div class="flex justify-between gap-3 py-1 border-b border-slate-100"><span class="text-slate-600">Recovery Rate:</span><span class="font-medium text-slate-800 text-right" id="advCardRate"></span></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs font-semibold mb-1"><span class="text-slate-600">Recovery Progress</span><span class="text-slate-900" id="advCardPct"></span></div>
+            <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-blue-600 rounded-full transition-all duration-500" id="advCardProgressBar" style="width:0%"></div></div>
+          </div>
+          <div class="p-3 bg-blue-50/60 rounded-lg text-xs text-blue-900 border border-blue-100">
+            <strong>FIDIC Note:</strong> The advance payment guarantee can be reduced in step with amounts recovered.
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+          <div class="border-b pb-3">
+            <h3 class="font-bold text-slate-900 text-base">Retention Money Matrix</h3>
+            <p class="text-xs text-slate-500">Security for defects liability &amp; performance</p>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between gap-3 py-1 border-b border-slate-100"><span class="text-slate-600">Retention Deduction Rate:</span><span class="font-medium text-slate-800" id="retCardRate"></span></div>
+            <div class="flex justify-between gap-3 py-1 border-b border-slate-100"><span class="text-slate-600" id="retCardCapLabel"></span><span class="font-bold text-slate-900" id="retCardCapLimit"></span></div>
+            <div class="flex justify-between gap-3 py-1 border-b border-slate-100"><span class="text-slate-600">Cumulative Retention Withheld:</span><span class="font-bold text-rose-600" id="retCardCumWithheld"></span></div>
+            <div class="flex justify-between gap-3 py-1 border-b border-slate-100"><span class="text-slate-600">Remaining Room Before Cap:</span><span class="font-bold text-emerald-700" id="retCardRemainingCap"></span></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs font-semibold mb-1"><span class="text-slate-600">Cap Utilization</span><span class="text-slate-900" id="retCardPct"></span></div>
+            <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-amber-600 rounded-full transition-all duration-500" id="retCardProgressBar" style="width:0%"></div></div>
+          </div>
+          <div class="p-3 bg-amber-50/60 rounded-lg text-xs text-amber-900 border border-amber-200">
+            <strong>Release Schedule:</strong> 50% on Taking-Over Certificate, 50% on Performance Certificate after the defects notification period.
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-bold text-slate-900 text-base">Other Contractual Deductions (Item 6.0)</h3>
+        <p class="text-xs text-slate-500 mb-4">NCR withholding, safety penalties or back-charges for the current period. A negative value releases a previous withholding.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm items-end">
+          <div><span class="block text-xs text-slate-500 uppercase font-semibold">Previous Cumulative</span><span class="font-bold text-slate-900" id="othPrevDisplay"></span></div>
+          <label class="block"><span class="block text-xs text-slate-500 uppercase font-semibold mb-1">This Period (SAR)</span>
+            <input type="number" step="0.01" id="othPeriodInput" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <div><span class="block text-xs text-slate-500 uppercase font-semibold">Cumulative to Date</span><span class="font-bold text-rose-600" id="othCumDisplay"></span></div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-bold text-slate-900 text-base">IPC Deduction &amp; Payment Ledger</h3>
+        <p class="text-xs text-slate-500 mb-4">Per-certificate movements. Prior rows sum to the "Previous Certified" column of the active certificate.</p>
+        <div class="overflow-x-auto border border-slate-200 rounded-lg custom-scrollbar">
+          <table class="w-full text-left text-xs border-collapse min-w-[1100px]">
+            <thead class="bg-slate-100 text-slate-700 uppercase font-semibold">
+              <tr>
+                <th class="py-2.5 px-3">IPC No</th>
+                <th class="py-2.5 px-3">Period</th>
+                <th class="py-2.5 px-3 text-right">Gross</th>
+                <th class="py-2.5 px-3 text-right">Retention</th>
+                <th class="py-2.5 px-3 text-right">Advance Rec.</th>
+                <th class="py-2.5 px-3 text-right">Other Ded.</th>
+                <th class="py-2.5 px-3 text-right">Net</th>
+                <th class="py-2.5 px-3 text-right">VAT</th>
+                <th class="py-2.5 px-3 text-right">Total Payable</th>
+                <th class="py-2.5 px-3 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody id="histTableBody" class="divide-y divide-slate-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: WORKFLOW -->
+    <section id="content-workflow" class="tab-content hidden space-y-6">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="text-lg font-bold text-slate-900 mb-1">FIDIC Multi-Tier IPC Sign-off Workflow</h3>
+        <p class="text-xs text-slate-500 mb-6">Contractor Application → Engineer Verification → ASCTO Commercial Approval → Finance Disbursement. The next IPC cycle can only be opened once the current one is approved.</p>
+
+        <div class="flex flex-col md:flex-row justify-between mb-10 pb-6 border-b border-slate-200 gap-6">
+          <div class="flex items-start space-x-3 flex-1">
+            <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">✓</div>
+            <div>
+              <p class="text-xs font-bold uppercase text-emerald-700">Stage 1: Contractor</p>
+              <h4 class="font-bold text-slate-900 text-sm">Application for Payment</h4>
+              <p class="text-xs text-slate-500 mt-1">Submitted with joint measurements, test records &amp; site photos.</p>
+            </div>
+          </div>
+          <div class="flex items-start space-x-3 flex-1">
+            <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">✓</div>
+            <div>
+              <p class="text-xs font-bold uppercase text-emerald-700">Stage 2: Engineer</p>
+              <h4 class="font-bold text-slate-900 text-sm">Quantity Survey Verification</h4>
+              <p class="text-xs text-slate-500 mt-1">Quantities verified against physical inspections.</p>
+            </div>
+          </div>
+          <div class="flex items-start space-x-3 flex-1">
+            <div id="stage3Icon" class="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-sm shrink-0">3</div>
+            <div>
+              <p class="text-xs font-bold uppercase text-amber-700">Stage 3: ASCTO Commercial</p>
+              <h4 class="font-bold text-slate-900 text-sm">Commercial Approval</h4>
+              <p class="text-xs text-slate-500 mt-1">Budget clearance and contractual compliance review.</p>
+              <span id="stage3Status" class="inline-block mt-2 text-[10px] px-2 py-0.5 rounded"></span>
+              <div class="mt-2 flex gap-2">
+                <button id="btnApprove" class="px-2.5 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:bg-emerald-700 transition disabled:opacity-40 disabled:cursor-not-allowed">Approve</button>
+                <button id="btnReturn" class="px-2.5 py-1 bg-rose-600 text-white rounded text-xs font-medium hover:bg-rose-700 transition disabled:opacity-40 disabled:cursor-not-allowed">Return w/ Snags</button>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-start space-x-3 flex-1">
+            <div id="stage4Icon" class="w-8 h-8 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center font-bold text-sm shrink-0">4</div>
+            <div>
+              <p class="text-xs font-bold uppercase text-slate-500">Stage 4: Finance</p>
+              <h4 class="font-bold text-slate-900 text-sm">ZATCA Tax Invoice &amp; Pay</h4>
+              <p class="text-xs text-slate-500 mt-1">Treasury release via corporate bank transfer.</p>
+              <span id="stage4Status" class="inline-block mt-2 text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded"></span>
+            </div>
+          </div>
+        </div>
+
+        <h4 class="font-bold text-slate-900 text-sm mb-3">Audit Trail &amp; Action Log</h4>
+        <div class="space-y-3" id="auditTrailContainer"></div>
+      </div>
+    </section>
+
+    <!-- TAB: ANALYTICS -->
+    <section id="content-analytics" class="tab-content hidden space-y-6">
+      <div id="chartUnavailable" hidden class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 text-sm">
+        Charts could not load (Chart.js CDN unreachable). Figures below are still accurate.
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <h3 class="font-bold text-slate-900 text-base">Package S-Curve</h3>
+          <p class="text-xs text-slate-500 mb-4">Cumulative certified gross vs. an indicative logistic baseline over the project duration (no programme baseline loaded).</p>
+          <div class="h-64"><canvas id="scurveChart" aria-label="S-curve chart" role="img"></canvas></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <h3 class="font-bold text-slate-900 text-base">Net Payable per IPC</h3>
+          <p class="text-xs text-slate-500 mb-4">Incl. VAT · <span class="inline-block w-2 h-2 rounded-sm bg-slate-900"></span> disbursed · <span class="inline-block w-2 h-2 rounded-sm bg-blue-500"></span> certified unpaid · <span class="inline-block w-2 h-2 rounded-sm bg-midad-gold"></span> active</p>
+          <div class="h-64"><canvas id="cashflowChart" aria-label="Cash flow chart" role="img"></canvas></div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-bold text-slate-900 text-base mb-4">Contract Sum Distribution &amp; Financial Exposure</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+          <div class="p-4 rounded-lg bg-slate-50 border border-slate-200">
+            <p class="text-xs text-slate-500 uppercase font-semibold">Total Cumulative Certified</p>
+            <p class="text-2xl font-bold text-slate-900 mt-1" id="analyticsGrossCertified"></p>
+            <span class="text-xs text-emerald-600 font-semibold" id="analyticsGrossPct"></span>
+          </div>
+          <div class="p-4 rounded-lg bg-slate-50 border border-slate-200">
+            <p class="text-xs text-slate-500 uppercase font-semibold">Withheld (Retention + Advance)</p>
+            <p class="text-2xl font-bold text-rose-600 mt-1" id="analyticsDeductions"></p>
+            <span class="text-xs text-slate-500">Secured against performance</span>
+          </div>
+          <div class="p-4 rounded-lg bg-slate-50 border border-slate-200">
+            <p class="text-xs text-slate-500 uppercase font-semibold">Remaining Uncertified Scope</p>
+            <p class="text-2xl font-bold text-blue-700 mt-1" id="analyticsUncertifiedScope"></p>
+            <span class="text-xs text-blue-600 font-semibold" id="analyticsUncertifiedPct"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL: Contractor -->
+  <div id="contractorModal" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 no-print" role="dialog" aria-modal="true" aria-labelledby="contractorModalTitle">
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b pb-3">
+        <div>
+          <h3 id="contractorModalTitle" class="font-bold text-slate-900 text-base">Enlist New Contractor / Package</h3>
+          <p class="text-xs text-slate-500">Adds a trade contractor under the active project.</p>
+        </div>
+        <button data-action="close-modal" data-target="contractorModal" class="text-slate-400 hover:text-slate-600" aria-label="Close">✕</button>
+      </div>
+      <form id="contractorForm" class="space-y-4 mt-4 text-xs">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Contractor Legal Name *</span>
+            <input type="text" id="modalContractorCompany" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Package / Scope Title *</span>
+            <input type="text" id="modalContractorPackage" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Trade Category</span>
+            <select id="modalContractorTrade" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none bg-white">
+              <optgroup label="Mixed-Use">
+                <option value="Mixed-Use: Podium & Multi-tenant Core">Podium &amp; Multi-tenant Core</option>
+                <option value="Mixed-Use: Central Logistics & Loading Docks">Central Logistics &amp; Loading Docks</option>
+                <option value="Mixed-Use: Mixed-Use MEP & Life Safety">Mixed-Use MEP &amp; Life Safety</option>
+                <option value="Mixed-Use: Plaza & Urban Public Realm">Plaza &amp; Urban Public Realm</option>
+              </optgroup>
+              <optgroup label="Plants & Industrial Utilities">
+                <option value="Plants: District Cooling Plant (DCP)">District Cooling Plant (DCP &amp; Chillers)</option>
+                <option value="Plants: High-Voltage Electrical Substation">High-Voltage Substation (110kV/13.8kV)</option>
+                <option value="Plants: Reverse Osmosis & STP Water Treatment">Reverse Osmosis &amp; STP Water Treatment</option>
+                <option value="Plants: Heavy Process Piping & Pump Stations">Heavy Process Piping &amp; Pump Stations</option>
+                <option value="Plants: Solar PV & Renewable Generation">Solar PV &amp; Renewable Generation</option>
+              </optgroup>
+              <optgroup label="Hospitality">
+                <option value="Hospitality: Luxury Hotel Interior Fit-out & Millwork">Luxury Hotel Interior Fit-out &amp; Millwork</option>
+                <option value="Hospitality: Hotel FF&E and OS&E">Hotel FF&amp;E and Specialist OS&amp;E</option>
+                <option value="Hospitality: Commercial Kitchens & Laundry Facilities">Commercial Kitchens &amp; Laundry Facilities</option>
+                <option value="Hospitality: Guest Room Management (GRMS) & IPTV">Guest Room Management (GRMS) &amp; IPTV</option>
+                <option value="Hospitality: Spa, Pools & Hydrotherapy Features">Spa, Pools &amp; Hydrotherapy Features</option>
+              </optgroup>
+              <optgroup label="Retail Malls & Entertainment">
+                <option value="Malls: Grand Atrium ETFE Skylights & Tensile Roofing">Grand Atrium ETFE Skylights &amp; Tensile Roof</option>
+                <option value="Malls: Cinema Multiplex & FEC Entertainment">Cinema Multiplex &amp; FEC Entertainment</option>
+                <option value="Malls: Anchor Tenant Shell & Core Handover">Anchor Tenant Shell &amp; Core Handover</option>
+                <option value="Malls: Digital Signage, LED Walls & Media Façades">Digital Signage, LED Walls &amp; Media Façades</option>
+                <option value="Malls: Tenant Sub-metering & Smoke Extraction">Tenant Sub-metering &amp; Smoke Extraction</option>
+              </optgroup>
+              <optgroup label="Residential">
+                <option value="Residential: Luxury Villa & Apartment Fit-out">Luxury Villa &amp; Apartment Fit-out</option>
+                <option value="Residential: Smart Home Automation & Intercom">Smart Home Automation &amp; Intercom</option>
+                <option value="Residential: Prefabricated Modular Bathroom Pods">Prefabricated Modular Bathroom Pods</option>
+                <option value="Residential: Community Landscape & Gated Amenities">Community Landscape &amp; Gated Amenities</option>
+                <option value="Residential: Private Elevators & Parking Systems">Private Elevators &amp; Parking Systems</option>
+              </optgroup>
+              <optgroup label="Core Structural & Envelope">
+                <option value="Core: Civil & Heavy Concrete Superstructure">Civil &amp; Heavy Concrete Superstructure</option>
+                <option value="Core: Building Envelope & Unitized Façade">Building Envelope &amp; Unitized Façade</option>
+                <option value="Core: Enabling Works & Deep Excavation">Enabling Works &amp; Deep Excavation</option>
+              </optgroup>
+            </select></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Contract Reference *</span>
+            <input type="text" id="modalContractorRef" required placeholder="e.g. ASCTO-PKG-04-ELEC" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Contract Value (SAR) *</span>
+            <input type="number" step="0.01" min="0.01" id="modalContractorSum" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Advance Payment (SAR) — blank = 10%</span>
+            <input type="number" step="0.01" min="0" id="modalContractorAdv" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Advance Recovery (%)</span>
+            <input type="number" step="0.1" min="0" max="100" id="modalContractorAdvRate" value="10" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Retention Rate (%)</span>
+            <input type="number" step="0.1" min="0" max="100" id="modalContractorRetRate" value="10" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Retention Cap (%)</span>
+            <input type="number" step="0.1" min="0" max="100" id="modalContractorRetCap" value="5" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Contractor Lead QS / Manager *</span>
+            <input type="text" id="modalContractorRepName" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Representative Title</span>
+            <input type="text" id="modalContractorRepRole" value="Commercial Project Manager" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t">
+          <button type="button" data-action="close-modal" data-target="contractorModal" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-midad-gold hover:bg-midad-goldHover text-white font-semibold rounded-lg shadow">Register Contractor Package</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: BOQ -->
+  <div id="boqModal" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 no-print" role="dialog" aria-modal="true" aria-labelledby="boqModalTitle">
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full p-6">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 id="boqModalTitle" class="font-bold text-slate-900 text-base">Add BOQ Item</h3>
+        <button data-action="close-modal" data-target="boqModal" class="text-slate-400 hover:text-slate-600" aria-label="Close">✕</button>
+      </div>
+      <form id="boqForm" class="space-y-4 mt-4 text-xs">
+        <label class="block"><span class="block font-semibold text-slate-700 mb-1">Item Code</span>
+          <input type="text" id="modalBoqCode" required placeholder="e.g. 03.20.10" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        <label class="block"><span class="block font-semibold text-slate-700 mb-1">Description of Work</span>
+          <input type="text" id="modalBoqDesc" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Unit</span>
+            <input type="text" id="modalBoqUnit" required placeholder="m3, m2, ton, LS" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Unit Rate (SAR)</span>
+            <input type="number" step="0.01" min="0" id="modalBoqRate" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Contract Qty</span>
+            <input type="number" step="any" min="0" id="modalBoqContractQty" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Prev Qty</span>
+            <input type="number" step="any" min="0" id="modalBoqPrevQty" required value="0" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">This Period Qty</span>
+            <input type="number" step="any" id="modalBoqThisQty" required value="0" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t">
+          <button type="button" data-action="close-modal" data-target="boqModal" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-midad-gold hover:bg-midad-goldHover text-white font-semibold rounded-lg">Save BOQ Item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: VO -->
+  <div id="voModal" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 no-print" role="dialog" aria-modal="true" aria-labelledby="voModalTitle">
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full p-6">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 id="voModalTitle" class="font-bold text-slate-900 text-base">Register Variation Order</h3>
+        <button data-action="close-modal" data-target="voModal" class="text-slate-400 hover:text-slate-600" aria-label="Close">✕</button>
+      </div>
+      <form id="voForm" class="space-y-4 mt-4 text-xs">
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">VO Identifier</span>
+            <input type="text" id="modalVoCode" required placeholder="VO-03" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Status</span>
+            <select id="modalVoStatus" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none bg-white">
+              <option value="Approved">Approved</option>
+              <option value="Pending">Pending</option>
+            </select></label>
+        </div>
+        <label class="block"><span class="block font-semibold text-slate-700 mb-1">Description of Scope Change</span>
+          <textarea id="modalVoDesc" rows="2" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></textarea></label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Amount (SAR, negative for omission)</span>
+            <input type="number" step="0.01" id="modalVoAmount" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">% Complete</span>
+            <input type="number" step="any" max="100" min="0" id="modalVoPct" required value="0" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t">
+          <button type="button" data-action="close-modal" data-target="voModal" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-midad-gold hover:bg-midad-goldHover text-white font-semibold rounded-lg">Save Variation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: MOS -->
+  <div id="mosModal" class="modal-backdrop fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 no-print" role="dialog" aria-modal="true" aria-labelledby="mosModalTitle">
+    <div class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full p-6">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 id="mosModalTitle" class="font-bold text-slate-900 text-base">Add Materials on Site Consignment</h3>
+        <button data-action="close-modal" data-target="mosModal" class="text-slate-400 hover:text-slate-600" aria-label="Close">✕</button>
+      </div>
+      <form id="mosForm" class="space-y-4 mt-4 text-xs">
+        <label class="block"><span class="block font-semibold text-slate-700 mb-1">Consignment Ref</span>
+          <input type="text" id="modalMosCode" required placeholder="MOS-03" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        <label class="block"><span class="block font-semibold text-slate-700 mb-1">Material Item &amp; Storage Area</span>
+          <input type="text" id="modalMosDesc" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        <div class="grid grid-cols-3 gap-3">
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Unit</span>
+            <input type="text" id="modalMosUnit" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Stored Qty</span>
+            <input type="number" step="any" min="0" id="modalMosQty" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+          <label class="block"><span class="block font-semibold text-slate-700 mb-1">Invoice Rate</span>
+            <input type="number" step="0.01" min="0" id="modalMosRate" required class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        </div>
+        <label class="block"><span class="block font-semibold text-slate-700 mb-1">Contractual Valuation % (blank = 75)</span>
+          <input type="number" step="any" min="0" max="100" id="modalMosPct" value="75" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-midad-gold outline-none"></label>
+        <div class="flex justify-end gap-2 pt-3 border-t">
+          <button type="button" data-action="close-modal" data-target="mosModal" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg">Save MOS Consignment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="fixed bottom-5 right-5 left-5 sm:left-auto z-50 space-y-2 pointer-events-none no-print flex flex-col items-end" aria-live="polite"></div>
+
+  <script src="assets/js/calc.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
